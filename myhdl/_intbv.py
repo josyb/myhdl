@@ -485,7 +485,8 @@ class intbv(object):
             return "{:x}".format(v)
 
     def __repr__(self):
-        return "intbv(" + repr(self._val) + ")"
+#         return "intbv(" + repr(self._val) + ")"
+        return "intbv({}, {}, {})".format(self._val, self._min, self._max)
 
     def signed(self):
         ''' Return new intbv with the values interpreted as signed

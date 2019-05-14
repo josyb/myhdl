@@ -215,6 +215,7 @@ class _Block(object):
         self.name = self.__name__ = name
 
         # flatten, but keep BlockInstance objects
+        print('_block __init__ - 1')
         self.subs = _flatten(func(*args, **kwargs))
         self._verifySubs()
         self._updateNamespaces()
@@ -233,6 +234,7 @@ class _Block(object):
             self.vhdl_code = _UserVhdlInstance(deco.vhdl_instance, self.symdict, func.__name__,
                                                func, srcfile, srcline)
         self._config_sim = {'trace': False}
+        print('_block __init__ - 2')
 
     def _verifySubs(self):
         for inst in self.subs:
@@ -279,8 +281,11 @@ class _Block(object):
     def _inferInterface(self):
         from myhdl.conversion._analyze import _analyzeTopFunc
         intf = _analyzeTopFunc(self.func, *self.args, **self.kwargs)
-        self.argnames = intf.argnames
+        self.genericnames = intf.genericnames
+        self.portnames = intf.portnames
         self.argdict = intf.argdict
+        self.genericdict = intf.genericdict
+        self.argnames = intf.argnames
 
     # Public methods
     # The puropse now is to define the API, optimizations later
@@ -321,6 +326,7 @@ class _Block(object):
 
         self._clear()
 
+        print('_block starting conversion - 1')
         if hdl.lower() == 'vhdl':
             converter = myhdl.conversion._toVHDL.toVHDL
         elif hdl.lower() == 'verilog':
@@ -339,6 +345,7 @@ class _Block(object):
         conv_attrs.update(kwargs)
         for k, v in conv_attrs.items():
             setattr(converter, k, v)
+        print('_block starting conversion - 2')
         return converter(self)
 
     def config_sim(self, trace=False, **kwargs) :

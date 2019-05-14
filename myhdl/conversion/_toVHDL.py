@@ -58,6 +58,7 @@ from myhdl._compat import integer_types, class_types, StringIO
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._block import _Block
 from myhdl._getHierarchy import _getHierarchy
+from myhdl._parameter import Parameter
 from myhdl.conversion._misc import (_error, _kind, _context,
                                     _ConversionMixin, _Label, _genUniqueSuffix, _isConstant)
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _analyzeTopFunc,
@@ -144,6 +145,9 @@ class _ToVHDLConvertor(object):
         else:
             # clean start
             sys.setprofile(None)
+        
+        print('compiling once ...')
+            
         from myhdl import _traceSignals
         if _traceSignals._tracing:
             raise ToVHDLError("Cannot use toVHDL while tracing signals")
@@ -162,6 +166,7 @@ class _ToVHDLConvertor(object):
         else:
             name = str(self.name)
 
+        print('compiling twice ...')
         if isinstance(func, _Block):
             try:
                 h = _getHierarchy(name, func)
@@ -215,7 +220,7 @@ class _ToVHDLConvertor(object):
             intf = _analyzeTopFunc(func, *args, **kwargs)
         intf.name = name
         # sanity checks on interface
-        for portname in intf.argnames:
+        for portname in intf.portnames:
             s = intf.argdict[portname]
             if s._name is None:
                 raise ToVHDLError(_error.ShadowingSignal, portname)
@@ -252,6 +257,9 @@ class _ToVHDLConvertor(object):
         _writeTypeDefs(vfile)
         _writeSigDecls(vfile, intf, siglist, memlist)
         _writeCompDecls(vfile, compDecls)
+        print(genlist)
+        print(siglist)
+        print(memlist)
         _convertGens(genlist, siglist, memlist, vfile)
         _writeModuleFooter(vfile, arch)
 
@@ -364,10 +372,27 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
         print(file=f)
     print("entity %s is" % intf.name, file=f)
     del portConversions[:]
-    if intf.argnames:
+    if intf.genericnames:
+        # do we have generics ...
+        print(intf.genericnames)
+        f.write("    generic (")
+        c = ''
+        for genericname in intf.genericnames:
+            _nameValid(genericname)
+            s = intf.genericdict[genericname]
+            f.write("%s" % c)
+            c = ';'
+            r = _getRangeString(s)
+            pt = st = _getParameterTypeString(s)
+            f.write("\n        %s: %s%s := %s" % (genericname, pt, r, s.Value))
+        f.write("\n    );\n")
+    
+    if intf.portnames:
+        print(intf.portnames)
+            
         f.write("    port (")
         c = ''
-        for portname in intf.argnames:
+        for portname in intf.portnames:
             _nameValid(portname)
             s = intf.argdict[portname]
             f.write("%s" % c)
@@ -389,11 +414,7 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
 #             # Check if VHDL keyword or reused name
 #             _nameValid(s._name)
             if s._driven:
-                if s._read:
-                    if not isinstance(s, _TristateSignal):
-                        warnings.warn("%s: %s" % (_error.OutputPortRead, portname),
-                                      category=ToVHDLWarning
-                                      )
+                if s._read and isinstance(s, _TristateSignal):
                     f.write("\n        %s: inout %s%s" % (portname, pt, r))
                 else:
                     f.write("\n        %s: out %s%s" % (portname, pt, r))
@@ -563,7 +584,10 @@ def _getRangeString(s):
         msb = s._nrbits - 1
         return "(%s downto 0)" % msb
     else:
-        raise AssertionError
+        if isinstance(s, Parameter):
+            return ''
+        else:
+            raise AssertionError
 
 
 def _getTypeString(s):
@@ -576,7 +600,17 @@ def _getTypeString(s):
     else:
         return 'unsigned'
 
-
+def _getParameterTypeString(s):
+    if isinstance(s._val, EnumItemType):
+        return s._val._type._name
+    elif s._type is bool:
+        return "std_logic"
+    elif isinstance(s._val, integer_types):
+        return "integer"
+    if s._min is not None and s._min < 0:
+        return "signed "
+    else:
+        return 'unsigned'
 def _convertGens(genlist, siglist, memlist, vfile):
     blockBuf = StringIO()
     funcBuf = StringIO()
@@ -1451,11 +1485,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
             s = n
+#             print(s, obj)
             if isinstance(obj, bool):
                 if isinstance(node.vhd, vhd_std_logic):
                     s = "'%s'" % int(obj)
                 else:
                     s = "%s" % obj
+                    
             elif isinstance(obj, integer_types):
                 if isinstance(node.vhd, vhd_int):
                     s = self.IntRepr(obj)
@@ -1473,24 +1509,34 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                         s = "to_signed(%s, %s)" % (obj, node.vhd.size)
                     else:
                         s = 'signed\'("%s")' % tobin(obj, node.vhd.size)
+                        
+            elif isinstance(obj, intbv):
+                s = str(obj)
+                
             elif isinstance(obj, _Signal):
                 s = str(obj)
                 ori = inferVhdlObj(obj)
                 pre, suf = self.inferCast(node.vhd, ori)
                 s = "%s%s%s" % (pre, s, suf)
+                
             elif _isMem(obj):
                 m = _getMemInfo(obj)
                 assert m.name
                 s = m.name
+                
             elif isinstance(obj, EnumItemType):
                 s = obj._toVHDL()
+                
             elif (type(obj) in class_types) and issubclass(obj, Exception):
                 s = n
+                
             else:
                 self.raiseError(node, _error.UnsupportedType, "%s, %s" % (n, type(obj)))
         else:
             raise AssertionError("name ref: %s" % n)
         self.write(s)
+#         print('getName', repr(node), s)
+
 
     def visit_Pass(self, node):
         self.write("null;")
@@ -2155,6 +2201,13 @@ def inferVhdlObj(obj):
         else:
             vhd = vhd_int()
         # vhd = vhd_int()
+    elif isinstance(obj, Parameter):
+        print('inferVhdlObj - got Parameter')
+        if obj.Value >= 0:
+            vhd = vhd_nat()
+        else:
+            vhd = vhd_int()
+    
     return vhd
 
 
@@ -2296,7 +2349,9 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         node.vhdOri = copy(node.vhd)
 
     def inferBinOpType(self, node):
+        print('inferBinOpType', repr(node), node.left, node.op, node.right)
         left, op, right = node.left, node.op, node.right
+        print('inferBinOpType', left.vhd, right.vhd)
         if isinstance(left.vhd, (vhd_boolean, vhd_std_logic)):
             left.vhd = vhd_unsigned(1)
         if isinstance(right.vhd, (vhd_boolean, vhd_std_logic)):
@@ -2309,8 +2364,10 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             if maybeNegative(right.vhd) or \
                (isinstance(op, ast.Sub) and not hasattr(node, 'isRhs')):
                 left.vhd = vhd_signed(left.vhd.size + 1)
-        l, r = left.vhd, right.vhd
-        ls, rs = l.size, r.size
+        l = left.vhd
+        r = right.vhd
+        ls = l.size
+        rs = r.size
         if isinstance(r, vhd_vector) and isinstance(l, vhd_vector):
             if isinstance(op, (ast.Add, ast.Sub)):
                 s = max(ls, rs)

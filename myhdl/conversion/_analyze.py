@@ -49,6 +49,7 @@ from myhdl._util import _isTupleOfInts
 from myhdl._util import _makeAST
 from myhdl._resolverefs import _AttrRefTransformer
 from myhdl._compat import builtins, integer_types, PY2
+from myhdl._parameter import Parameter
 
 myhdlObjects = myhdl.__dict__.values()
 builtinObjects = builtins.__dict__.values()
@@ -512,6 +513,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 _enumTypeSet.add(obj)
                 suf = _genUniqueSuffix.next()
                 obj._setName(n + suf)
+        if isinstance(obj, Parameter):
+            if node.attr == 'Value':
+                print('_analyze, getAttr', repr(node), node.value, node.value.id)
+                node.obj =  node.value.id
+                
         if node.obj is None:  # attribute lookup failed
             self.raiseError(node, _error.UnsupportedAttribute, node.attr)
 
@@ -1260,7 +1266,7 @@ def _analyzeTopFunc(func, *args, **kwargs):
 
     objs = []
     for name, obj in v.fullargdict.items():
-        if not isinstance(obj, _Signal):
+        if not isinstance(obj, (_Signal, Parameter)):
             objs.append((name, obj))
 
     # create ports for any signal in the top instance if it was buried in an
@@ -1285,12 +1291,16 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         self.name = None
         self.fullargdict = {}
         self.argdict = {}
+        self.genericdict = {}
         self.argnames = []
+        self.portnames = []
+        self.genericnames = []
 
     def visit_FunctionDef(self, node):
 
         self.name = node.name
         self.argnames = _get_argnames(node)
+        print(self.argnames)
         if isboundmethod(self.func):
             if not self.argnames[0] == 'self':
                 self.raiseError(node, _error.NotSupported,
@@ -1303,6 +1313,9 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             self.fullargdict[n] = arg
             if isinstance(arg, _Signal):
                 self.argdict[n] = arg
+            elif isinstance(arg, Parameter):
+                self.genericdict[n] = arg
+            
             if _isMem(arg):
                 self.raiseError(node, _error.ListAsPort, n)
         for n in self.argnames[i + 1:]:
@@ -1311,6 +1324,11 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                 self.fullargdict[n] = arg
                 if isinstance(arg, _Signal):
                     self.argdict[n] = arg
+                elif isinstance(arg, Parameter):
+                    self.genericdict[n] = arg
                 if _isMem(arg):
                     self.raiseError(node, _error.ListAsPort, n)
-        self.argnames = [n for n in self.argnames if n in self.argdict]
+        self.portnames = [n for n in self.argnames if n in self.argdict]
+        self.genericnames = [n for n in self.argnames if n in self.genericdict]
+        print(self.portnames)
+        print(self.genericnames)

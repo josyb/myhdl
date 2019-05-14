@@ -171,6 +171,7 @@ from .conversion import toVerilog
 from .conversion import toVHDL
 
 from ._tristate import Tristate
+from ._parameter import Parameter
 
 
 __all__ = ["bin",
@@ -204,5 +205,6 @@ __all__ = ["bin",
            "toVerilog",
            "toVHDL",
            "conversion",
-           "Tristate"
+           "Tristate",
+           "Parameter"
            ]

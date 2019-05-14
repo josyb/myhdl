@@ -6,7 +6,7 @@ from types import FunctionType
 from myhdl._util import _flatten
 from myhdl._enum import EnumType
 from myhdl._Signal import SignalType
-
+# from myhdl._parameter import ParameterType
 
 class Data():
     pass
@@ -62,9 +62,14 @@ class _AttrRefTransformer(ast.NodeTransformer):
         elif isinstance(obj, SignalType):
             if hasattr(SignalType, node.attr):
                 return node
-
+#         elif isinstance(obj, ParameterType):
+        
         attrobj = getattr(obj, node.attr)
-
+        print('_AttrRefTransformer', obj, node, node.value, node.value.id, node.attr, attrobj)
+        # a very dirty shortcut to identify a 'Parameter'
+        if node.attr == 'Value':
+            return node
+        
         orig_name = node.value.id + '.' + node.attr
         if orig_name not in self.name_map:
             base_name = node.value.id + '_' + node.attr
@@ -81,3 +86,4 @@ class _AttrRefTransformer(ast.NodeTransformer):
         for n in nodes:
             self.visit(n)
         return node
+    
