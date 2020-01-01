@@ -142,9 +142,10 @@ class ToVHDLWarning(ConversionWarning):
 # def showwarning(message, category, filename, lineno, *args):
 #    print("** %s: %s" % (category.__name__, message), file=sys.stderr)
 
-#warnings.showwarning = showwarning
+# warnings.showwarning = showwarning
 
 
+from ._hdltype import hdltype
 from ._bin import bin
 from ._concat import concat
 from ._intbv import intbv
@@ -172,8 +173,8 @@ from .conversion import toVHDL
 
 from ._tristate import Tristate
 
-
-__all__ = ["bin",
+__all__ = ["hdltype",
+           "bin",
            "concat",
            "intbv",
            "modbv",

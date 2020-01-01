@@ -33,12 +33,12 @@ from myhdl._compat import to_bytes
 from myhdl._Cosimulation import Cosimulation, CosimulationError, _error
 
 if __name__ != '__main__':
-    from helpers import raises_kind
+#     from helpers import raises_kind
+    from myhdl.test.helpers import raises_kind
 
 random.seed(1)  # random, but deterministic
 
 MAXLINE = 4096
-
 
 exe = "python {0} ".format(os.path.abspath(__file__))
 
@@ -146,7 +146,7 @@ class TestCosimulation:
 
     @staticmethod
     def cosimTimeZero():
-        wt, rf = wtrf()
+        wt, __ = wtrf()
         buf = "TO 01 "
         for s, w in zip(fromSignames, fromSizes):
             buf += "%s %s " % (s, w)
@@ -172,7 +172,7 @@ class TestCosimulation:
 
     @staticmethod
     def cosimFromSignalsDupl():
-        wt, rf = wtrf()
+        wt, __ = wtrf()
         buf = "FROM 00 "
         for s, w in zip(fromSignames, fromSizes):
             buf += "%s %s " % (s, w)
@@ -185,7 +185,7 @@ class TestCosimulation:
 
     @staticmethod
     def cosimToSignalsDupl():
-        wt, rf = wtrf()
+        wt, __ = wtrf()
         buf = "TO 00 "
         for s, w in zip(toSignames, toSizes):
             buf += "%s %s " % (s, w)
@@ -258,6 +258,7 @@ class TestCosimulation:
             buf += v
             buf += " "
         os.write(wt, to_bytes(buf))
+
 
 if __name__ == "__main__":
     getattr(TestCosimulation, sys.argv[1])()

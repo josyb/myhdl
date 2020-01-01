@@ -31,6 +31,7 @@ from __future__ import print_function
 
 from copy import copy, deepcopy
 
+from myhdl._hdltype import hdltype
 from myhdl._compat import integer_types, long
 from myhdl import _simulator as sim
 from myhdl._simulator import _futureEvents
@@ -108,7 +109,7 @@ def Signal(val=None, delay=None):
         return _Signal(val)
 
 
-class _Signal(object):
+class _Signal(hdltype):
 
     """ _Signal class.
 
@@ -123,8 +124,7 @@ class _Signal(object):
                  '_code', '_tracing', '_nrbits', '_checkVal',
                  '_setNextVal', '_copyVal2Next', '_printVcd',
                  '_driven', '_read', '_name', '_used', '_inList',
-                 '_waiter', 'toVHDL', 'toVerilog', '_slicesigs',
-                 '_numeric'
+                 '_waiter', 'toVHDL', 'toVerilog', '_slicesigs'
                  )
 
     def __init__(self, val=None):
@@ -133,15 +133,15 @@ class _Signal(object):
         val -- initial value
 
         """
-        self._init = deepcopy(val)
-        self._val = deepcopy(val)
-        self._next = deepcopy(val)
+#         self._init = deepcopy(val)
+#         self._val = deepcopy(val)
+#         self._next = deepcopy(val)
+#         self._name = self._driven = None
+#         self._read = self._used = False
+#         self._nrbits = 0
+        super(_Signal, self).__init__(val)
         self._min = self._max = None
-        self._name = self._driven = None
-        self._read = self._used = False
         self._inList = False
-        self._nrbits = 0
-        self._numeric = True
         self._printVcd = self._printVcdStr
         if isinstance(val, bool):
             self._type = bool
@@ -184,31 +184,30 @@ class _Signal(object):
         self._val = deepcopy(self._init)
         self._next = deepcopy(self._init)
         self._name = self._driven = None
-        self._read = False # dont clear self._used
-        self._inList = False 
-        self._numeric = True
+        self._read = False  # dont clear self._used
+        self._inList = False
         for s in self._slicesigs:
             s._clear()
 
     def _update(self):
-        val, next = self._val, self._next
-        if val != next:
+        val, nextval = self._val, self._next
+        if val != nextval:
             waiters = self._eventWaiters[:]
             del self._eventWaiters[:]
-            if not val and next:
+            if not val and nextval:
                 waiters.extend(self._posedgeWaiters[:])
                 del self._posedgeWaiters[:]
-            elif not next and val:
+            elif not nextval and val:
                 waiters.extend(self._negedgeWaiters[:])
                 del self._negedgeWaiters[:]
-            if next is None:
+            if nextval is None:
                 self._val = None
             elif isinstance(val, intbv):
-                self._val._val = next._val
+                self._val._val = nextval._val
             elif isinstance(val, (integer_types, EnumItemType)):
-                self._val = next
+                self._val = nextval
             else:
-                self._val = deepcopy(next)
+                self._val = deepcopy(nextval)
             if self._tracing:
                 self._printVcd()
             return waiters
@@ -254,34 +253,34 @@ class _Signal(object):
     def min(self):
         return self._min
 
-    # support for the 'driven' attribute
-    @property
-    def driven(self):
-        return self._driven
-
-    @driven.setter
-    def driven(self, val):
-        if not val in ("reg", "wire", True):
-            raise ValueError('Expected value "reg", "wire", or True, got "%s"' % val)
-        self._driven = val
-
-    # support for the 'read' attribute
-    @property
-    def read(self):
-        return self._read
-
-    @read.setter
-    def read(self, val):
-        if not val in (True, ):
-            raise ValueError('Expected value True, got "%s"' % val)
-        self._markRead()
-
-    def _markRead(self):
-        self._read = True
-
-    # 'used' attribute
-    def _markUsed(self):
-        self._used = True
+#     # support for the 'driven' attribute
+#     @property
+#     def driven(self):
+#         return self._driven
+#
+#     @driven.setter
+#     def driven(self, val):
+#         if not val in ("reg", "wire", True):
+#             raise ValueError('Expected value "reg", "wire", or True, got "%s"' % val)
+#         self._driven = val
+#
+#     # support for the 'read' attribute
+#     @property
+#     def read(self):
+#         return self._read
+#
+#     @read.setter
+#     def read(self, val):
+#         if not val in (True,):
+#             raise ValueError('Expected value True, got "%s"' % val)
+#         self._markRead()
+#
+#     def _markRead(self):
+#         self._read = True
+#
+#     # 'used' attribute
+#     def _markUsed(self):
+#         self._used = True
 
     # set next methods
     def _setNextBool(self, val):
@@ -358,6 +357,10 @@ class _Signal(object):
     def __len__(self):
         return self._nrbits
         # return len(self._val)
+
+    @property
+    def nbits(self):
+        return self._nrbits
 
     # indexing and slicing methods
 
@@ -640,6 +643,7 @@ class _SignalWrap(object):
 
     def apply(self):
         return self.sig._apply(self.next, self.timeStamp)
+
 
 # for export
 SignalType = _Signal

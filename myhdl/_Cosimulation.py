@@ -22,24 +22,31 @@ from __future__ import absolute_import
 
 import sys
 import os
-#import shlex
+# import shlex
 import subprocess
 
 from myhdl._intbv import intbv
-from myhdl import _simulator, CosimulationError
+from myhdl import CosimulationError
 from myhdl._compat import set_inheritable, string_types, to_bytes, to_str
 
 _MAXLINE = 4096
 
 
+# class _error:
+#     pass
+# _error.DuplicateSigNames = "Duplicate signal name in myhdl vpi call"
+# _error.SigNotFound = "Signal not found in Cosimulation arguments"
+# _error.TimeZero = "myhdl vpi call when not at time 0"
+# _error.NoCommunication = "No signals communicating to myhdl"
+# _error.SimulationEnd = "Premature simulation end"
+# _error.OSError = "OSError"
 class _error:
-    pass
-_error.DuplicateSigNames = "Duplicate signal name in myhdl vpi call"
-_error.SigNotFound = "Signal not found in Cosimulation arguments"
-_error.TimeZero = "myhdl vpi call when not at time 0"
-_error.NoCommunication = "No signals communicating to myhdl"
-_error.SimulationEnd = "Premature simulation end"
-_error.OSError = "OSError"
+    DuplicateSigNames = "Duplicate signal name in myhdl vpi call"
+    SigNotFound = "Signal not found in Cosimulation arguments"
+    TimeZero = "myhdl vpi call when not at time 0"
+    NoCommunication = "No signals communicating to myhdl"
+    SimulationEnd = "Premature simulation end"
+    OSError = "OSError"
 
 
 class Cosimulation(object):
@@ -87,7 +94,6 @@ class Cosimulation(object):
         if isinstance(exe, string_types):
 #             exe = shlex.split(exe)
             exe = exe.split(' ')
-
 
         try:
             sp = subprocess.Popen(exe, env=env, close_fds=False)
@@ -148,18 +154,18 @@ class Cosimulation(object):
         for i in range(1, len(e), 2):
             s, v = self._toSigDict[e[i]], e[i + 1]
             if v in 'zZ':
-                next = None
+                nextval = None
             elif v in 'xX':
-                next = s._init
+                nextval = s._init
             else:
                 try:
-                    next = int(v, 16)
+                    nextval = int(v, 16)
                     if s._nrbits and s._min is not None and s._min < 0:
-                        if next >= (1 << (s._nrbits - 1)):
-                            next |= (-1 << s._nrbits)
+                        if nextval >= (1 << (s._nrbits - 1)):
+                            nextval |= (-1 << s._nrbits)
                 except ValueError:
-                    next = intbv(0)
-            s.next = next
+                    nextval = intbv(0)
+            s.next = nextval
 
         self._getMode = 0
 

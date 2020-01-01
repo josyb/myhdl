@@ -1075,7 +1075,8 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
             s._driven = "reg"
         for n in self.tree.inputs:
             s = self.tree.sigdict[n]
-            s._markRead()
+#             s._markRead()
+            s.read = True
 
     def visit_Return(self, node):
         # value should be None

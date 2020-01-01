@@ -38,7 +38,7 @@ from myhdl._bin import bin
 
 class _ShadowSignal(_Signal):
 
-    __slots__ = ('_waiter', )
+    __slots__ = ('_waiter',)
 
     def __init__(self, val):
         _Signal.__init__(self, val)
@@ -182,7 +182,8 @@ class ConcatSignal(_ShadowSignal):
     def _markRead(self):
         self._read = True
         for s in self._sigargs:
-            s._markRead()
+#             s._markRead()
+            s.read = True
 
     def _markUsed(self):
         self._used = True
@@ -243,12 +244,12 @@ class ConcatSignal(_ShadowSignal):
             hi = lo
         return "\n".join(lines)
 
-
 # Tristate signal
 
 
 class BusContentionWarning(UserWarning):
     pass
+
 
 warnings.filterwarnings('always', r".*", BusContentionWarning)
 
