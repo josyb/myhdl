@@ -27,7 +27,7 @@ _vhdl_keywords = ["abs", "access", "after", "alias", "all",
 
 # A list to hold all signal names being used in lowercase to raise an error
 # if no names are reused with different casing
-_usedNames = [];
+_usedNames = []
 
 
 # Function which compares current parsed signal/entity to all keywords to

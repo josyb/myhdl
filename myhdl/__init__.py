@@ -170,6 +170,7 @@ from ._traceSignals import traceSignals
 from myhdl import conversion
 from .conversion import toVerilog
 from .conversion import toVHDL
+from .conversion import HdlConvertor
 
 from ._tristate import Tristate
 
