@@ -6,6 +6,7 @@ Created on 4 jul. 2021
 
 
 class Parameter(object):
+    ''' to do '''
 
     def __init__(self, name, value):
         self.name = name
