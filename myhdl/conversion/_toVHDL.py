@@ -20,9 +20,6 @@
 """ myhdl toVHDL conversion module.
 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-
 import sys
 import math
 import os
@@ -36,6 +33,7 @@ from types import GeneratorType
 import warnings
 from copy import copy
 import string
+from io import StringIO
 
 # import myhdl
 import myhdl
@@ -54,7 +52,6 @@ from myhdl._concat import concat
 from myhdl._delay import delay
 from myhdl._misc import downrange
 from myhdl._util import _flatten
-from myhdl._compat import integer_types, class_types, StringIO
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._block import _Block
 from myhdl._getHierarchy import _getHierarchy
@@ -145,9 +142,9 @@ class _ToVHDLConvertor(object):
         else:
             # clean start
             sys.setprofile(None)
-        
+
         print('compiling once ...')
-            
+
         from myhdl import _traceSignals
         if _traceSignals._tracing:
             raise ToVHDLError("Cannot use toVHDL while tracing signals")
@@ -257,9 +254,11 @@ class _ToVHDLConvertor(object):
         _writeTypeDefs(vfile)
         _writeSigDecls(vfile, intf, siglist, memlist)
         _writeCompDecls(vfile, compDecls)
-        print(genlist)
-        print(siglist)
-        print(memlist)
+        print('1', genlist)
+        print('2')
+        for s in siglist:
+            print(repr(s))
+        print('3', memlist)
         _convertGens(genlist, siglist, memlist, vfile)
         _writeModuleFooter(vfile, arch)
 
@@ -384,12 +383,12 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
             c = ';'
             r = _getRangeString(s)
             pt = st = _getParameterTypeString(s)
-            f.write("\n        %s: %s%s := %s" % (genericname, pt, r, s.Value))
+            f.write("\n        %s: %s%s := %s" % (genericname, pt, r, s.value))
         f.write("\n    );\n")
-    
+
     if intf.portnames:
         print(intf.portnames)
-            
+
         f.write("    port (")
         c = ''
         for portname in intf.portnames:
@@ -576,22 +575,26 @@ def _writeModuleFooter(f, arch):
 
 
 def _getRangeString(s):
-    if isinstance(s._val, EnumItemType):
+    if isinstance(s, Parameter):
+        return ''
+    elif isinstance(s._val, EnumItemType):
         return ''
     elif s._type is bool:
         return ''
     elif s._nrbits is not None:
-        msb = s._nrbits - 1
-        return "(%s downto 0)" % msb
-    else:
-        if isinstance(s, Parameter):
-            return ''
+        if isinstance(s._nrbits, Parameter):
+            return '({} - 1 downto 0)'.format(s._nrbits.name)
         else:
-            raise AssertionError
+            msb = s._nrbits - 1
+            return "(%s downto 0)" % msb
+    else:
+        raise AssertionError
 
 
 def _getTypeString(s):
-    if isinstance(s._val, EnumItemType):
+    if isinstance(s, Parameter):
+        return 'natural'
+    elif isinstance(s._val, EnumItemType):
         return s._val._type._name
     elif s._type is bool:
         return "std_logic"
@@ -600,17 +603,22 @@ def _getTypeString(s):
     else:
         return 'unsigned'
 
+
 def _getParameterTypeString(s):
-    if isinstance(s._val, EnumItemType):
+    if isinstance(s, Parameter):
+        return 'natural'
+    elif isinstance(s._val, EnumItemType):
         return s._val._type._name
     elif s._type is bool:
         return "std_logic"
-    elif isinstance(s._val, integer_types):
+    elif isinstance(s._val, int):
         return "integer"
     if s._min is not None and s._min < 0:
         return "signed "
     else:
         return 'unsigned'
+
+
 def _convertGens(genlist, siglist, memlist, vfile):
     blockBuf = StringIO()
     funcBuf = StringIO()
@@ -645,7 +653,8 @@ def _convertGens(genlist, siglist, memlist, vfile):
             pre, suf = "'", "'"
         elif s._type is intbv:
             c = int(s._val)
-            w = len(s)
+            # w = len(s)
+            w = s._nrbits
             assert w != 0
             if s._min < 0:
                 if w <= 31:
@@ -752,7 +761,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 pre, suf = "to_integer(", ")"
         elif isinstance(vhd, vhd_unsigned):
             if isinstance(ori, vhd_unsigned):
-                if vhd.size != ori.size:
+                if int(vhd.size) != int(ori.size):
                     pre, suf = "resize(", ", %s)" % vhd.size
             elif isinstance(ori, vhd_signed):
                 if vhd.size != ori.size:
@@ -841,7 +850,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.BinOp(node)
 
     def inferBinaryOpCast(self, node, left, right, op):
-        ns, os = node.vhd.size, node.vhdOri.size
+        ns, os = int(node.vhd.size), int(node.vhdOri.size)
         ds = ns - os
         if ds > 0:
             if isinstance(left.vhd, vhd_vector) and isinstance(right.vhd, vhd_vector):
@@ -1023,8 +1032,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         rhs = node.value
         # shortcut for expansion of ROM in case statement
         if isinstance(node.value, ast.Subscript) and \
-                isinstance(node.value.slice, ast.Index) and \
-                isinstance(node.value.value.obj, _Rom):
+                      not isinstance(node.value.slice, ast.Slice) and \
+                      isinstance(node.value.value.obj, _Rom):
             rom = node.value.value.obj.rom
             self.write("case ")
             self.visit(node.value.slice)
@@ -1142,7 +1151,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             node.args[0].s = v
             self.write(v)
             return
-        elif f in integer_types:
+        elif f is int:
             opening, closing = '', ''
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             # convert number argument to integer
@@ -1172,7 +1181,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(closing)
             self.write(suf)
             return
-        elif (type(f) in class_types) and issubclass(f, Exception):
+        elif (type(f) in (type,)) and issubclass(f, Exception):
             self.write(f.__name__)
         elif f in (posedge, negedge):
             opening, closing = ' ', ''
@@ -1226,36 +1235,85 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(right)
         self.write(suf)
 
-    def visit_Num(self, node):
-        n = node.n
-        if isinstance(node.vhd, vhd_std_logic):
-            self.write("'%s'" % n)
-        elif isinstance(node.vhd, vhd_boolean):
-            self.write("%s" % bool(n))
-        # elif isinstance(node.vhd, (vhd_unsigned, vhd_signed)):
-        #    self.write('"%s"' % tobin(n, node.vhd.size))
-        elif isinstance(node.vhd, vhd_unsigned):
-            if abs(n) < 2 ** 31:
-                self.write("to_unsigned(%s, %s)" % (n, node.vhd.size))
-            else:
-                self.write('unsigned\'("%s")' % tobin(n, node.vhd.size))
-        elif isinstance(node.vhd, vhd_signed):
-            if abs(n) < 2 ** 31:
-                self.write("to_signed(%s, %s)" % (n, node.vhd.size))
-            else:
-                self.write('signed\'("%s")' % tobin(n, node.vhd.size))
-        else:
-            if n < 0:
-                self.write("(")
-            self.write(n)
-            if n < 0:
-                self.write(")")
+    if sys.version_info >= (3, 9, 0):
 
-    def visit_Str(self, node):
-        typemark = 'string'
-        if isinstance(node.vhd, vhd_unsigned):
-            typemark = 'unsigned'
-        self.write("%s'(\"%s\")" % (typemark, node.s))
+        def visit_Constant(self, node):
+            if node.value is None:
+                # NameConstant
+                node.id = str(node.value)
+                self.getName(node)
+            elif isinstance(node.value, bool):
+                # NameConstant
+                node.id = str(node.value)
+                self.getName(node)
+            elif isinstance(node.value, int):
+                # Num
+                n = node.value
+                if isinstance(node.vhd, vhd_std_logic):
+                    self.write("'%s'" % n)
+                elif isinstance(node.vhd, vhd_boolean):
+                    self.write("%s" % bool(n))
+                # elif isinstance(node.vhd, (vhd_unsigned, vhd_signed)):
+                #    self.write('"%s"' % tobin(n, node.vhd.size))
+                elif isinstance(node.vhd, vhd_unsigned):
+                    if abs(n) < 2 ** 31:
+                        self.write("to_unsigned(%s, %s)" % (n, node.vhd.size))
+                    else:
+                        self.write('unsigned\'("%s")' % tobin(n, node.vhd.size))
+                elif isinstance(node.vhd, vhd_signed):
+                    if abs(n) < 2 ** 31:
+                        self.write("to_signed(%s, %s)" % (n, node.vhd.size))
+                    else:
+                        self.write('signed\'("%s")' % tobin(n, node.vhd.size))
+                else:
+                    if n < 0:
+                        self.write("(")
+                    self.write(n)
+                    if n < 0:
+                        self.write(")")
+            elif isinstance(node.value, str):
+                # Str
+                typemark = 'string'
+                if isinstance(node.vhd, vhd_unsigned):
+                    typemark = 'unsigned'
+                self.write("%s'(\"%s\")" % (typemark, node.value))
+
+    else:
+
+        def visit_Num(self, node):
+            n = node.n
+            if isinstance(node.vhd, vhd_std_logic):
+                self.write("'%s'" % n)
+            elif isinstance(node.vhd, vhd_boolean):
+                self.write("%s" % bool(n))
+            # elif isinstance(node.vhd, (vhd_unsigned, vhd_signed)):
+            #    self.write('"%s"' % tobin(n, node.vhd.size))
+            elif isinstance(node.vhd, vhd_unsigned):
+                if abs(n) < 2 ** 31:
+                    self.write("to_unsigned(%s, %s)" % (n, node.vhd.size))
+                else:
+                    self.write('unsigned\'("%s")' % tobin(n, node.vhd.size))
+            elif isinstance(node.vhd, vhd_signed):
+                if abs(n) < 2 ** 31:
+                    self.write("to_signed(%s, %s)" % (n, node.vhd.size))
+                else:
+                    self.write('signed\'("%s")' % tobin(n, node.vhd.size))
+            else:
+                if n < 0:
+                    self.write("(")
+                self.write(n)
+                if n < 0:
+                    self.write(")")
+
+        def visit_Str(self, node):
+            typemark = 'string'
+            if isinstance(node.vhd, vhd_unsigned):
+                typemark = 'unsigned'
+            self.write("%s'(\"%s\")" % (typemark, node.s))
+
+        def visit_NameConstant(self, node):
+            node.id = str(node.value)
+            self.getName(node)
 
     def visit_Continue(self, node, *args):
         self.write("next;")
@@ -1436,10 +1494,6 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         for stmt in node.body:
             self.visit(stmt)
 
-    def visit_NameConstant(self, node):
-        node.id = str(node.value)
-        self.getName(node)
-
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Store):
             self.setName(node)
@@ -1491,8 +1545,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     s = "'%s'" % int(obj)
                 else:
                     s = "%s" % obj
-                    
-            elif isinstance(obj, integer_types):
+            elif isinstance(obj, int):
                 if isinstance(node.vhd, vhd_int):
                     s = self.IntRepr(obj)
                 elif isinstance(node.vhd, vhd_boolean):
@@ -1509,34 +1562,34 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                         s = "to_signed(%s, %s)" % (obj, node.vhd.size)
                     else:
                         s = 'signed\'("%s")' % tobin(obj, node.vhd.size)
-                        
+            elif isinstance(obj, tuple):  # Python3.9+ ast.Index replacement serves a tuple
+                s = n
+
             elif isinstance(obj, intbv):
                 s = str(obj)
-                
+
             elif isinstance(obj, _Signal):
                 s = str(obj)
                 ori = inferVhdlObj(obj)
                 pre, suf = self.inferCast(node.vhd, ori)
                 s = "%s%s%s" % (pre, s, suf)
-                
+
             elif _isMem(obj):
                 m = _getMemInfo(obj)
                 assert m.name
                 s = m.name
-                
+
             elif isinstance(obj, EnumItemType):
                 s = obj._toVHDL()
-                
-            elif (type(obj) in class_types) and issubclass(obj, Exception):
+            elif (type(obj) in (type,)) and issubclass(obj, Exception):
                 s = n
-                
+
             else:
                 self.raiseError(node, _error.UnsupportedType, "%s, %s" % (n, type(obj)))
         else:
             raise AssertionError("name ref: %s" % n)
         self.write(s)
 #         print('getName', repr(node), s)
-
 
     def visit_Pass(self, node):
         self.write("null;")
@@ -1632,7 +1685,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
         self.write("(")
         # assert len(node.subs) == 1
-        self.visit(node.slice.value)
+        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
+            self.visit(node.slice)
+        else:
+            self.visit(node.slice.value)
         self.write(")")
         self.write(suf)
 
@@ -1912,9 +1968,9 @@ def _convertInitVal(reg, init):
         if reg._min is not None and reg._min < 0:
             vhd_tipe = 'signed'
         if abs(init) < 2 ** 31:
-            v = '%sto_%s(%s, %s)%s' % (pre, vhd_tipe, init, len(reg), suf)
+            v = '%sto_%s(%s, %s)%s' % (pre, vhd_tipe, init, reg._nrbits, suf)
         else:
-            v = '%s%s\'"%s"%s' % (pre, vhd_tipe, tobin(init, len(reg)), suf)
+            v = '%s%s\'("%s")%s' % (pre, vhd_tipe, tobin(init, reg._nrbits), suf)
     else:
         assert isinstance(init, EnumItemType)
         v = init._toVHDL()
@@ -2182,9 +2238,9 @@ def inferVhdlObj(obj):
     if (isinstance(obj, _Signal) and obj._type is intbv) or \
        isinstance(obj, intbv):
         if obj.min is None or obj.min < 0:
-            vhd = vhd_signed(size=len(obj))
+            vhd = vhd_signed(size=obj._nrbits)
         else:
-            vhd = vhd_unsigned(size=len(obj))
+            vhd = vhd_unsigned(size=obj._nrbits)
     elif (isinstance(obj, _Signal) and obj._type is bool) or \
             isinstance(obj, bool):
         vhd = vhd_std_logic()
@@ -2195,7 +2251,7 @@ def inferVhdlObj(obj):
         else:
             tipe = obj._type
         vhd = vhd_enum(tipe)
-    elif isinstance(obj, integer_types):
+    elif isinstance(obj, int):
         if obj >= 0:
             vhd = vhd_nat()
         else:
@@ -2207,7 +2263,7 @@ def inferVhdlObj(obj):
             vhd = vhd_nat()
         else:
             vhd = vhd_int()
-    
+
     return vhd
 
 
@@ -2269,7 +2325,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             node.vhd = vhd_unsigned(s)
         elif f is bool:
             node.vhd = vhd_boolean()
-        elif f in _flatten(integer_types, ord):
+        elif f in (int, ord):
             node.vhd = vhd_int()
             node.args[0].vhd = vhd_int()
         elif f in (intbv, modbv):
@@ -2300,26 +2356,48 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             right.vhd = vhd_signed(right.vhd.size + 1)
         node.vhdOri = copy(node.vhd)
 
-    def visit_Str(self, node):
-        node.vhd = vhd_string()
-        node.vhdOri = copy(node.vhd)
+    if sys.version_info >= (3, 9, 0):
 
-    def visit_Num(self, node):
-        if node.n < 0:
-            node.vhd = vhd_int()
-        else:
-            node.vhd = vhd_nat()
-        node.vhdOri = copy(node.vhd)
+        def visit_Constant(self, node):
+            if node.value is None:
+                # NameConstant
+                node.vhd = inferVhdlObj(node.value)
+            elif isinstance(node.value, bool):
+                # NameConstant
+                node.vhd = inferVhdlObj(node.value)
+            elif isinstance(node.value, int):
+                # Num
+                if node.value < 0:
+                    node.vhd = vhd_int()
+                else:
+                    node.vhd = vhd_nat()
+            elif isinstance(node.value, str):
+                # Str
+                node.vhd = vhd_string()
+            node.vhdOri = copy(node.vhd)
+
+    else:
+
+        def visit_Str(self, node):
+            node.vhd = vhd_string()
+            node.vhdOri = copy(node.vhd)
+
+        def visit_Num(self, node):
+            if node.n < 0:
+                node.vhd = vhd_int()
+            else:
+                node.vhd = vhd_nat()
+            node.vhdOri = copy(node.vhd)
+
+        def visit_NameConstant(self, node):
+            node.vhd = inferVhdlObj(node.value)
+            node.vhdOri = copy(node.vhd)
 
     def visit_For(self, node):
         var = node.target.id
         # make it possible to detect loop variable
         self.tree.vardict[var] = _loopInt(-1)
         self.generic_visit(node)
-
-    def visit_NameConstant(self, node):
-        node.vhd = inferVhdlObj(node.value)
-        node.vhdOri = copy(node.vhd)
 
     def visit_Name(self, node):
         if node.id in self.tree.vardict:
@@ -2451,7 +2529,10 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
     def accessIndex(self, node):
         self.generic_visit(node)
         node.vhd = vhd_std_logic()  # XXX default
-        node.slice.value.vhd = vhd_int()
+        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
+            node.slice.vhd = vhd_int()
+        else:
+            node.slice.value.vhd = vhd_int()
         obj = node.value.obj
         if isinstance(obj, list):
             assert len(obj)

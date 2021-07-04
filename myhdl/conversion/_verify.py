@@ -1,5 +1,3 @@
-from __future__ import absolute_import
-from __future__ import print_function
 import sys
 import os
 import tempfile
@@ -45,7 +43,7 @@ registerSimulator(
     hdl="VHDL",
     analyze="ghdl -a --std=08 --workdir=work pck_myhdl_%(version)s.vhd %(topname)s.vhd",
     elaborate="ghdl -e --std=08 --workdir=work %(unitname)s",
-    simulate="ghdl -r --workdir=work %(unitname)s"
+    simulate="ghdl -r --std=08 --workdir=work %(unitname)s --ieee-asserts=disable"
 )
 
 registerSimulator(
@@ -139,9 +137,9 @@ class _VerificationClass(object):
 
         if isinstance(func, _Block):
             if hdl == "VHDL":
-                inst = func.convert(hdl='VHDL')
+                inst = func.convert(hdl='VHDL', **kwargs)
             else:
-                inst = func.convert(hdl='Verilog')
+                inst = func.convert(hdl='Verilog', **kwargs)
         else:
             if hdl == "VHDL":
                 inst = toVHDL(func, *args, **kwargs)

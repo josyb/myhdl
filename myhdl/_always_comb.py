@@ -18,8 +18,6 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 """ Module with the always_comb function. """
-from __future__ import absolute_import
-
 from types import FunctionType
 
 from myhdl import AlwaysCombError
@@ -31,6 +29,8 @@ from myhdl._always import _Always
 
 class _error:
     pass
+
+
 _error.ArgType = "always_comb argument should be a classic function"
 _error.NrOfArgs = "always_comb argument should be a function without arguments"
 _error.Scope = "always_comb argument should be a local function"

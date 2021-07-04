@@ -26,12 +26,8 @@ posedge -- callable to model a rising edge on a signal in a yield statement
 negedge -- callable to model a falling edge on a signal in a yield statement
 
 """
-from __future__ import absolute_import
-from __future__ import print_function
-
 from copy import copy, deepcopy
 
-from myhdl._compat import integer_types, long
 from myhdl import _simulator as sim
 from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
@@ -148,8 +144,8 @@ class _Signal(object):
             self._setNextVal = self._setNextBool
             self._printVcd = self._printVcdBit
             self._nrbits = 1
-        elif isinstance(val, integer_types):
-            self._type = integer_types
+        elif isinstance(val, int):
+            self._type = (int,)
             self._setNextVal = self._setNextInt
         elif isinstance(val, intbv):
             self._type = intbv
@@ -184,8 +180,8 @@ class _Signal(object):
         self._val = deepcopy(self._init)
         self._next = deepcopy(self._init)
         self._name = self._driven = None
-        self._read = False # dont clear self._used
-        self._inList = False 
+        self._read = False  # dont clear self._used
+        self._inList = False
         self._numeric = True
         for s in self._slicesigs:
             s._clear()
@@ -205,7 +201,7 @@ class _Signal(object):
                 self._val = None
             elif isinstance(val, intbv):
                 self._val._val = next._val
-            elif isinstance(val, (integer_types, EnumItemType)):
+            elif isinstance(val, (int, EnumItemType)):
                 self._val = next
             else:
                 self._val = deepcopy(next)
@@ -272,7 +268,7 @@ class _Signal(object):
 
     @read.setter
     def read(self, val):
-        if not val in (True, ):
+        if not val in (True,):
             raise ValueError('Expected value True, got "%s"' % val)
         self._markRead()
 
@@ -294,14 +290,14 @@ class _Signal(object):
     def _setNextInt(self, val):
         if isinstance(val, intbv):
             val = val._val
-        elif not isinstance(val, (integer_types, intbv)):
+        elif not isinstance(val, (int, intbv)):
             raise TypeError("Expected int or intbv, got %s" % type(val))
         self._next = val
 
     def _setNextIntbv(self, val):
         if isinstance(val, intbv):
             val = val._val
-        elif not isinstance(val, integer_types):
+        elif not isinstance(val, int):
             raise TypeError("Expected int or intbv, got %s" % type(val))
         self._next._val = val
         self._next._handleBounds()
@@ -336,7 +332,7 @@ class _Signal(object):
         if self._val is None:
             print("b%s %s" % ('z' * self._nrbits, self._code), file=sim._tf)
         else:
-            print("b%s %s" % (bin(self._val, self._nrbits), self._code), file=sim._tf)
+            print("b%s %s" % (bin(self._val, int(self._nrbits)), self._code), file=sim._tf)
 
     ### use call interface for shadow signals ###
     def __call__(self, left, right=None):
@@ -356,7 +352,7 @@ class _Signal(object):
 
     # length
     def __len__(self):
-        return self._nrbits
+        return int(self._nrbits)
         # return len(self._val)
 
     # indexing and slicing methods
@@ -494,7 +490,7 @@ class _Signal(object):
         return int(self._val)
 
     def __long__(self):
-        return long(self._val)
+        return int(self._val)
 
     def __float__(self):
         return float(self._val)
@@ -539,7 +535,10 @@ class _Signal(object):
             return str(self._val)
 
     def __repr__(self):
-        return "Signal(" + repr(self._val) + ")"
+        if self._name:
+            return "{}: Signal({})".format(self._name, repr(self._val))
+        else:
+            return "Signal({})".format(repr(self._val))
 
     def _toVerilog(self):
         return self._name
@@ -640,6 +639,7 @@ class _SignalWrap(object):
 
     def apply(self):
         return self.sig._apply(self.next, self.timeStamp)
+
 
 # for export
 SignalType = _Signal
