@@ -6,13 +6,15 @@ import random
 from random import randrange
 random.seed(2)
 
-import myhdl
-from myhdl import *
-
+from myhdl import (block, Signal, intbv, delay, always,
+                   instance, StopSimulation)
+from myhdl._Simulation import Simulation
 from .util import setupCosimulation
 
 ACTIVE_LOW, INACTIVE_HIGH = 0, 1
 
+
+@block
 def incRef(count, enable, clock, reset, n):
     """ Incrementer with enable.
     
@@ -22,6 +24,7 @@ def incRef(count, enable, clock, reset, n):
     reset -- asynchronous reset input
     n -- counter max value
     """
+
     @instance
     def logic():
         while 1:
@@ -31,10 +34,13 @@ def incRef(count, enable, clock, reset, n):
             else:
                 if enable:
                     count.next = (count + 1) % n
+
     return logic
-                
+
+
+@block
 def inc(count, enable, clock, reset, n):
-    
+
     """ Incrementer with enable.
     
     count -- output
@@ -44,7 +50,7 @@ def inc(count, enable, clock, reset, n):
     n -- counter max value
     
     """
-    
+
     @always(clock.posedge, reset.negedge)
     def incProcess():
         if reset == ACTIVE_LOW:
@@ -52,26 +58,30 @@ def inc(count, enable, clock, reset, n):
         else:
             if enable:
                 count.next = (count + 1) % n
-                
+
     return incProcess
 
+
+@block
 def inc2(count, enable, clock, reset, n):
-    
+
     @always(clock.posedge, reset.negedge)
     def incProcess():
         if reset == ACTIVE_LOW:
             count.next = 0
         else:
             if enable:
-                if count == n-1:
+                if count == n - 1:
                     count.next = 0
                 else:
                     count.next = count + 1
-    return incProcess
-    
 
+    return incProcess
+
+
+@block
 def incTask(count, enable, clock, reset, n):
-    
+
     def incTaskFunc(cnt, enable, reset, n):
         if enable:
             cnt[:] = (cnt + 1) % n
@@ -92,8 +102,9 @@ def incTask(count, enable, clock, reset, n):
     return incTaskGen
 
 
+@block
 def incTaskFreeVar(count, enable, clock, reset, n):
-    
+
     def incTaskFunc():
         if enable:
             count.next = (count + 1) % n
@@ -101,16 +112,18 @@ def incTaskFreeVar(count, enable, clock, reset, n):
     @always(clock.posedge, reset.negedge)
     def incTaskGen():
         if reset == ACTIVE_LOW:
-           count.next = 0
+            count.next = 0
         else:
             # print count
             incTaskFunc()
 
     return incTaskGen
 
-      
+
+@block
 def inc_v(name, count, enable, clock, reset):
     return setupCosimulation(**locals())
+
 
 class TestInc(TestCase):
 
@@ -118,17 +131,17 @@ class TestInc(TestCase):
         while 1:
             yield delay(10)
             clock.next = not clock
-    
+
     def stimulus(self, enable, clock, reset):
         reset.next = INACTIVE_HIGH
         yield clock.negedge
         reset.next = ACTIVE_LOW
         yield clock.negedge
         reset.next = INACTIVE_HIGH
-        for i in range(1000):
+        for dummy in range(1000):
             enable.next = 1
             yield clock.negedge
-        for i in range(1000):
+        for dummy in range(1000):
             enable.next = min(1, randrange(5))
             yield clock.negedge
         raise StopSimulation
@@ -146,19 +159,19 @@ class TestInc(TestCase):
             # print "%d count %s expect %s count_v %s" % (now(), count, expect, count_v)
             self.assertEqual(count, expect)
             self.assertEqual(count, count_v)
-                
+
     def bench(self, inc):
 
         m = 8
         n = 2 ** m
- 
+
         count = Signal(intbv(0)[m:])
         count_v = Signal(intbv(0)[m:])
         enable = Signal(bool(0))
-        clock, reset = [Signal(bool()) for i in range(2)]
+        clock, reset = [Signal(bool()) for __ in range(2)]
 
         inc_inst_ref = incRef(count, enable, clock, reset, n=n)
-        inc_inst = toVerilog(inc, count, enable, clock, reset, n=n)
+        inc_inst = inc(count, enable, clock, reset, n=n).convert(hdl='Verilog')
         # inc_inst = inc(count, enable, clock, reset, n=n)
         inc_inst_v = inc_v(inc.__name__, count_v, enable, clock, reset)
         clk_1 = self.clockGen(clock)
@@ -172,39 +185,22 @@ class TestInc(TestCase):
         """ Check increment operation """
         sim = self.bench(incRef)
         sim.run(quiet=1)
-        
+
     def testInc(self):
         """ Check increment operation """
         sim = self.bench(inc)
         sim.run(quiet=1)
-        
+
     def testInc2(self):
         """ Check increment operation """
         sim = self.bench(inc2)
         sim.run(quiet=1)
-        
+
     def testIncTask(self):
         sim = self.bench(incTask)
         sim.run(quiet=1)
-        
+
     def testIncTaskFreeVar(self):
         sim = self.bench(incTaskFreeVar)
         sim.run(quiet=1)
-
-if __name__ == '__main__':
-    unittest.main()
-
-
-            
-            
-
-    
-
-    
-        
-
-
-                
-
-        
 

@@ -1,10 +1,10 @@
-import myhdl
-from myhdl import *
+from myhdl import (block, Signal, enum, always_comb)
 
 # t_state = enum('WAIT_POSEDGE', 'WAIT_NEGEDGE', encoding='one_hot')
 t_state = enum('WAIT_POSEDGE', 'WAIT_NEGEDGE')
 
 
+@block
 def pcie_legacyint_next_state_logic(state_i, next_state_o, next_state_en_o, interrupt_pending_i, interrupt_assert_o):
 
         @always_comb
@@ -33,9 +33,4 @@ interrupt_assert = Signal(bool(0))
 
 
 def test_bug_enum_toVHDL():
-    toVHDL(pcie_legacyint_next_state_logic, state, next_state, next_state_en, interrupt_pending, interrupt_assert)
-
-
-if __name__ == '__main__':
-    toVHDL(pcie_legacyint_next_state_logic, state, next_state, next_state_en, interrupt_pending, interrupt_assert)
-
+    pcie_legacyint_next_state_logic(state, next_state, next_state_en, interrupt_pending, interrupt_assert).convert(hdl='VHDL')

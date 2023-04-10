@@ -5,15 +5,15 @@ import random
 from random import randrange
 random.seed(2)
 
-import myhdl
-from myhdl import *
+from myhdl import (block, Signal, intbv, delay, instance,
+                   always, always_comb, StopSimulation)
 
 from myhdl import ConversionError
-from myhdl.conversion._misc import _error
-
 
 ACTIVE_LOW, INACTIVE_HIGH = 0, 1
 
+
+@block
 def incRef(count, enable, clock, reset, n):
     """ Incrementer with enable.
     
@@ -23,6 +23,7 @@ def incRef(count, enable, clock, reset, n):
     reset -- asynchronous reset input
     n -- counter max value
     """
+
     @instance
     def logic():
         while 1:
@@ -32,11 +33,14 @@ def incRef(count, enable, clock, reset, n):
             else:
                 if enable:
                     count.next = (count + 1) % n
+
     return logic
 
 
+@block
 def incGen(count, enable, clock, reset, n):
     """ Generator with __vhdl__ is not permitted """
+
     @instance
     def logic():
         incGen.vhdl_code = "Template string"
@@ -47,9 +51,11 @@ def incGen(count, enable, clock, reset, n):
             else:
                 if enable:
                     count.next = (count + 1) % n
+
     return logic
 
-                                        
+
+@block
 def inc(count, enable, clock, reset, n):
     """ Incrementer with enable.
     
@@ -59,6 +65,7 @@ def inc(count, enable, clock, reset, n):
     reset -- asynchronous reset input
     n -- counter max value
     """
+
     @always(clock.posedge, reset.negedge)
     def incProcess():
         # make it fail in conversion
@@ -83,12 +90,13 @@ process ($clock, $reset) begin
     end if;
 end process;
 """
-                
+
     return incProcess
 
 
+@block
 def incErr(count, enable, clock, reset, n):
-    
+
     @always(clock.posedge, reset.negedge)
     def incProcess():
         # make it fail in conversion
@@ -114,11 +122,11 @@ always @(posedge $clock, negedge $reset) begin
     end
 end
 """
-                
+
     return incProcess
 
 
-
+@block
 def inc_comb(nextCount, count, n):
 
     @always_comb
@@ -129,13 +137,15 @@ def inc_comb(nextCount, count, n):
 
     nextCount.driven = "wire"
 
-    inc_comb.vhdl_code =\
+    inc_comb.vhdl_code = \
 """
 $nextCount <= ($count + 1) mod $n;
 """
 
     return logic
 
+
+@block
 def inc_seq(count, nextCount, enable, clock, reset):
 
     @always(clock.posedge, reset.negedge)
@@ -160,11 +170,13 @@ process ($clock, $reset) begin
     end if;
 end process;
 """
-    
+
     return logic
 
+
+@block
 def inc2(count, enable, clock, reset, n):
-    
+
     nextCount = Signal(intbv(0, min=0, max=n))
 
     comb = inc_comb(nextCount, count, n)
@@ -173,25 +185,33 @@ def inc2(count, enable, clock, reset, n):
     return comb, seq
 
 
+@block
 def inc3(count, enable, clock, reset, n):
     inc2_inst = inc2(count, enable, clock, reset, n)
     return inc2_inst
 
 
+@block
 def clockGen(clock):
+
     @instance
     def logic():
         clock.next = 1
         while 1:
             yield delay(10)
             clock.next = not clock
+
     return logic
+
 
 NRTESTS = 1000
 
 ENABLES = tuple([min(1, randrange(5)) for i in range(NRTESTS)])
 
+
+@block
 def stimulus(enable, clock, reset):
+
     @instance
     def logic():
         reset.next = INACTIVE_HIGH
@@ -206,10 +226,13 @@ def stimulus(enable, clock, reset):
             enable.next = ENABLES[i]
             yield clock.negedge
         raise StopSimulation
+
     return logic
 
 
+@block
 def check(count, enable, clock, reset, n):
+
     @instance
     def logic():
         expect = 0
@@ -224,9 +247,11 @@ def check(count, enable, clock, reset, n):
             # print "%d count %s expect %s count_v %s" % (now(), count, expect, count_v)
             # assert count == expect
             print(count)
+
     return logic
 
 
+@block
 def customBench(inc):
 
     m = 8
@@ -244,45 +269,36 @@ def customBench(inc):
     return inc_inst, clk_1, st_1, ch_1
 
 
-
 def testIncRef():
-    assert conversion.verify(customBench, incRef) == 0
+    assert customBench(incRef).verify_convert() == 0
+
 
 def testInc():
-    assert conversion.verify(customBench, inc) == 0
-    
+    assert customBench(inc).verify_convert() == 0
+
+
 def testInc2():
-    assert conversion.verify(customBench, inc2) == 0
-    
+    assert customBench(inc2).verify_convert() == 0
+
+
 def testInc3():
-    assert conversion.verify(customBench, inc3) == 0
+    assert customBench(inc3).verify_convert() == 0
+
 
 def testIncGen():
     try:
-        assert conversion.verify(customBench, incGen) == 0
-    except ConversionError as e:
+        assert customBench(incGen).verify_convert() == 0
+    except ConversionError:
         pass
     else:
         assert False
-        
+
+
 def testIncErr():
     try:
-        assert conversion.verify(customBench, incErr) == 0
-    except ConversionError as e:
+        assert customBench(incErr).verify_convert() == 0
+    except ConversionError:
         pass
     else:
         assert False
-
-
-
-
-    
-
-    
-        
-
-
-                
-
-        
 

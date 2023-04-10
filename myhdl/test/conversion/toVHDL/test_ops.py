@@ -4,12 +4,12 @@ import random
 from random import randrange
 random.seed(2)
 
-import myhdl
-from myhdl import *
-from myhdl.conversion import verify
+from myhdl import (block, Signal, intbv, delay, instance, StopSimulation)
 
 NRTESTS = 10
 
+
+@block
 def binaryOps(
               Bitand,
               Bitor,
@@ -42,18 +42,18 @@ def binaryOps(
             FloorDiv.next = 0
             if right != 0:
                 FloorDiv.next = left // right
-    ##         if left < 256 and right < 40:
+    # #         if left < 256 and right < 40:
             LeftShift.next = 0
-            if left < 256 and right < 26: # fails in ghdl for > 26
+            if left < 256 and right < 26:  # fails in ghdl for > 26
                 LeftShift.next = left << right
-            Modulo.next = 0 
+            Modulo.next = 0
             if right != 0:
                 Modulo.next = left % right
             Mul.next = left * right
             # Icarus doesn't support ** yet
-            #if left < 256 and right < 40:
+            # if left < 256 and right < 40:
             #    Pow.next = left ** right
-    ##         Pow.next = 0
+    # #         Pow.next = 0
             RightShift.next = left >> right
             Sub.next = 0
             if left >= right:
@@ -67,17 +67,19 @@ def binaryOps(
             GE.next = left >= right
             Booland.next = bool(left) and bool(right)
             Boolor.next = bool(left) or bool(right)
+
     return logic
 
 
+@block
 def binaryBench(m, n):
 
-    M = 2**m
-    N = 2**n
+    M = 2 ** m
+    N = 2 ** n
     P = min(M, N)
     seqP = tuple(range(P))
-    seqM = tuple([randrange(M) for i in range(NRTESTS)])
-    seqN = tuple([randrange(N) for i in range(NRTESTS)])
+    seqM = tuple([randrange(M) for __ in range(NRTESTS)])
+    seqN = tuple([randrange(N) for __ in range(NRTESTS)])
 
     left = Signal(intbv(0)[m:])
     right = Signal(intbv(0)[n:])
@@ -87,12 +89,12 @@ def binaryBench(m, n):
     FloorDiv = Signal(intbv(0)[m:])
     LeftShift = Signal(intbv(0)[64:])
     Modulo = Signal(intbv(0)[m:])
-    Mul = Signal(intbv(0)[m+n:])
+    Mul = Signal(intbv(0)[m + n:])
     Pow = Signal(intbv(0)[64:])
     RightShift = Signal(intbv(0)[m:])
     Sub = Signal(intbv(0)[max(m, n):])
-    Sum = Signal(intbv(0)[max(m, n)+1:])
-    EQ, NE, LT, GT, LE, GE = [Signal(bool()) for i in range(6)]
+    Sum = Signal(intbv(0)[max(m, n) + 1:])
+    EQ, NE, LT, GT, LE, GE = [Signal(bool()) for __ in range(6)]
     Booland, Boolor = [Signal(bool()) for i in range(2)]
 
     binops = binaryOps(Bitand,
@@ -125,13 +127,13 @@ def binaryBench(m, n):
         right.next = 0
         yield delay(10)
         left.next = 0
-        right.next = N-1
+        right.next = N - 1
         yield delay(10)
-        left.next = M-1
+        left.next = M - 1
         right.next = 0
         yield delay(10)
-        left.next = M-1
-        right.next = N-1
+        left.next = M - 1
+        right.next = N - 1
         for i in range(len(seqP)):
             left.next = seqP[i]
             right.next = seqP[i]
@@ -141,7 +143,6 @@ def binaryBench(m, n):
             right.next = seqN[i]
             yield delay(10)
         # raise StopSimulation
-
 
     @instance
     def check():
@@ -173,17 +174,14 @@ def binaryBench(m, n):
 
     return binops, stimulus, check
 
-def checkBinary(m, n):
-    assert verify(binaryBench, m, n) == 0
 
 def testBinary():
     for m, n in ((4, 4,), (5, 3), (2, 6), (8, 7)):
     # for m, n in ((2, 6),):
-        yield checkBinary, m, n
+        assert binaryBench(m, n).verify_convert() == 0
 
 
-
-
+@block
 def multiOps(
               Bitand,
               Bitor,
@@ -191,6 +189,7 @@ def multiOps(
               Booland,
               Boolor,
               argm, argn, argp):
+
     @instance
     def logic():
         while 1:
@@ -200,21 +199,22 @@ def multiOps(
             Bitxor.next = argm ^ argn ^ argp
             Booland.next = bool(argm) and bool(argn) and bool(argp)
             Boolor.next = bool(argm) and bool(argn) and bool(argp)
+
     return logic
 
 
-
+@block
 def multiBench(m, n, p):
 
-    M = 2**m
-    N = 2**n
-    P = 2**p
+    M = 2 ** m
+    N = 2 ** n
+    P = 2 ** p
 
     Q = min(M, N, P)
     seqQ = tuple(range(1, Q))
-    seqM = tuple([randrange(M) for i in range(NRTESTS)])
-    seqN = tuple([randrange(N) for i in range(NRTESTS)])
-    seqP = tuple([randrange(P) for i in range(NRTESTS)])
+    seqM = tuple([randrange(M) for __ in range(NRTESTS)])
+    seqN = tuple([randrange(N) for __ in range(NRTESTS)])
+    seqP = tuple([randrange(P) for __ in range(NRTESTS)])
 
     argm = Signal(intbv(0)[m:])
     argn = Signal(intbv(0)[n:])
@@ -243,13 +243,13 @@ def multiBench(m, n, p):
             argn.next = seqN[i]
             argp.next = seqP[i]
             yield delay(10)
-##         for j, k, l in ((0, 0, 0),   (0, 0, P-1), (0, N-1, P-1),
-##                         (M-1, 0, 0),  (M-1, 0, P-1), (M-1, N-1, 0),
-##                         (0, N-1, 0), (M-1, N-1, P-1)):
-##             argm.next = j
-##             argn.next = k
-##             argp.next = l
-##             yield delay(10)
+# #         for j, k, l in ((0, 0, 0),   (0, 0, P-1), (0, N-1, P-1),
+# #                         (M-1, 0, 0),  (M-1, 0, P-1), (M-1, N-1, 0),
+# #                         (0, N-1, 0), (M-1, N-1, P-1)):
+# #             argm.next = j
+# #             argn.next = k
+# #             argp.next = l
+# #             yield delay(10)
 
     @instance
     def check():
@@ -265,34 +265,37 @@ def multiBench(m, n, p):
 
     return multiops, stimulus, check
 
-def checkMultiOps(m, n, p):
-    assert verify(multiBench, m, n, p) == 0
 
 def testMultiOps():
     for m, n, p in ((4, 4, 4,), (5, 3, 2), (3, 4, 6), (3, 7, 4)):
-        yield checkMultiOps, m, n, p
+        assert multiBench(m, n, p).verify_convert() == 0
 
 
+@block
 def unaryOps(
              Not_kw,
              Invert,
              UnaryAdd,
              UnarySub,
              arg):
+
     @instance
     def logic():
         while 1:
             yield arg
             Not_kw.next = not arg
             Invert.next = ~arg
+
             # unary operators not supported ?
-            #UnaryAdd.next = +arg
+            # UnaryAdd.next = +arg
             # UnarySub.next = --arg
     return logic
 
+
+@block
 def unaryBench(m):
 
-    M = 2**m
+    M = 2 ** m
     seqM = tuple([randrange(M) for i in range(NRTESTS)])
 
     arg = Signal(intbv(0)[m:])
@@ -327,15 +330,14 @@ def unaryBench(m):
 
     return unaryops, stimulus, check
 
-def checkUnaryOps(m):
-    assert verify(unaryBench, m) == 0
-    
+
 def testUnaryOps():
     for m in (4, 7):
-        yield checkUnaryOps, m
+        assert unaryBench(m).verify_convert() == 0
 
 
-def augmOps(  Bitand,
+@block
+def augmOps(Bitand,
               Bitor,
               Bitxor,
               FloorDiv,
@@ -346,6 +348,7 @@ def augmOps(  Bitand,
               Sub,
               Sum,
               left, right):
+
     @instance
     def logic():
         # var = intbv(0)[min(64, len(left) + len(right)):]
@@ -391,19 +394,18 @@ def augmOps(  Bitand,
             var[:] = left
             var >>= right
             RightShift.next = var
+
     return logic
 
 
-        
-
-
+@block
 def augmBench(m, n):
 
-    M = 2**m
-    N = 2**n
-    
-    seqM = tuple([randrange(M) for i in range(NRTESTS)])
-    seqN = tuple([randrange(N) for i in range(NRTESTS)])
+    M = 2 ** m
+    N = 2 ** n
+
+    seqM = tuple([randrange(M) for __ in range(NRTESTS)])
+    seqN = tuple([randrange(N) for __ in range(NRTESTS)])
 
     left = Signal(intbv(0)[m:])
     right = Signal(intbv(0)[n:])
@@ -413,12 +415,12 @@ def augmBench(m, n):
     FloorDiv = Signal(intbv(0)[m:])
     LeftShift = Signal(intbv(0)[64:])
     Modulo = Signal(intbv(0)[m:])
-    Mul = Signal(intbv(0)[m+n:])
+    Mul = Signal(intbv(0)[m + n:])
     RightShift = Signal(intbv(0)[m:])
     Sub = Signal(intbv(0)[max(m, n):])
-    Sum = Signal(intbv(0)[max(m, n)+1:])
+    Sum = Signal(intbv(0)[max(m, n) + 1:])
 
-    augmops = augmOps( Bitand,
+    augmops = augmOps(Bitand,
                        Bitor,
                        Bitxor,
                        FloorDiv,
@@ -439,18 +441,17 @@ def augmBench(m, n):
         right.next = 0
         yield delay(10)
         left.next = 0
-        right.next = N-1
+        right.next = N - 1
         yield delay(10)
-        left.next = M-1
+        left.next = M - 1
         right.next = 0
         yield delay(10)
-        left.next = M-1
-        right.next = N-1
+        left.next = M - 1
+        right.next = N - 1
         for i in range(NRTESTS):
             left.next = seqM[i]
             right.next = seqN[i]
             yield delay(10)
-            
 
     @instance
     def check():
@@ -467,14 +468,11 @@ def augmBench(m, n):
             print(Modulo)
             print(Mul)
             print(RightShift)
-            
+
     return augmops, stimulus, check
 
 
-def checkAugmOps(m, n):
-    assert verify(augmBench, m, n) == 0
-
 def testAugmOps():
     for m, n in ((4, 4,), (5, 3), (2, 6), (8, 7)):
-        yield checkAugmOps, m, n
+        assert augmBench(m, n).verify_convert() == 0
 

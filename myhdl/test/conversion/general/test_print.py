@@ -1,10 +1,11 @@
-import myhdl
-from myhdl import *
+from myhdl import (block, Signal, enum, intbv, delay, instance)
 from myhdl import ConversionError
 from myhdl.conversion._misc import _error
 
 t_State = enum("START", "RUN", "STOP")
 
+
+@block
 def PrintBench():
     si1 = Signal(intbv(0)[8:])
     si2 = Signal(intbv(0, min=-10, max=12))
@@ -43,7 +44,7 @@ def PrintBench():
         print("i1 %s i2 %s b %s si1 %s si2 %s" % (i1, i2, b, si1, si2))
         print("i1 %d i2 %d b %d si1 %d si2 %d" % (i1, i2, b, si1, si2))
         print(b)
-        #print "%% %s" % i1
+        # print "%% %s" % i1
 
         yield delay(10)
         print(state)
@@ -65,18 +66,20 @@ def PrintBench():
 
     return logic
 
-def testPrint():
-    assert conversion.verify(PrintBench) == 0
 
+def testPrint():
+    assert PrintBench().verify_convert() == 0
+
+
+@block
 def PrintLongVectorsBench():
     N84 = 84
-    M84 = 2**N84-1
+    M84 = 2 ** N84 - 1
     N85 = 85
-    M85 = 2**N85-1
+    M85 = 2 ** N85 - 1
     N86 = 86
-    M86 = 2**N86-1
+    M86 = 2 ** N86 - 1
     N87 = 87
-    M87 = 2**N87-1
 
     si1 = Signal(intbv(0)[N87:])
     si2 = Signal(intbv(0, min=-M85, max=M86))
@@ -104,90 +107,113 @@ def PrintLongVectorsBench():
 
     return logic
 
-def testPrintLongVectors():
-    assert conversion.verify(PrintLongVectorsBench) == 0
 
-def testPrint():
-    assert conversion.verify(PrintBench) == 0
+def testPrintLongVectors():
+    assert PrintLongVectorsBench().verify_convert() == 0
 
 # format string errors and unsupported features
 
+
+@block
 def PrintError1():
-     @instance
-     def logic():
-         i1 = intbv(12)[8:]
-         yield delay(10)
-         print("floating point %f end" % i1)
-     return logic
+
+    @instance
+    def logic():
+        i1 = intbv(12)[8:]
+        yield delay(10)
+        print("floating point %f end" % i1)
+
+    return logic
+
 
 def testPrintError1():
     try:
-        conversion.verify(PrintError1)
+        PrintError1().verify_convert()
     except ConversionError as e:
         assert e.kind == _error.UnsupportedFormatString
     else:
         assert False
 
+
+@block
 def PrintError2():
-     @instance
-     def logic():
-         i1 = intbv(12)[8:]
-         yield delay(10)
-         print("begin %s %s end" % i1)
-     return logic
+
+    @instance
+    def logic():
+        i1 = intbv(12)[8:]
+        yield delay(10)
+        print("begin %s %s end" % i1)
+
+    return logic
+
 
 def testPrintError2():
     try:
-        conversion.verify(PrintError2)
+        PrintError2().verify_convert()
     except ConversionError as e:
         assert e.kind == _error.FormatString
     else:
         assert False
 
+
+@block
 def PrintError3():
-     @instance
-     def logic():
-         i1 = intbv(12)[8:]
-         i2 = intbv(13)[8:]
-         yield delay(10)
-         print("begin %s end" % (i1, i2))
-     return logic
+
+    @instance
+    def logic():
+        i1 = intbv(12)[8:]
+        i2 = intbv(13)[8:]
+        yield delay(10)
+        print("begin %s end" % (i1, i2))
+
+    return logic
+
 
 def testPrintError3():
     try:
-        conversion.verify(PrintError3)
+        PrintError3().verify_convert()
     except ConversionError as e:
         assert e.kind == _error.FormatString
     else:
         assert False
 
+
+@block
 def PrintError4():
-     @instance
-     def logic():
-         i1 = intbv(12)[8:]
-         yield delay(10)
-         print("%10s" % i1)
-     return logic
+
+    @instance
+    def logic():
+        i1 = intbv(12)[8:]
+        yield delay(10)
+        print("%10s" % i1)
+
+    return logic
+
 
 def testPrintError4():
     try:
-        conversion.verify(PrintError4)
+        PrintError4().verify_convert()
     except ConversionError as e:
         assert e.kind == _error.UnsupportedFormatString
     else:
         assert False
 
+
+@block
 def PrintError5():
-     @instance
-     def logic():
-         i1 = intbv(12)[8:]
-         yield delay(10)
-         print("%-10s" % i1)
-     return logic
+
+    @instance
+    def logic():
+        i1 = intbv(12)[8:]
+        yield delay(10)
+        print("%-10s" % i1)
+
+    return logic
+
 
 def testPrintError5():
     try:
-        conversion.verify(PrintError5)
+        PrintError5().verify_convert()
     except ConversionError as e:
         assert e.kind == _error.UnsupportedFormatString
     else:

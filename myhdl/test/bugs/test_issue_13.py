@@ -1,7 +1,7 @@
-import myhdl
-from myhdl import *
-from myhdl.conversion import analyze
+from myhdl import (block, Signal, intbv, downrange, always_seq, concat, ResetSignal)
 
+
+@block
 def issue_13(reset, clk, d, en, q):
     COSET = 0x55
 
@@ -28,15 +28,16 @@ def issue_13(reset, clk, d, en, q):
 
     return logic
 
+
 def test_issue_13():
 
     reset = ResetSignal(0, active=1, isasync=False)
-    clk   = Signal(bool(0))
-    d     = Signal(intbv(0)[32:])
-    en    = Signal(bool(0))
-    q     = Signal(intbv(0)[8:])
+    clk = Signal(bool(0))
+    d = Signal(intbv(0)[32:])
+    en = Signal(bool(0))
+    q = Signal(intbv(0)[8:])
 
     # toVHDL.numeric_ports = False
 
-    assert analyze(issue_13, reset, clk, d, en, q) == 0 
+    issue_13(reset, clk, d, en, q).analyze_convert() == 0
 

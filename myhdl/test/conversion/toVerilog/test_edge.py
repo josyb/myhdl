@@ -6,13 +6,16 @@ import random
 from random import randrange
 random.seed(2)
 
-import myhdl
-from myhdl import *
+from myhdl import (block, Signal, delay, always,
+                   instance, StopSimulation)
+from myhdl._Simulation import Simulation
 
 from .util import setupCosimulation
 
 ACTIVE_LOW, INACTIVE_HIGH = 0, 1
 
+
+@block
 def edge1(flag, sig, clock):
 
     sig_Z1 = Signal(bool(0))
@@ -26,6 +29,8 @@ def edge1(flag, sig, clock):
 
     return detect
 
+
+@block
 def edge2(flag, sig, clock):
 
     sig_Z1 = Signal(bool(0))
@@ -38,6 +43,7 @@ def edge2(flag, sig, clock):
     return detect
 
 
+@block
 def edge3(flag, sig, clock):
 
     @instance
@@ -51,6 +57,7 @@ def edge3(flag, sig, clock):
     return detect
 
 
+@block
 def edge4(flag, sig, clock):
 
     @instance
@@ -63,12 +70,14 @@ def edge4(flag, sig, clock):
 
     return detect
 
-    
+
+@block
 def edge_v(name, flag, sig, clock):
     return setupCosimulation(**locals())
 
+
 class TestEdge(TestCase):
-            
+
     def bench(self, edge):
 
         clock = Signal(bool(0))
@@ -85,7 +94,7 @@ class TestEdge(TestCase):
         @instance
         def stimulus():
             yield clock.negedge
-            for i in range(100):
+            for dummy in range(100):
                 sig.next = randrange(2)
                 yield clock.negedge
             raise StopSimulation
@@ -100,44 +109,28 @@ class TestEdge(TestCase):
             expected = sig_Z1 and not sig_Z2
             self.assertEqual(flag, expected)
 
-        edge_inst = toVerilog(edge, flag, sig, clock)
+        edge_inst = edge(flag, sig, clock).convert(hdl='Verilog')
         edge_inst_v = edge_v(edge.__name__, flag, sig, clock)
 
         return clockgen, stimulus, delayline, check, edge_inst_v
-          
 
     def testEdge1(self):
         sim = Simulation(self.bench(edge1))
         sim.run(quiet=1)
-        
+
     def testEdge2(self):
         sim = Simulation(self.bench(edge2))
         sim.run(quiet=1)
-        
+
     def testEdge3(self):
         sim = Simulation(self.bench(edge3))
         sim.run(quiet=1)
-        
+
     def testEdge4(self):
         sim = Simulation(self.bench(edge4))
         sim.run(quiet=1)
-        
-        
+
 
 if __name__ == '__main__':
     unittest.main()
-
-
-            
-            
-
-    
-
-    
-        
-
-
-                
-
-        
 
