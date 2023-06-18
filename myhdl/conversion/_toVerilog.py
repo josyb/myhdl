@@ -281,8 +281,8 @@ def _writeModuleHeader(f, intf, doc):
         s = intf.argdict[portname]
         if s._name is None:
             raise ToVerilogError(_error.ShadowingSignal, portname)
-        if s._inList:
-            raise ToVerilogError(_error.PortInList, portname)
+        # if s._inList:
+        #     raise ToVerilogError(_error.PortInList, portname)
         # make sure signal name is equal to its port name
         s._name = portname
         r = _getRangeString(s)
@@ -1100,11 +1100,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("default")
         else:
             raise AssertionError("Unknown name %s or pattern %s" % (node.name, node.pattern))
-    
+
     def visit_MatchOr(self, node):
         for i, pattern in enumerate(node.patterns):
             self.visit(pattern)
-            if not i == len(node.patterns)-1:
+            if not i == len(node.patterns) - 1:
                 self.write(" | ")
 
     def mapToCase(self, node, *args):

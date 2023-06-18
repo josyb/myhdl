@@ -29,8 +29,8 @@ import re
 import ast
 import builtins
 from itertools import chain
+import warnings
 
-import myhdl
 import myhdl
 from myhdl import *
 from myhdl import ConversionError
@@ -41,7 +41,7 @@ from myhdl.conversion._misc import (_error, _access, _kind,
                                     _ConversionMixin, _Label, _genUniqueSuffix,
                                     _get_argnames)
 from myhdl._extractHierarchy import _isMem, _getMemInfo, _UserCode
-from myhdl._Signal import _Signal, _WaiterList
+from myhdl._Signal import _Signal, _WaiterList, _isListOfSigs
 from myhdl._ShadowSignal import _ShadowSignal, _SliceSignal, _TristateDriver
 from myhdl._util import _flatten
 from myhdl._util import _isTupleOfInts
@@ -75,10 +75,6 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
     memlist = []
     prefixes = []
 
-    open, close = '[', ']'
-    if hdl == 'VHDL':
-        open, close = '(', ')'
-
     for inst in hierarchy:
         level = inst.level
         name = inst.name
@@ -96,17 +92,25 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
+            newname = False
             if s._name is not None:
-                continue
+                if s.context != name:
+                    continue
+                else:
+                    # it already is on the list
+                    newname = True
+
             if isinstance(s, _SliceSignal):
                 continue
             s._name = _makeName(n, prefixes, namedict)
             if not s._nrbits:
                 raise ConversionError(_error.UndefinedBitWidth, s._name)
-            # slice signals
-            for sl in s._slicesigs:
-                sl._setName(hdl)
-            siglist.append(s)
+
+            if not newname:
+                # slice signals
+                for sl in s._slicesigs:
+                    sl._setName(hdl)
+                siglist.append(s)
         # list of signals
         for n, m in memdict.items():
             if m.name is not None:
@@ -116,26 +120,36 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
 
     # handle the case where a named signal appears in a list also by giving
     # priority to the list and marking the signals as unused
+    opening, closing = '[', ']'
+    if hdl == 'VHDL':
+        opening, closing = '(', ')'
+
     for m in memlist:
-        if not m._used:
-            continue
-        for i, s in enumerate(m.mem):
-            s._name = "%s%s%s%s" % (m.name, open, i, close)
-            s._used = False
-            if s._inList:
-                raise ConversionError(_error.SignalInMultipleLists, s._name)
-            s._inList = True
-            if not s._nrbits:
-                raise ConversionError(_error.UndefinedBitWidth, s._name)
-            if type(s.val) != type(m.elObj.val):
-                raise ConversionError(_error.InconsistentType, s._name)
-            if s._nrbits != m.elObj._nrbits:
-                raise ConversionError(_error.InconsistentBitWidth, s._name)
+        if m._used:
+            for i, s in enumerate(m.mem):
+                nn = "%s%s%s%s" % (m.name, opening, i, closing)
+                if s._inList is not None:
+#                     # first come, first served
+#                     continue
+                    # raise ConversionError(_error.SignalInMultipleLists, '{} {}'.format(nn, m.mem[i]._name))
+                    # make it a warning, but it could be an error waiting to happen ...
+                    warnings.warn('Signal "{}" ({}) in  multiple lists'.format(nn, repr(s)))
+
+                s._name = nn
+                s._used = False
+                s._inList = m
+                if not s._nrbits:
+                    raise ConversionError(_error.UndefinedBitWidth, s._name)
+                if type(s.val) != type(m.elObj.val):
+                    raise ConversionError(_error.InconsistentType, '{} {} <> {} {}'.format(s._name, repr(s), m.name, repr(m.elObj)))
+                if s._nrbits != m.elObj._nrbits:
+                    raise ConversionError(_error.InconsistentBitWidth, s._name)
 
     return siglist, memlist
 
 
 def _analyzeGens(top, absnames):
+    # print('_analyzeGens: top:', top)
     genlist = []
     for g in top:
         if isinstance(g, _UserCode):
@@ -160,11 +174,11 @@ def _analyzeGens(top, absnames):
             v = _FirstPassVisitor(tree)
             v.visit(tree)
             if isinstance(g, _AlwaysComb):
-                v = _AnalyzeAlwaysCombVisitor(tree, g.senslist)
+                v = _AnalyzeAlwaysCombVisitor(tree, g.senslist, g.parent)
             elif isinstance(g, _AlwaysSeq):
-                v = _AnalyzeAlwaysSeqVisitor(tree, g.senslist, g.reset, g.sigregs, g.varregs)
+                v = _AnalyzeAlwaysSeqVisitor(tree, g.senslist, g.reset, g.sigregs, g.varregs, g.parent)
             else:
-                v = _AnalyzeAlwaysDecoVisitor(tree, g.senslist)
+                v = _AnalyzeAlwaysDecoVisitor(tree, g.senslist, g.parent)
             v.visit(tree)
         else:  # @instance
             f = g.gen.gi_frame
@@ -178,7 +192,7 @@ def _analyzeGens(top, absnames):
             v.visit(tree)
             v = _FirstPassVisitor(tree)
             v.visit(tree)
-            v = _AnalyzeBlockVisitor(tree)
+            v = _AnalyzeBlockVisitor(tree, None)
             v.visit(tree)
         genlist.append(tree)
     return genlist
@@ -409,7 +423,7 @@ def _getNritems(obj):
     elif isinstance(obj, EnumItemType):
         return len(obj._type)
     else:
-        raise TypeError("Unexpected type, missing final \'else:\'?")
+        raise TypeError("Unexpected type {}, missing final \'else:\'?".format(obj))
 
 
 class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
@@ -442,10 +456,10 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
     def visit_BoolOp(self, node):
         for n in node.values:
             self.visit(n)
-        for n in node.values:
+        for i, n in enumerate(node.values):
             if not hasType(n.obj, bool):
                 self.raiseError(node, _error.NotSupported,
-                                "non-boolean argument in logical operator")
+                                "non-boolean argument in logical operator: position {}, {}".format(i + 1, n))
         node.obj = bool()
 
     def visit_UnaryOp(self, node):
@@ -1062,8 +1076,9 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
 class _AnalyzeBlockVisitor(_AnalyzeVisitor):
 
-    def __init__(self, tree):
+    def __init__(self, tree, parent):
         _AnalyzeVisitor.__init__(self, tree)
+        self.parent = parent
         for n, v in self.tree.symdict.items():
             if isinstance(v, _Signal):
                 self.tree.sigdict[n] = v
@@ -1087,12 +1102,19 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
         self.generic_visit(node)
         for n in self.tree.outputs:
             s = self.tree.sigdict[n]
+            s.context = self.parent
+            # print('     _AnalyzeBlockVisitor: visit_Module: Output', n, s)
             if s._driven:
                 self.raiseError(node, _error.SigMultipleDriven, n)
-            s._driven = "reg"
+                # # make it a warning, but it could be an error waiting to happen ...
+                # warnings.warn('{}: Signal "{}" ({}) has multiple drivers'.format(node.name, n, repr(s)))
+
+            s.driven = "reg"
+
         for n in self.tree.inputs:
             s = self.tree.sigdict[n]
             s._markRead()
+#             print('  ', n, repr(s))
 
     def visit_Return(self, node):
         # value should be None
@@ -1106,13 +1128,14 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
 
 class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
 
-    def __init__(self, tree, senslist):
-        _AnalyzeBlockVisitor.__init__(self, tree)
+    def __init__(self, tree, senslist, parent):
+        _AnalyzeBlockVisitor.__init__(self, tree, parent)
         self.tree.senslist = senslist
 
     def visit_FunctionDef(self, node):
         self.refStack.push()
         for n in node.body:
+            # print(n)
             self.visit(n)
         self.tree.kind = _kind.SIMPLE_ALWAYS_COMB
         for n in node.body:
@@ -1133,11 +1156,13 @@ class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
         self.refStack.pop()
 
     def visit_Module(self, node):
+        # print('visit_Module:', node, node.body)
+        # print(ast.dump(node))
         _AnalyzeBlockVisitor.visit_Module(self, node)
         if self.tree.kind == _kind.SIMPLE_ALWAYS_COMB:
             for n in self.tree.outputs:
                 s = self.tree.sigdict[n]
-                s._driven = "wire"
+                s.driven = "wire"
             for n in self.tree.outmems:
                 m = _getMemInfo(self.tree.symdict[n])
                 m._driven = "wire"
@@ -1145,8 +1170,8 @@ class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
 
 class _AnalyzeAlwaysSeqVisitor(_AnalyzeBlockVisitor):
 
-    def __init__(self, tree, senslist, reset, sigregs, varregs):
-        _AnalyzeBlockVisitor.__init__(self, tree)
+    def __init__(self, tree, senslist, reset, sigregs, varregs, parent):
+        _AnalyzeBlockVisitor.__init__(self, tree, parent)
         self.tree.senslist = senslist
         self.tree.reset = reset
         self.tree.sigregs = sigregs
@@ -1162,8 +1187,8 @@ class _AnalyzeAlwaysSeqVisitor(_AnalyzeBlockVisitor):
 
 class _AnalyzeAlwaysDecoVisitor(_AnalyzeBlockVisitor):
 
-    def __init__(self, tree, senslist):
-        _AnalyzeBlockVisitor.__init__(self, tree)
+    def __init__(self, tree, senslist, parent):
+        _AnalyzeBlockVisitor.__init__(self, tree, parent)
         self.tree.senslist = senslist
         for arg in senslist:
             if isinstance(arg, delay):
@@ -1199,6 +1224,7 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
             self.tree.argnames.append(n)
         for n, v in self.tree.symdict.items():
             if isinstance(v, (_Signal, intbv)):
+#                 print('_AnalyzeFuncVisitor')
                 self.tree.sigdict[n] = v
         for stmt in node.body:
             self.visit(stmt)
@@ -1254,21 +1280,42 @@ def isboundmethod(m):
 
 
 # a local function to drill down to the last interface
-def expandinterface(v, name, obj):
+def expandinterface(v, name, obj, level=0):
+    # print(level, v, name, repr(obj))
     for attr, attrobj in vars(obj).items():
         if isinstance(attrobj, _Signal):
-# override any 'mangled' name
-#             signame = attrobj._name
-#             if not signame:
             signame = name + '_' + attr
             attrobj._name = signame
             v.argdict[signame] = attrobj
             v.argnames.append(signame)
+            # print('expandinterface {} -> {}'.format(signame, repr(attrobj)))
+
         elif isinstance(attrobj, myhdl.EnumType):
             pass
+
+        elif _isListOfSigs(attrobj):
+            expandlos(v, name + '_' + attr, attrobj)
+
         elif hasattr(attrobj, '__dict__'):
-            # can assume is yet another interface ...
-            expandinterface(v, name + '_' + attr, attrobj)
+            # print(hex(id(attrobj)), hex(id(obj)))
+            if level > 9:
+                print(' 10 levels of expansion? {}, {}, {}'.format(name, attr, repr(attrobj)))
+            else:
+                expandinterface(v, name + '_' + attr, attrobj, level + 1)
+
+
+def expandlos(v, name, los):
+#     print('expandlos', name, repr(los))
+    # if the los is instantiated by ListOfSignals
+    # remove the '_data' suffix
+    name, __ , __ = name.partition('_data')
+    for i in range(len(los)):
+#         print(i, los[i]._inList)
+        signame = name + '_' + '{}'.format(i)
+        los[i]._name = signame
+        los[i]._used = True
+        v.argdict[signame] = los[i]
+        v.argnames.append(signame)
 
 
 def _analyzeTopFunc(func, *args, **kwargs):
@@ -1276,19 +1323,16 @@ def _analyzeTopFunc(func, *args, **kwargs):
     v = _AnalyzeTopFuncVisitor(func, tree, *args, **kwargs)
     v.visit(tree)
 
-    objs = []
-    for name, obj in v.fullargdict.items():
-        if not isinstance(obj, _Signal):
-            objs.append((name, obj))
-
     # create ports for any signal in the top instance if it was buried in an
     # object passed as in argument
+    for name, obj in v.fullargdict.items():
+        if not isinstance(obj, _Signal):
+            if hasattr(obj, '__dict__'):
+                # must be an interface object (probably ...?)
+                expandinterface(v, name, obj)
 
-    # now expand the interface objects
-    for name, obj in objs:
-        if hasattr(obj, '__dict__'):
-            # must be an interface object (probably ...?)
-            expandinterface(v, name, obj)
+            elif _isListOfSigs(obj):
+                expandlos(v, name, obj)
 
     return v
 
@@ -1321,8 +1365,8 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             self.fullargdict[n] = arg
             if isinstance(arg, _Signal):
                 self.argdict[n] = arg
-            if _isMem(arg):
-                self.raiseError(node, _error.ListAsPort, n)
+            # if _isMem(arg):
+            #     self.raiseError(node, _error.ListAsPort, n)
         for n in self.argnames[i + 1:]:
             if n in self.kwargs:
                 arg = self.kwargs[n]

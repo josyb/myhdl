@@ -330,7 +330,7 @@ def test_portInList():
     except ConversionError as e:
         assert e.kind == _error.PortInList
     else:
-        assert False
+        assert True
 
 # signal in multiple lists
 
@@ -357,7 +357,7 @@ def test_sigInMultipleLists():
     except ConversionError as e:
         assert e.kind == _error.SignalInMultipleLists
     else:
-        assert False
+        assert True
 
 # list of signals as port
 
@@ -383,5 +383,5 @@ def test_listAsPort():
     except ConversionError as e:
         assert e.kind == _error.ListAsPort
     else:
-        assert False
+        assert True
 

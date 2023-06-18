@@ -1,4 +1,4 @@
-all: vcom 
+all: ghdl 
 
 vcom:
 	py.test --sim vcom

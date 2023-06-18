@@ -1,4 +1,4 @@
-all: vlog  
+all: iverilog  
 
 vlog:
 	py.test --sim vlog

@@ -1,4 +1,4 @@
-all:  vlog vcom 
+all:  iverilog ghdl 
 
 ghdl:
 	py.test --sim ghdl

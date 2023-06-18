@@ -112,11 +112,14 @@ def top_multi_comb(x, y, z):
     it only tests intermediate interfaces.
     """
     intf = Intf1(x), Intf2(y), Intf3(z)
+
     x.assign(intf[0].x)
     intf[1].y.assign(y)
     intf[2].z.z.assign(z)
-    inst = multi_comb(*intf)
-    return inst
+
+    # inst = multi_comb(*intf)
+    # return inst
+    return multi_comb(*intf)
 
 
 @block
@@ -128,10 +131,10 @@ def c_testbench_two():
     @instance
     def tb_stim():
         y.next = 3
-        z.next = 2
+        z.next = -2
         yield delay(10)
         print("x: %d" % (x,))
-        assert x == 5
+        assert x == 1
 
     return tb_dut, tb_stim
 
@@ -207,14 +210,14 @@ def test_one_verify():
 
 
 def test_two_analyze():
-    x, y, z = [Signal(intbv(0, min=-8, max=8))
+    a, b, c = [Signal(intbv(0, min=-8, max=8))
                for _ in range(3)]
     # fool name check in converter
     # to be reviewed
-    x._name = 'x'
-    y._name = 'y'
-    z._name = 'z'
-    inst = top_multi_comb(x, y, z)
+    a._name = 'x'
+    b._name = 'y'
+    c._name = 'z'
+    inst = top_multi_comb(a, b, c)
     assert inst.analyze_convert() == 0
 
 
@@ -236,3 +239,17 @@ def test_three_analyze():
 def test_three_verify():
     inst = c_testbench_three()
     assert inst.verify_convert() == 0
+
+
+if __name__ == '__main__':
+
+    a, b, c = [Signal(intbv(0, min=-8, max=8))
+               for _ in range(3)]
+    # fool name check in converter
+    # to be reviewed
+    # a._name = 'x'
+    # b._name = 'y'
+    # c._name = 'z'
+    inst = top_multi_comb(a, b, c)
+    inst.convert(hdl='VHDL')
+

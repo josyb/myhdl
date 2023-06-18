@@ -32,6 +32,8 @@ from myhdl._instance import _Instantiator, _getCallInfo
 
 class _error:
     pass
+
+
 _error.DecArgType = "decorator argument should be a Signal, edge, or delay"
 _error.ArgType = "decorated object should be a classic (non-generator) function"
 _error.NrOfArgs = "decorated function should not have arguments"
@@ -80,6 +82,7 @@ def always(*args):
         if func.__code__.co_argcount > 0:
             raise AlwaysError(_error.NrOfArgs)
         return _Always(func, args, callinfo=callinfo, sigdict=sigdict)
+
     return _always_decorator
 
 
@@ -92,6 +95,8 @@ class _Always(_Instantiator):
         # update sigdict with decorator signal arguments
         if sigdict is not None:
             self.sigdict.update(sigdict)
+        # the backlink to the parent, to be filled in by the _getHierarchyHelper
+        self.parent = None
 
     @property
     def funcobj(self):

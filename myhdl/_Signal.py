@@ -120,7 +120,7 @@ class _Signal(object):
                  '_setNextVal', '_copyVal2Next', '_printVcd',
                  '_driven', '_read', '_name', '_used', '_inList',
                  '_waiter', 'toVHDL', 'toVerilog', '_slicesigs',
-                 '_numeric'
+                 '_numeric', 'context'
                  )
 
     def __init__(self, val=None):
@@ -135,7 +135,8 @@ class _Signal(object):
         self._min = self._max = None
         self._name = self._driven = None
         self._read = self._used = False
-        self._inList = False
+        self._inList = None
+        self.context = None
         self._nrbits = 0
         self._numeric = True
         self._printVcd = self._printVcdStr
@@ -180,8 +181,10 @@ class _Signal(object):
         self._val = deepcopy(self._init)
         self._next = deepcopy(self._init)
         self._name = self._driven = None
-        self._read = False # dont clear self._used
-        self._inList = False 
+        self._read = False  # dont clear self._used
+        self._inList = None
+        self.context = None
+        self._driven = self._read = None
         self._numeric = True
         for s in self._slicesigs:
             s._clear()
@@ -268,7 +271,7 @@ class _Signal(object):
 
     @read.setter
     def read(self, val):
-        if not val in (True, ):
+        if not val in (True,):
             raise ValueError('Expected value True, got "%s"' % val)
         self._markRead()
 
@@ -556,6 +559,8 @@ class _Signal(object):
     def assign(self, sig):
 
         self.driven = "wire"
+        self._used = True
+        sig._used = sig._read = True
 
         def genFunc():
             while 1:
@@ -636,6 +641,7 @@ class _SignalWrap(object):
 
     def apply(self):
         return self.sig._apply(self.next, self.timeStamp)
+
 
 # for export
 SignalType = _Signal

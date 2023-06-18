@@ -219,8 +219,8 @@ class _ToVHDLConvertor(object):
             s = intf.argdict[portname]
             if s._name is None:
                 raise ToVHDLError(_error.ShadowingSignal, portname)
-            if s._inList:
-                raise ToVHDLError(_error.PortInList, portname)
+            # if s._inList:
+            #     raise ToVHDLError(_error.PortInList, portname)
             # add enum types to port-related set
             if isinstance(s._val, EnumItemType):
                 obj = s._val._type
@@ -247,7 +247,7 @@ class _ToVHDLConvertor(object):
         _writeFileHeader(vfile, vpath)
         if needPck:
             _writeCustomPackage(vfile, intf)
-        _writeModuleHeader(vfile, intf, needPck, lib, arch, useClauses, doc, stdLogicPorts)
+        _writeModuleHeader(vfile, intf, needPck, lib, arch, useClauses, doc, stdLogicPorts, siglist)
         _writeFuncDecls(vfile)
         _writeTypeDefs(vfile)
         _writeSigDecls(vfile, intf, siglist, memlist)
@@ -269,6 +269,7 @@ class _ToVHDLConvertor(object):
             sig._clear()
         for mem in memlist:
             mem.name = None
+            mem._driven = mem._read = None
             for s in mem.mem:
                 s._clear()
 
@@ -345,7 +346,7 @@ def _writeCustomPackage(f, intf):
 portConversions = []
 
 
-def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPorts):
+def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPorts, siglist):
     print("library IEEE;", file=f)
     print("use IEEE.std_logic_1164.all;", file=f)
     print("use IEEE.numeric_std.all;", file=f)
@@ -368,16 +369,26 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
         f.write("    port (")
         c = ''
         for portname in intf.argnames:
+            # Check if VHDL keyword or reused name
             _nameValid(portname)
             s = intf.argdict[portname]
+
+            if not s._used:
+#                 print('? _toVHDL: _writeModuleHeader: not s.used: {}'.format(repr(s)))
+                warnings.warn("%s: %s" % (_error.UnusedPort, portname),
+                              category=ToVHDLWarning
+                              )
+                # then skip it
+                continue
+
             f.write("%s" % c)
             c = ';'
             # change name to convert to std_logic, or
             # make sure signal name is equal to its port name
-            convertPort = False
-            if stdLogicPorts and s._type is intbv:
+            # but the port could also belong to a ListOfSignals
+            if stdLogicPorts and isinstance(s._val, intbv):
                 s._name = portname + "_num"
-                convertPort = True
+                # siglist.append(s)
                 # override the names given by _analyze.py
                 for sl in s._slicesigs:
                     sl._setName('VHDL')
@@ -385,31 +396,77 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
                 s._name = portname
             r = _getRangeString(s)
             pt = st = _getTypeString(s)
-            if convertPort:
-                pt = "std_logic_vector"
-#             # Check if VHDL keyword or reused name
-#             _nameValid(s._name)
-            if s._driven:
-                if s._read:
-                    if not isinstance(s, _TristateSignal):
-                        warnings.warn("%s: %s" % (_error.OutputPortRead, portname),
+
+            if s._inList is not None:
+                __, __, idx = portname.rpartition('_')
+                if s._inList._driven is not None:
+                    s._read = True
+                    if isinstance(s._val, intbv):
+                        if stdLogicPorts:
+                            pt = 'std_logic_vector'
+                            portConversions.append('{} <= std_logic_vector({}({}));'.format(portname, s._inList.name, idx))
+                        else:
+                            portConversions.append('{} <= {}({});'.format(portname, s._inList.name, idx))
+                        # we don't allow TriStateSignals in ListOfSignals ...
+                        f.write("\n        %s: out %s%s" % (portname, pt, r))
+                    else:
+                        # a bool()
+                        portConversions.append('{} <= {}({});'.format(portname, s._inList.name, idx))
+                        # we don't allow TriStateSignals in ListOfSignals ...
+                        f.write("\n        %s: out %s" % (portname, pt))
+
+                else:
+                    # an input ListOfSignals
+                    s._driven = 'wire'
+                    if isinstance(s._val, intbv):
+                        if stdLogicPorts:
+                            pt = 'std_logic_vector'
+                            portConversions.append('{}({}) <= {}({});'.format(s._inList.name, idx, st, portname))
+                        else:
+                            portConversions.append('{}({}) <= {};'.format(s._inList.name, idx, portname))
+                    else:
+                        # a bool()
+                        portConversions.append('{}({}) <= {};'.format(s._inList.name, idx, portname))
+
+                    f.write("\n        %s: in %s%s" % (portname, pt, r))
+
+            else:
+                # singular declaration
+                if s._driven:
+                    if isinstance(s._val, intbv):
+                        if stdLogicPorts:
+                            s.read = True
+                            pt = 'std_logic_vector'
+                            portConversions.append('{} <= std_logic_vector({});'.format(portname, s._name))
+                        else:
+                            pass
+                    else:
+                        # bool()
+                        pass
+
+                    if not s._read or not isinstance(s, _TristateSignal):
+                        f.write("\n        %s: out %s%s" % (portname, pt, r))
+                    else:
+                        f.write("\n        %s: inout %s%s" % (portname, pt, r))
+                else:
+                    # read
+                    if isinstance(s._val, intbv):
+                        if stdLogicPorts:
+                                s._driven = 'wire'
+                                pt = 'std_logic_vector'
+                                f.write("\n        %s: in %s%s" % (portname, pt, r))
+                                portConversions.append("%s <= %s(%s);" % (portname, pt, s._name))
+                                # print('appended port conversion {} {} {} {} \n{}'.format(s._name, st, portname, repr(s), s.report()))
+                        else:
+                            f.write("\n        %s: in %s%s" % (portname, pt, r))
+                    else:
+                            f.write("\n        %s: in %s" % (portname, pt))
+
+                    if not s._read:
+                        warnings.warn("%s: %s" % (_error.UnusedPort, portname),
                                       category=ToVHDLWarning
                                       )
-                    f.write("\n        %s: inout %s%s" % (portname, pt, r))
-                else:
-                    f.write("\n        %s: out %s%s" % (portname, pt, r))
-                if convertPort:
-                    portConversions.append("%s <= %s(%s);" % (portname, pt, s._name))
-                    s._read = True
-            else:
-                if not s._read:
-                    warnings.warn("%s: %s" % (_error.UnusedPort, portname),
-                                  category=ToVHDLWarning
-                                  )
-                f.write("\n        %s: in %s%s" % (portname, pt, r))
-                if convertPort:
-                    portConversions.append("%s <= %s(%s);" % (s._name, st, portname))
-                    s._driven = True
+
         f.write("\n    );\n")
     print("end entity %s;" % intf.name, file=f)
     print(doc, file=f)
@@ -890,7 +947,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 lpre, lsuf = self.inferCast(node.dest.vhd, node.left.vhd)
             if isinstance(node.right, ast.Name):
                 rpre, rsuf = self.inferCast(node.dest.vhd, node.right.vhd)
-        
+
         self.write("(")
         self.write(lpre)
         self.visit(node.left)
@@ -921,13 +978,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.operand.vhd = node.vhd
                 self.visit(node.operand)
                 return
-                       
+
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             if isinstance(node.op, ast.UAdd):
                 op = ""
             else:
                 op = opmap[type(node.op)]
-        
+
             if isinstance(node.operand, ast.Constant):
                 self.write("(")
                 self.write(op)
@@ -950,13 +1007,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.operand.vhd = node.vhd
                 self.visit(node.operand)
                 return
-                       
+
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             if isinstance(node.op, ast.UAdd):
                 op = ""
             else:
                 op = opmap[type(node.op)]
-        
+
             if isinstance(node.operand, ast.Num):
                 self.write("(")
                 self.write(op)
@@ -1441,7 +1498,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.mapToCase(node)
         else:
             self.mapToIf(node)
-    
+
     def visit_Match(self, node):
         self.write("case ")
         self.visit(node.subject)
@@ -1454,7 +1511,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.dedent()
         self.writeline()
         self.write("end case;")
- 
+
     def visit_match_case(self, node):
         self.writeline()
         self.write("when ")
@@ -1472,10 +1529,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.dedent()
 
     def visit_MatchValue(self, node):
-        baseobj  = self.getObj(node.subject)
+        baseobj = self.getObj(node.subject)
         item = node.value
         obj = self.getObj(item)
-        
+
         if isinstance(obj, EnumItemType):
             itemRepr = obj._toVHDL()
         elif hasattr(baseobj, '_nrbits'):
@@ -1506,12 +1563,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("others")
         else:
             raise AssertionError("Unknown name %s or pattern %s" % (node.name, node.pattern))
-    
+
     def visit_MatchOr(self, node):
         for i, pattern in enumerate(node.patterns):
             pattern.subject = node.subject
             self.visit(pattern)
-            if not i == len(node.patterns)-1:
+            if not i == len(node.patterns) - 1:
                 self.write(" | ")
 
     def mapToCase(self, node):
