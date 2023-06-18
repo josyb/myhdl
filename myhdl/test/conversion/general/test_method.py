@@ -12,7 +12,7 @@ class HdlObj(object):
     @block
     def method_func(self, clk, srst, x, y):
         z = Signal(intbv(0, min=y.min, max=y.max))
-        ifx = self._mfunc(x, z)
+        ifx = self.mfunc(x, z)
 
         @always(clk.posedge)
         def hdl():
@@ -24,17 +24,17 @@ class HdlObj(object):
         return hdl, ifx
 
     @block
-    def _mfunc(self, x, y):
+    def mfunc(self, x, y):
 
         @always_comb
-        def _hdl():
+        def hdl():
             y.next = x + 1
 
-        return _hdl
+        return hdl
 
 
 @block
-def _func(x, y):
+def func(x, y):
 
     @always_comb
     def _hdl():
@@ -53,8 +53,8 @@ class HdlObjObj(object):
         z1 = Signal(intbv(0, min=y.min, max=y.max))
         z2 = Signal(intbv(0, min=y.min, max=y.max))
         hobj = HdlObj()
-        ifx1 = hobj._mfunc(x, z1)
-        ifx2 = _func(x, z2)
+        ifx1 = hobj.mfunc(x, z1)
+        ifx2 = func(x, z2)
 
         @always(clk.posedge)
         def hdl():
