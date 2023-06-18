@@ -394,6 +394,7 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
                     sl._setName('VHDL')
             else:
                 s._name = portname
+
             r = _getRangeString(s)
             pt = st = _getTypeString(s)
 
@@ -455,7 +456,7 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
                                 s._driven = 'wire'
                                 pt = 'std_logic_vector'
                                 f.write("\n        %s: in %s%s" % (portname, pt, r))
-                                portConversions.append("%s <= %s(%s);" % (portname, pt, s._name))
+                                portConversions.append('{} <= {}({});'.format(s._name, st, portname))
                                 # print('appended port conversion {} {} {} {} \n{}'.format(s._name, st, portname, repr(s), s.report()))
                         else:
                             f.write("\n        %s: in %s%s" % (portname, pt, r))

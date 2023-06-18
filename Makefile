@@ -39,13 +39,14 @@ release:
 	git push && git push --tags
 
 clean:
-	rm -rf *.vhd *.v *.o *.log *.vcd *.hex work/ cosimulation/icarus/myhdl.vpi
+	rm -rf *.vhd *.v *.o *.log *.vcd *.hex work/ 
 
 lint:
 	pyflakes myhdl/
 
 black:
 	black myhdl/
+	
 core:
 	@echo -e "\n${ANSI_CYAN}running test: $@ ${ANSI_RESET}"
 	pytest -v ./myhdl/test/core ${PYTEST_OPTS}

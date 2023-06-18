@@ -66,7 +66,10 @@ def _makeName(n, prefixes, namedict):
         name = "\\" + name + ' '
 # print prefixes
 # print name
-    return name
+    # fix for VHDL: functions starting with an underscore result in
+    # a double underscore somewhere in the name, which VHDL doesn't like at all
+    # so let's do a QaD fix
+    return name.replace('__', '_')
 
 
 def _analyzeSigs(hierarchy, hdl='Verilog'):
