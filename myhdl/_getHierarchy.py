@@ -59,6 +59,11 @@ def _getHierarchyHelper(level, modinst, hierarchy):
     subs = [(s.name, s) for s in modinst.subs]
     inst = _Instance(level, modinst, subs, modinst.sigdict, modinst.memdict)
     hierarchy.append(inst)
-    for inst in modinst.subs:
-        if isinstance(inst, _Block):
-            _getHierarchyHelper(level + 1, inst, hierarchy)
+    for subinst in modinst.subs:
+        if isinstance(subinst, _Block):
+            _getHierarchyHelper(level + 1, subinst, hierarchy)
+        else:
+            # it must be always
+            # we know the parent's name: modinst.name
+            # so add it to the 'always' at hand make a back link
+            subinst.parent = modinst.name
