@@ -54,6 +54,8 @@ from myhdl._getHierarchy import _getHierarchy
 _converting = 0
 _profileFunc = None
 
+portAssigns = []
+
 
 def _checkArgs(arglist):
     for arg in arglist:
@@ -268,6 +270,7 @@ def _writeFileHeader(f, fn, ts):
 
 
 def _writeModuleHeader(f, intf, doc):
+    del portAssigns[:]
     print("module %s (" % intf.name, file=f)
     b = StringIO()
     for portname in intf.argnames:
@@ -287,26 +290,58 @@ def _writeModuleHeader(f, intf, doc):
         s._name = portname
         r = _getRangeString(s)
         p = _getSignString(s)
-        if s._driven:
-            if s._read:
-                if not isinstance(s, _TristateSignal):
-                    warnings.warn("%s: %s" % (_error.OutputPortRead, portname),
+
+        if s._inList is not None:
+            __, __, idx = portname.rpartition('_')
+            if s._inList._driven is not None:
+                s._read = True
+                if isinstance(s._val, intbv):
+                    portAssigns.append('assign {} = {}[{}];'.format(portname, s._inList.name, idx))
+                    # we don't allow TriStateSignals in ListOfSignals ...
+                    print("output %s%s%s;" % (p, r, portname), file=f)
+                else:
+                    # a bool()
+                    portAssigns.append('assign {} = {}[{}];'.format(portname, s._inList.name, idx))
+                    # we don't allow TriStateSignals in ListOfSignals ...
+                    print("output %s%s%s;" % (p, r, portname), file=f)
+
+                if s._driven == 'reg':
+                    print("reg %s%s%s;" % (p, r, portname), file=f)
+                else:
+                    print("wire %s%s%s;" % (p, r, portname), file=f)
+
+            else:
+                # an input ListOfSignals
+                # s._driven = 'wire'
+                if isinstance(s._val, intbv):
+                    portAssigns.append('assign {}[{}] = {};'.format(s._inList.name, idx, portname))
+                else:
+                    # a bool()
+                    portAssigns.append('assign {}[{}] = {};'.format(s._inList.name, idx, portname))
+
+                print("input %s%s%s;" % (p, r, portname), file=f)
+
+        else:
+            if s._driven:
+                if s._read:
+                    if not isinstance(s, _TristateSignal):
+                        warnings.warn("%s: %s" % (_error.OutputPortRead, portname),
+                                      category=ToVerilogWarning
+                                      )
+                if isinstance(s, _TristateSignal):
+                    print("inout %s%s%s;" % (p, r, portname), file=f)
+                else:
+                    print("output %s%s%s;" % (p, r, portname), file=f)
+                if s._driven == 'reg':
+                    print("reg %s%s%s;" % (p, r, portname), file=f)
+                else:
+                    print("wire %s%s%s;" % (p, r, portname), file=f)
+            else:
+                if not s._read:
+                    warnings.warn("%s: %s" % (_error.UnusedPort, portname),
                                   category=ToVerilogWarning
                                   )
-            if isinstance(s, _TristateSignal):
-                print("inout %s%s%s;" % (p, r, portname), file=f)
-            else:
-                print("output %s%s%s;" % (p, r, portname), file=f)
-            if s._driven == 'reg':
-                print("reg %s%s%s;" % (p, r, portname), file=f)
-            else:
-                print("wire %s%s%s;" % (p, r, portname), file=f)
-        else:
-            if not s._read:
-                warnings.warn("%s: %s" % (_error.UnusedPort, portname),
-                              category=ToVerilogWarning
-                              )
-            print("input %s%s%s;" % (p, r, portname), file=f)
+                print("input %s%s%s;" % (p, r, portname), file=f)
     print(file=f)
 
 
@@ -518,6 +553,10 @@ def _convertGens(genlist, vfile):
         v.visit(tree)
     vfile.write(funcBuf.getvalue())
     funcBuf.close()
+
+    for st in portAssigns:
+        print(st, file=vfile)
+
     vfile.write(blockBuf.getvalue())
     blockBuf.close()
 

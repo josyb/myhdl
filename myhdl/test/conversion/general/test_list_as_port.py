@@ -60,4 +60,6 @@ if __name__ == '__main__':
     A = [Signal(intbv(0)[8:]) for __ in range(4)]
     Y = [Signal(intbv(0)[8:]) for __ in range(4)]
     dfc = byteswap(A, Y)
-    dfc.convert(hdl='VHDL', std_logic_ports=True)
+    # dfc.convert(hdl='VHDL', std_logic_ports=True)
+    dfc.convert(hdl='Verilog')
+
