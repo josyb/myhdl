@@ -150,6 +150,8 @@ class _ToVHDLConvertor(object):
 
         # clear out the list of user declared Signal (and other?) names
         del _usedNames[:]
+        del portConversions[:]
+        del constwires[:]
 
         _converting = 1
         if self.name is None:
@@ -364,7 +366,7 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
         print("use %s.pck_%s.all;" % (lib, intf.name), file=f)
         print(file=f)
     print("entity %s is" % intf.name, file=f)
-    del portConversions[:]
+    # del portConversions[:]
     if intf.argnames:
         f.write("    port (")
         c = ''
@@ -383,23 +385,16 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
 
             f.write("%s" % c)
             c = ';'
-            # change name to convert to std_logic, or
-            # make sure signal name is equal to its port name
-            # but the port could also belong to a ListOfSignals
-            if stdLogicPorts and isinstance(s._val, intbv):
-                s._name = portname + "_num"
-                # siglist.append(s)
-                # override the names given by _analyze.py
-                for sl in s._slicesigs:
-                    sl._setName('VHDL')
-            else:
-                s._name = portname
 
             r = _getRangeString(s)
             pt = st = _getTypeString(s)
 
             if s._inList is not None:
-                __, __, idx = portname.rpartition('_')
+                # override the names given by _analyze.py
+                base, __, idx = portname.rpartition('_')
+                s._name = "{}({})".format(base, idx)
+                for sl in s._slicesigs:
+                    sl._setName('VHDL')
                 if s._inList._driven is not None:
                     s._read = True
                     if isinstance(s._val, intbv):
@@ -433,6 +428,16 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
 
             else:
                 # singular declaration
+                # change name to convert to std_logic, or
+                # make sure signal name is equal to its port name
+                if stdLogicPorts and isinstance(s._val, intbv):
+                    # override the names given by _analyze.py
+                    s._name = portname + "_num"
+                    for sl in s._slicesigs:
+                        sl._setName('VHDL')
+                else:
+                    s._name = portname
+
                 if s._driven:
                     if isinstance(s._val, intbv):
                         if stdLogicPorts:
@@ -453,11 +458,11 @@ def _writeModuleHeader(f, intf, needPck, lib, arch, useClauses, doc, stdLogicPor
                     # read
                     if isinstance(s._val, intbv):
                         if stdLogicPorts:
-                                s._driven = 'wire'
-                                pt = 'std_logic_vector'
-                                f.write("\n        %s: in %s%s" % (portname, pt, r))
-                                portConversions.append('{} <= {}({});'.format(s._name, st, portname))
-                                # print('appended port conversion {} {} {} {} \n{}'.format(s._name, st, portname, repr(s), s.report()))
+                            s._driven = 'wire'
+                            pt = 'std_logic_vector'
+                            f.write("\n        %s: in %s%s" % (portname, pt, r))
+                            portConversions.append('{} <= {}({});'.format(s._name, st, portname))
+                            # print('appended port conversion {} {} {} {} \n{}'.format(s._name, st, portname, repr(s), s.report()))
                         else:
                             f.write("\n        %s: in %s%s" % (portname, pt, r))
                     else:
@@ -511,7 +516,7 @@ constwires = []
 
 
 def _writeSigDecls(f, intf, siglist, memlist):
-    del constwires[:]
+    # del constwires[:]
     for s in siglist:
         if not s._used:
             continue
@@ -661,9 +666,12 @@ def _convertGens(genlist, siglist, memlist, vfile):
     funcBuf.close()
     print("begin", file=vfile)
     print(file=vfile)
-    for st in portConversions:
-        print(st, file=vfile)
-    print(file=vfile)
+    if len(portConversions):
+        print("\t-- Port conversions", file=vfile)
+        for st in portConversions:
+            print("\t{}".format(st), file=vfile)
+        print("\t-- End of port conversions", file=vfile)
+        print(file=vfile)
     for s in constwires:
         if s._type is bool:
             c = int(s._val)

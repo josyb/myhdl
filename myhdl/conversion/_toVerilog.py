@@ -286,13 +286,13 @@ def _writeModuleHeader(f, intf, doc):
             raise ToVerilogError(_error.ShadowingSignal, portname)
         # if s._inList:
         #     raise ToVerilogError(_error.PortInList, portname)
-        # make sure signal name is equal to its port name
-        s._name = portname
+
         r = _getRangeString(s)
         p = _getSignString(s)
 
         if s._inList is not None:
-            __, __, idx = portname.rpartition('_')
+            base, __, idx = portname.rpartition('_')
+            s._name = "{}[{}]".format(base, idx)
             if s._inList._driven is not None:
                 s._read = True
                 if isinstance(s._val, intbv):
@@ -322,6 +322,8 @@ def _writeModuleHeader(f, intf, doc):
                 print("input %s%s%s;" % (p, r, portname), file=f)
 
         else:
+            # make sure signal name is equal to its port name
+            s._name = portname
             if s._driven:
                 if s._read:
                     if not isinstance(s, _TristateSignal):
@@ -554,8 +556,11 @@ def _convertGens(genlist, vfile):
     vfile.write(funcBuf.getvalue())
     funcBuf.close()
 
-    for st in portAssigns:
-        print(st, file=vfile)
+    if len(portAssigns):
+        print("\t// Port conversions", file=vfile)
+        for st in portAssigns:
+            print("\t{}".format(st), file=vfile)
+        print("\t// End of port conversions", file=vfile)
 
     vfile.write(blockBuf.getvalue())
     blockBuf.close()

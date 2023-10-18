@@ -20,8 +20,12 @@
 """ Block with the @block decorator function. """
 import inspect
 
-#from functools import wraps
+# from functools import wraps
 import functools
+
+import sys
+from icecream import ic
+ic.configureOutput(outputFunction=lambda *a: print(*a, file=sys.stdout), includeContext=True, contextAbsPath=True)
 
 import myhdl
 from myhdl import BlockError, BlockInstanceError, Cosimulation
@@ -34,8 +38,11 @@ from myhdl._Signal import _Signal, _isListOfSigs
 
 from weakref import WeakValueDictionary
 
+
 class _error:
     pass
+
+
 _error.ArgType = "%s: A block should return block or instantiator objects"
 _error.InstanceError = "%s: subblock %s should be encapsulated in a block decorator"
 
@@ -78,23 +85,27 @@ def _getCallInfo():
     name = funcrec[3]
     frame = funcrec[0]
     symdict = dict(frame.f_globals)
+    ic(symdict)
     symdict.update(frame.f_locals)
+    ic(symdict)
     modctxt = False
     if callerrec is not None:
         f_locals = callerrec[0].f_locals
         if 'self' in f_locals:
             modctxt = isinstance(f_locals['self'], _Block)
+    ic(name, modctxt, symdict)
     return _CallInfo(name, modctxt, symdict)
 
 
-### I don't think this is the right place for uniqueifying the name.
-### This seems to me to be a conversion concern, not a block concern, and
-### there should not be the corresponding global state to be maintained here.
-### The name should be whatever it is, which is then uniqueified at
-### conversion time. Perhaps this happens already (FIXME - check and fix)
-### ~ H Gomersall 24/11/2017
+# ## I don't think this is the right place for uniqueifying the name.
+# ## This seems to me to be a conversion concern, not a block concern, and
+# ## there should not be the corresponding global state to be maintained here.
+# ## The name should be whatever it is, which is then uniqueified at
+# ## conversion time. Perhaps this happens already (FIXME - check and fix)
+# ## ~ H Gomersall 24/11/2017
 _inst_name_set = set()
 _name_set = set()
+
 
 def _uniqueify_name(proposed_name):
     '''Creates a unique block name from the proposed name by appending
@@ -140,9 +151,11 @@ class _bound_function_wrapper(object):
         return _Block(self.bound_func, self, name, self.srcfile,
                       self.srcline, *args, **kwargs)
 
+
 class block(object):
 
     def __init__(self, func):
+        ic(func)
         self.srcfile = inspect.getsourcefile(func)
         self.srcline = inspect.getsourcelines(func)[0]
         self.func = func
@@ -156,6 +169,7 @@ class block(object):
         self.bound_functions = WeakValueDictionary()
 
     def __get__(self, instance, owner):
+        ic(instance, owner)
         bound_key = (id(instance), id(owner))
 
         if bound_key not in self.bound_functions:
@@ -181,7 +195,7 @@ class block(object):
         return function_wrapper
 
     def __call__(self, *args, **kwargs):
-
+        ic(*args, **kwargs)
         name = self.func.__name__ + str(self.calls)
         self.calls += 1
 
@@ -195,8 +209,8 @@ class block(object):
 class _Block(object):
 
     def __init__(self, func, deco, name, srcfile, srcline, *args, **kwargs):
-        calls = deco.calls
-
+        # calls = deco.calls
+        ic(func, deco, name, *args, **kwargs)
         self.func = func
         self.args = args
         self.kwargs = kwargs
@@ -212,8 +226,11 @@ class _Block(object):
 
         # flatten, but keep BlockInstance objects
         self.subs = _flatten(func(*args, **kwargs))
+        ic(self.subs)
         self._verifySubs()
+        ic(self.symdict, self.sigdict, self.memdict)
         self._updateNamespaces()
+        ic(self.symdict, self.sigdict, self.memdict)
         self.verilog_code = self.vhdl_code = None
         self.sim = None
         if hasattr(deco, 'verilog_code'):
@@ -242,24 +259,33 @@ class _Block(object):
         # dicts to keep track of objects used in Instantiator objects
         usedsigdict = {}
         usedlosdict = {}
+        ic(self.symdict)
         for inst in self.subs:
             # the symdict of a block instance is defined by
             # the call context of its instantiations
             if isinstance(inst, Cosimulation):
                 continue  # ignore
+
             if self.symdict is None:
+                ic(inst.callinfo.symdict)
                 self.symdict = inst.callinfo.symdict
+
             if isinstance(inst, _Instantiator):
                 usedsigdict.update(inst.sigdict)
                 usedlosdict.update(inst.losdict)
+
+            ic(self.symdict, usedsigdict, usedlosdict)
+
         if self.symdict is None:
             self.symdict = {}
         # Special case: due to attribute reference transformation, the
         # sigdict and losdict from Instantiator objects may contain new
         # references. Therefore, update the symdict with them.
         # To be revisited.
+        ic(usedsigdict, usedlosdict)
         self.symdict.update(usedsigdict)
         self.symdict.update(usedlosdict)
+        ic(self.symdict)
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
         for n, v in self.symdict.items():
             if isinstance(v, _Signal):
@@ -285,7 +311,7 @@ class _Block(object):
         """ Clear a number of 'global' attributes.
         This is a workaround function for cleaning up before converts.
         """
-        # workaround: elaborate again for the side effect on signal attibutes
+        # workaround: elaborate again for the side effect on signal attributes
         self.func(*self.args, **self.kwargs)
         # reset number of calls in all blocks
         for b in myhdl._simulator._blocks:
@@ -337,17 +363,17 @@ class _Block(object):
             setattr(converter, k, v)
         return converter(self)
 
-    def config_sim(self, trace=False, **kwargs) :
+    def config_sim(self, trace=False, **kwargs):
         self._config_sim['trace'] = trace
         if trace:
-            for k, v in kwargs.items() :
+            for k, v in kwargs.items():
                 setattr(myhdl.traceSignals, k, v)
             myhdl.traceSignals(self)
 
     def run_sim(self, duration=None, quiet=0):
         if self.sim is None:
             sim = self
-            #if self._config_sim['trace']:
+            # if self._config_sim['trace']:
             #    sim = myhdl.traceSignals(self)
             self.sim = myhdl._Simulation.Simulation(sim)
         self.sim.run(duration, quiet)

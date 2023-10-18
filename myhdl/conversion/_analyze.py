@@ -1305,12 +1305,12 @@ def expandinterface(v, name, obj, level=0):
 
 
 def expandlos(v, name, los):
-#     print('expandlos', name, repr(los))
-    # if the los is instantiated by ListOfSignals
-    # remove the '_data' suffix
-    name, __ , __ = name.partition('_data')
+    print('expandlos', name, repr(los))
+    # # if the los is instantiated by ListOfSignals
+    # # remove the '_data' suffix
+    # name, __ , __ = name.partition('_data')
     for i in range(len(los)):
-#         print(i, los[i]._inList)
+        print(i, repr(los[i]), los[i]._inList)
         signame = name + '_' + '{}'.format(i)
         los[i]._name = signame
         los[i]._used = True
