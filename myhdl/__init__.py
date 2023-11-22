@@ -147,7 +147,7 @@ from ._concat import concat
 from ._intbv import intbv
 from ._modbv import modbv
 from ._join import join
-from ._Signal import posedge, negedge, Signal, SignalType
+from ._Signal import posedge, negedge, Signal, SignalType, Constant
 from ._ShadowSignal import ConcatSignal
 from ._ShadowSignal import TristateSignal
 from ._simulator import now
@@ -162,6 +162,7 @@ from ._instance import instance
 from ._block import block
 from ._enum import enum, EnumType, EnumItemType
 from ._traceSignals import traceSignals
+from ._openport import OpenPort
 
 from myhdl import conversion
 from .conversion import toVerilog
@@ -178,6 +179,7 @@ __all__ = ["bin",
            "negedge",
            "Signal",
            "SignalType",
+           "Constant",
            "ConcatSignal",
            "TristateSignal",
            "now",
@@ -200,5 +202,6 @@ __all__ = ["bin",
            "toVerilog",
            "toVHDL",
            "conversion",
-           "Tristate"
+           "Tristate",
+           "OpenPort"
            ]

@@ -43,7 +43,7 @@ from myhdl._extractHierarchy import (_HierExtr, _isMem, _getMemInfo,
                                      _UserVhdlCode, _userCodeMap)
 
 from myhdl._instance import _Instantiator
-from myhdl._Signal import _Signal, _WaiterList, posedge, negedge
+from myhdl._Signal import _Signal, _WaiterList, posedge, negedge, Constant
 from myhdl._enum import EnumType, EnumItemType
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
@@ -65,7 +65,7 @@ from myhdl.conversion._VHDLNameValidation import _nameValid, _usedNames
 from myhdl import bin as tobin
 
 _version = myhdl.__version__.replace('.', '')
-_shortversion = _version.replace('dev', '')
+_shortversion = _version.replace('dev', '')[:-2]  # loose the subminor version number
 _converting = 0
 _profileFunc = None
 _enumPortTypeSet = set()
@@ -520,8 +520,14 @@ def _writeSigDecls(f, intf, siglist, memlist):
     for s in siglist:
         if not s._used:
             continue
+
         if s._name in intf.argnames:
             continue
+
+        if s._name.startswith('-- OpenPort'):
+            # do not write a signal declaration
+            continue
+
         r = _getRangeString(s)
         p = _getTypeString(s)
         # Check if VHDL keyword or reused name
@@ -558,14 +564,24 @@ def _writeSigDecls(f, intf, siglist, memlist):
             print("signal %s: %s%s%s;" % (s._name, p, r, val_str), file=f)
 
         elif s._read:
-            # the original exception
-            # raise ToVHDLError(_error.UndrivenSignal, s._name)
-            # changed to a warning and a continuous assignment to a wire
-            warnings.warn("%s: %s" % (_error.UndrivenSignal, s._name),
-                          category=ToVHDLWarning
-                          )
-            constwires.append(s)
-            print("signal %s: %s%s;" % (s._name, p, r), file=f)
+            if isinstance(s, Constant):
+                if isinstance(s._val, intbv):
+                    if s._init:
+                        print('constant %s: %s%s := %dX"%s" /* %s */;' % (s._name, p, r, s._nrbits, str(s._init), int(s._init)), file=f)
+                    else:
+                        print('constant %s: %s%s := %dX"0";' % (s._name, p, r, s._nrbits), file=f)
+                else:
+                    print("constant %s: %s%s := %s;" % (s._name, p, r, "'1'" if s._init else "'0'"), file=f)
+            else:
+                # the original exception
+                # raise ToVHDLError(_error.UndrivenSignal, s._name)
+                # changed to a warning and a continuous assignment to a wire
+                warnings.warn("%s: %s" % (_error.UndrivenSignal, s._name),
+                              category=ToVHDLWarning
+                              )
+                constwires.append(s)
+                print("signal %s: %s%s;" % (s._name, p, r), file=f)
+
     for m in memlist:
         if not m._used:
             continue
@@ -583,7 +599,7 @@ def _writeSigDecls(f, intf, siglist, memlist):
         p = _getTypeString(m.elObj)
         t = "t_array_%s" % m.name
 
-        if not toVHDL.initial_values:
+        if not toVHDL.initial_values and not isinstance(m.mem[0], Constant):
             val_str = ""
         else:
             sig_vhdl_objs = [inferVhdlObj(each) for each in m.mem]
@@ -605,7 +621,10 @@ def _writeSigDecls(f, intf, siglist, memlist):
                 val_str = ' := (\n    ' + _val_str + ')'
 
         print("type %s is array(0 to %s-1) of %s%s;" % (t, m.depth, p, r), file=f)
-        print("signal %s: %s%s;" % (m.name, t, val_str), file=f)
+        if isinstance(m.mem[0], Constant):
+            print("constant %s: %s%s;" % (m.name, t, val_str), file=f)
+        else:
+            print("signal %s: %s%s;" % (m.name, t, val_str), file=f)
     print(file=f)
 
 

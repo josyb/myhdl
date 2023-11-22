@@ -555,7 +555,7 @@ class _Signal(object):
     def __setitem__(self, key, val):
         raise TypeError("Signal object doesn't support item/slice assignment")
 
-    # continues assignment support
+    # continuous assignment support
     def assign(self, sig):
 
         self.driven = "wire"
@@ -641,6 +641,37 @@ class _SignalWrap(object):
 
     def apply(self):
         return self.sig._apply(self.next, self.timeStamp)
+
+
+class Constant(_Signal):
+    ''' effective constants '''
+
+    def __init__(self, val=None):
+        super(Constant, self).__init__(val)
+
+    # override some essentials
+    def __repr__(self):
+        return "Constant(" + repr(self._val) + ")"
+
+    # there is support for the 'next' attribute
+    @property
+    def next(self):
+        return None
+
+    @next.setter
+    def next(self, val):
+        raise PermissionError("A 'Constant' can not be changed!")
+
+    # neither can it be driven
+    # support for the 'driven' attribute
+    @property
+    def driven(self):
+        return None
+
+    @driven.setter
+    def driven(self, val):
+        # quietly ignore?
+        pass
 
 
 # for export
