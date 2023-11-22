@@ -69,6 +69,9 @@ class _PosedgeWaiterList(_WaiterList):
     def _toVHDL(self):
         return "rising_edge(%s)" % self.sig._name
 
+    def __repr__(self):
+        return '_PosedgeWaiterList({})'.format(self.sig._name)
+
 
 class _NegedgeWaiterList(_WaiterList):
 
@@ -80,6 +83,9 @@ class _NegedgeWaiterList(_WaiterList):
 
     def _toVHDL(self):
         return "falling_edge(%s)" % self.sig._name
+
+    def __repr__(self):
+        return '_NegedgeWaiterList({})'.format(self.sig._name)
 
 
 def posedge(sig):
@@ -535,7 +541,10 @@ class _Signal(object):
             return str(self._val)
 
     def __repr__(self):
-        return "Signal(" + repr(self._val) + ")"
+        if self._name:
+            return '{} = Signal({})'.format(self._name, repr(self._val))
+        else:
+            return "Signal(" + repr(self._val) + ")"
 
     def _toVerilog(self):
         return self._name

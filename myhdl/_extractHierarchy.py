@@ -32,12 +32,13 @@ from myhdl._misc import _isGenSeq
 from myhdl._resolverefs import _resolveRefs
 from myhdl._getcellvars import _getCellVars
 
-
 _profileFunc = None
 
 
 class _error:
     pass
+
+
 _error.NoInstances = "No instances found"
 _error.InconsistentHierarchy = "Inconsistent hierarchy - are all instances returned ?"
 _error.InconsistentToplevel = "Inconsistent top level %s for %s - should be 1"
@@ -53,6 +54,7 @@ class _Instance(object):
         self.sigdict = sigdict
         self.memdict = memdict
         self.name = None
+
 
 _memInfoMap = {}
 
@@ -83,6 +85,7 @@ def _makeMemInfo(mem):
 
 def _isMem(mem):
     return id(mem) in _memInfoMap
+
 
 _userCodeMap = {'verilog': {},
                 'vhdl': {}

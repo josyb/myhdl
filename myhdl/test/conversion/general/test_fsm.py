@@ -109,3 +109,16 @@ def FSMBench(FramerCtrl, t_State):
 
 def test():
     assert FSMBench(FramerCtrl, t_State_b).verify_convert() == 0
+
+
+if __name__ == '__main__':
+    t_State = enum('SEARCH', 'CONFIRM', 'SYNC')
+
+    SOF = Signal(bool(0))
+    syncFlag = Signal(bool(0))
+    clk = Signal(bool(0))
+    reset_n = Signal(bool(1))
+    state = Signal(t_State.SEARCH)
+
+    dfc = FramerCtrl(SOF, state, syncFlag, clk, reset_n, t_State)
+    dfc.convert(hdl='Verilog')

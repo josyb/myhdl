@@ -28,7 +28,7 @@ import shutil
 import warnings
 
 from myhdl import _simulator, __version__, EnumItemType
-from myhdl._extractHierarchy import _HierExtr
+# from myhdl._extractHierarchy import _HierExtr
 from myhdl import TraceSignalsError
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._block import _Block
@@ -82,9 +82,10 @@ class _TraceSignalsClass(object):
                 # clean start
                 sys.setprofile(None)
 
-        from myhdl.conversion import _toVerilog
-        if _toVerilog._converting:
-            raise TraceSignalsError("Cannot use traceSignals while converting to Verilog")
+        # from myhdl.conversion import _toVerilog
+        # if _toVerilog._converting:
+        #     raise TraceSignalsError("Cannot use traceSignals while converting to Verilog")
+
         if not isinstance(dut, _Block):
             if not callable(dut):
                 raise TraceSignalsError(_error.ArgType, "got %s" % type(dut))
@@ -111,7 +112,7 @@ class _TraceSignalsClass(object):
                 h = _getHierarchy(name, dut)
             else:
                 warnings.warn(
-                    "\n    traceSignals(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html", 
+                    "\n    traceSignals(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
                     category=DeprecationWarning,
                     stacklevel=2,
                     )
@@ -125,7 +126,7 @@ class _TraceSignalsClass(object):
             vcdpath = os.path.join(directory, filename + ".vcd")
 
             if path.exists(vcdpath):
-                if self.tracebackup :
+                if self.tracebackup:
                     backup = vcdpath[:-4] + '.' + str(path.getmtime(vcdpath)) + '.vcd'
                     shutil.copyfile(vcdpath, backup)
                 os.remove(vcdpath)

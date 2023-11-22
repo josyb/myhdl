@@ -20,53 +20,53 @@
 """ myhdl toVerilog package.
 
 """
+import inspect
 import ast
 
 from myhdl import ConversionError
 
 
 class _error(object):
-    FirstArgType = "first argument should be a classic function"
     ArgType = "leaf cell type error"
-    NotSupported = "Not supported"
-    TopLevelName = "Result of toVerilog call should be assigned to a top level name"
-    SigMultipleDriven = "Signal has multiple drivers"
-    UndefinedBitWidth = "Signal has undefined bit width"
-    UndrivenSignal = "Signal is not driven"
-    UnreadSignal = "Signal is driven but not read"
-    UnusedPort = "Port is not used"
-    OutputPortRead = "Output port is read internally"
-    Requirement = "Requirement violation"
-    UnboundLocal = "Local variable may be referenced before assignment"
-    TypeMismatch = "Type mismatch with earlier assignment"
-    NrBitsMismatch = "Nr of bits mismatch with earlier assignment"
+    ExtraArguments = "Extra positional or named arguments are not supported"
+    FirstArgType = "first argument should be a classic function"
+    FormatString = "Format string error"
+    FreeVarTypeError = "Free variable should be a Signal or an int"
+    # IntbvSign = "intbv's that can have negative values are not yet supported"
     IntbvBitWidth = "intbv object should have a bit width"
-    #IntbvSign = "intbv's that can have negative values are not yet supported"
+    ListAsPort = "List of signals as a port is not supported"
+    ListElementAssign = "Can't assign to list element; use slice assignment to change its value"
     ModbvRange = "modbv object should have full bit vector range"
-    TypeInfer = "Can't infer variable type"
+    NrBitsMismatch = "Nr of bits mismatch with earlier assignment"
+    NotASignal = "Non-local object should be a Signal"
+    NotSupported = "Not supported"
+    OutputPortRead = "Output port is read internally"
+    PortInList = "Port in list is not supported"
     ReturnTypeMismatch = "Return type mismatch"
     ReturnNrBitsMismatch = "Returned nr of bits mismatch"
     ReturnIntbvBitWidth = "Returned intbv instance should have bit width"
     ReturnTypeInfer = "Can't infer return type"
+    Requirement = "Requirement violation"
     ShadowingSignal = "Port is not used or shadowed by internal signal"
     ShadowingVar = "Variable has same name as a hierarchical Signal"
-    FreeVarTypeError = "Free variable should be a Signal or an int"
-    ExtraArguments = "Extra positional or named arguments are not supported"
+    SignalInMultipleLists = "Signal in multiple list is not supported"
+    SigMultipleDriven = "Signal has multiple drivers"
+    TopLevelName = "Result of toVerilog call should be assigned to a top level name"
+    TypeInfer = "Can't infer variable type"
+    TypeMismatch = "Type mismatch with earlier assignment"
+    UndefinedBitWidth = "Signal has undefined bit width"
+    UndrivenSignal = "Signal is not driven"
+    UnreadSignal = "Signal is driven but not read"
+    UnusedPort = "Port is not used"
+    UnboundLocal = "Local variable may be referenced before assignment"
     UnsupportedYield = "Unsupported yield statement"
-    UnsupportedListComp = \
-        "Unsupported list comprehension form: should be [intbv()[n:] for i in range(m)]"
-    ListElementAssign = \
-        "Can't assign to list element; use slice assignment to change its value"
-    NotASignal = "Non-local object should be a Signal"
+    UnsupportedListComp = "Unsupported list comprehension form: should be [intbv()[n:] for i in range(m)]"
     UnsupportedType = "Object type is not supported in this context"
     InconsistentType = "Signal elements should have the same base type"
     InconsistentBitWidth = "Signal elements should have the same bit width"
     UnsupportedFormatString = "Unsupported format string"
-    FormatString = "Format string error"
     UnsupportedAttribute = "Unsupported attribute"
-    PortInList = "Port in list is not supported"
-    ListAsPort = "List of signals as a port is not supported"
-    SignalInMultipleLists = "Signal in multiple list is not supported"
+    UnkownConvertor = "Unknown target language"
 
 
 class _access(object):
@@ -77,7 +77,7 @@ class _kind(object):
     NORMAL, DECLARATION, ALWAYS, INITIAL, ALWAYS_DECO, \
         ALWAYS_COMB, SIMPLE_ALWAYS_COMB, ALWAYS_SEQ, \
         TASK, REG \
-        = range(10)
+ = range(10)
 
 
 class _context(object):
@@ -163,6 +163,7 @@ def _LabelGenerator():
         yield "MYHDL%s" % i
         i += 1
 
+
 _genLabel = _LabelGenerator()
 
 
@@ -191,6 +192,7 @@ class _UniqueSuffixGenerator(object):
         self.i += 1
         return "_%s" % self.i
 
+
 _genUniqueSuffix = _UniqueSuffixGenerator()
 
 
@@ -217,3 +219,13 @@ class _namesVisitor(ast.NodeVisitor):
 
 def _get_argnames(node):
     return [arg.arg for arg in node.args.args]
+
+
+def _makeDoc(doc, comment, indent=''):
+    if doc is None:
+        return ''
+    doc = inspect.cleandoc(doc)
+    pre = '\n' + indent + comment
+    doc = comment + doc
+    doc = doc.replace('\n', pre)
+    return doc

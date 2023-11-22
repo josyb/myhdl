@@ -139,24 +139,24 @@ if __name__ == '__main__':
         CE = Signal(bool(0))
 
         dfc = contrived(A, Y)
-        dfc.convert(hdl='VHDL')
+        # dfc.convert(hdl='VHDL')
         dfc.convert(hdl='Verilog')
 
-        dfc2 = contrived2(A, Y)
-        dfc2.convert(hdl='VHDL')
-        dfc2.convert(hdl='Verilog')
-
-        dfc3 = contrived3(WIDTH_D, Sel, Y)
-        dfc3.convert(hdl='VHDL')
-        dfc3.convert(hdl='Verilog')
-
-        dfc4 = contrived4(Clk, D, CE, Q)
-        dfc4.convert(hdl='VHDL')
-        dfc4.convert(hdl='Verilog')
-
-        dfc5 = wrappercontrived4(Clk, D, Q)
-        dfc5.convert(hdl='VHDL', name='contrived4b')
-        dfc5.convert(hdl='Verilog', name='contrived4b')
+        # dfc2 = contrived2(A, Y)
+        # # dfc2.convert(hdl='VHDL')
+        # dfc2.convert(hdl='Verilog')
+        #
+        # dfc3 = contrived3(WIDTH_D, Sel, Y)
+        # # dfc3.convert(hdl='VHDL')
+        # dfc3.convert(hdl='Verilog')
+        #
+        # dfc4 = contrived4(Clk, D, CE, Q)
+        # # dfc4.convert(hdl='VHDL')
+        # dfc4.convert(hdl='Verilog')
+        #
+        # dfc5 = wrappercontrived4(Clk, D, Q)
+        # # dfc5.convert(hdl='VHDL', name='contrived4b')
+        # dfc5.convert(hdl='Verilog', name='contrived4b')
 
     # dft = tb_contrived()
     # dft.config_sim(trace=True)
