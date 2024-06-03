@@ -24,12 +24,16 @@
 """
 from myhdl._intbv import intbv
 from myhdl._Signal import _Signal
+from myhdl._bit import bit
 
 
 def concat(base, *args):
 
     if isinstance(base, intbv):
         basewidth = base._nrbits
+        val = base._val
+    elif isinstance(base, bit):
+        basewidth = 1
         val = base._val
     elif isinstance(base, int):
         if isinstance(base, bool):
@@ -39,7 +43,7 @@ def concat(base, *args):
         val = base
     elif isinstance(base, _Signal):
         basewidth = base._nrbits
-        if isinstance(base._val, intbv):
+        if isinstance(base._val, (intbv, bit)):
             val = base._val._val
         else:
             val = base._val
@@ -57,13 +61,16 @@ def concat(base, *args):
             v = arg._val
         elif isinstance(arg, _Signal):
             w = arg._nrbits
-            if isinstance(arg._val, intbv):
+            if isinstance(arg._val, (intbv, bit)):
                 v = arg._val._val
             else:
                 v = arg._val
         elif isinstance(arg, bool):
             w = 1
             v = arg
+        elif isinstance(arg, bit):
+            w = 1
+            v = arg._val
         elif isinstance(arg, str):
             w = len(arg)
             v = int(arg, 2)

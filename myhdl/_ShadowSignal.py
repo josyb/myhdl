@@ -29,6 +29,7 @@ from myhdl._Waiter import _SignalWaiter, _SignalTupleWaiter
 from myhdl._intbv import intbv
 from myhdl._simulator import _siglist
 from myhdl._bin import bin
+from myhdl._bit import bit
 
 # shadow signals
 
@@ -160,11 +161,11 @@ class ConcatSignal(_ShadowSignal):
             elif isinstance(a, _Signal):
                 sigargs.append(a)
                 w = a._nrbits
-                if isinstance(a._val, intbv):
+                if isinstance(a._val, (intbv, bit)):
                     v = a._val._val
                 else:
                     v = a._val
-            elif isinstance(a, bool):
+            elif isinstance(a, (bool, bit)):
                 w = 1
                 v = a
             elif isinstance(a, str):
@@ -190,7 +191,7 @@ class ConcatSignal(_ShadowSignal):
         while 1:
             hi = nrbits
             for a in args:
-                if isinstance(a, bool):
+                if isinstance(a, (bool, bit)):
                     w = 1
                 else:
                     w = len(a)
@@ -220,7 +221,7 @@ class ConcatSignal(_ShadowSignal):
         ini = intbv(self._initval)[self._nrbits:]
         hi = self._nrbits
         for a in self._args:
-            if isinstance(a, bool):
+            if isinstance(a, (bool, bit)):
                 w = 1
             else:
                 w = len(a)
@@ -258,7 +259,7 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool:  # isinstance(a._type , bool): <- doesn't work
+                    if a._type == bit:  # isinstance(a._type , bool): <- doesn't work
                         lines.append("%s(%s) <= %s;" % (self._name, lo, a._name))
                     else:
                         lines.append("%s(%s) <= %s(0);" % (self._name, lo, a._name))
@@ -280,7 +281,7 @@ class ConcatSignal(_ShadowSignal):
         ini = intbv(self._initval)[self._nrbits:]
         hi = self._nrbits
         for a in self._args:
-            if isinstance(a, bool):
+            if isinstance(a, (bool, bit)):
                 w = 1
             else:
                 w = len(a)
@@ -318,7 +319,7 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool:
+                    if a._type == bit:
                         lines.append("assign %s[%s] = %s;" % (self._name, lo, a._name))
                     else:
                         lines.append("assign %s[%s] = %s[0];" % (self._name, lo, a._name))

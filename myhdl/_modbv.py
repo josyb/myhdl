@@ -19,6 +19,7 @@
 
 """ Module with the modbv class """
 from ._intbv import intbv
+from myhdl._bit import bit
 
 
 class modbv(intbv):
@@ -55,5 +56,5 @@ class modbv(intbv):
             return res
         else:
             i = int(key)
-            res = bool((self._val >> i) & 0x1)
+            res = bit((self._val >> i) & 0x1)
             return res

@@ -127,7 +127,7 @@ def bench(class_name='different_class'):
 
     @instance
     def clkgen():
-
+        input_interface.next = 0
         clk.next = 0
         for dummy in range(N):
             yield delay(10)

@@ -438,9 +438,10 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         for n in node.values:
             self.visit(n)
         for n in node.values:
-            if not hasType(n.obj, bool):
+            # if not hasType(n.obj, bool):
+            if not (hasType(n.obj, bit) or hasType(n.obj, bool)):
                 self.raiseError(node, _error.NotSupported,
-                                "non-boolean argument in logical operator")
+                                f"non-boolean argument in logical operator -> {repr(n.obj)}")
         node.obj = bool()
 
     def visit_UnaryOp(self, node):
@@ -526,12 +527,15 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             obj = self.getObj(value)
             if obj is None:
                 self.raiseError(node, _error.TypeInfer, n)
+
             if isinstance(obj, intbv):
                 if len(obj) == 0:
                     self.raiseError(node, _error.IntbvBitWidth, n)
+
             if isinstance(obj, modbv):
                 if not obj._hasFullRange():
                     self.raiseError(node, _error.ModbvRange, n)
+
             if n in self.tree.vardict:
                 curObj = self.tree.vardict[n]
                 if isinstance(obj, type(curObj)):
@@ -544,6 +548,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                     self.raiseError(node, _error.NrBitsMismatch, n)
             else:
                 self.tree.vardict[n] = obj
+            print(f'_analyze: _AnalyzeVisitor: visit_Assign: self.tree.vardict: {self.tree.vardict}')
         else:
             self.visit(value)
 

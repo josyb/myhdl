@@ -45,6 +45,7 @@ from myhdl._getHierarchy import _getHierarchy
 from myhdl._instance import _Instantiator
 from myhdl._Signal import _Signal, Constant
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
+from myhdl._bit import bit
 from myhdl.conversion._misc import (_error, _kind, _context,
                                     _ConversionMixin, _Label, _genUniqueSuffix, _isConstant)
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _analyzeTopFunc,
@@ -422,7 +423,7 @@ def _writeSigDecls(f, intf, siglist, memlist):
 
     print(file=f)
     for s in constwires:
-        if s._type in (bool, intbv):
+        if s._type in (bool, bit, intbv):
             c = int(s.val)
         else:
             raise ToVerilogError("Unexpected type for constant signal", s._name)
@@ -480,7 +481,7 @@ def _writeTestBench(f, intf, trace=False):
 
 
 def _getRangeString(s):
-    if s._type is bool:
+    if s._type is bool or s._type is bit:
         return ''
     elif s._nrbits is not None:
         nrbits = s._nrbits
@@ -623,7 +624,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
     def writeDeclaration(self, obj, name, dir):
         if dir:
             dir = dir + ' '
-        if type(obj) is bool:
+        if type(obj) is bool or type(obj) is bit:
             self.write("%s%s" % (dir, name))
         elif isinstance(obj, int):
             if dir == "input ":
@@ -842,7 +843,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             return
 
         opening, closing = '(', ')'
-        if f is bool:
+        if f is bool or f is bit:
             self.write("(")
             self.visit(node.args[0])
             self.write(" != 0)")
@@ -919,7 +920,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
-        elif isinstance(node.value, bool):
+        elif isinstance(node.value, (bool, bit)):
             self.write(nameconstant_map[node.obj])
         elif isinstance(node.value, int):
             # Num
@@ -1195,7 +1196,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             s = n
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
-            if isinstance(obj, bool):
+            if isinstance(obj, (bool, bit)):
                 s = "1'b%s" % int(obj)
             elif isinstance(obj, int):
                 s = self.IntRepr(obj)
@@ -1247,7 +1248,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     self.write('$write(')
                     self.visit(a)
                     self.write(');')
-                elif (s.conv is str) and isinstance(obj, bool):
+                elif (s.conv is str) and isinstance(obj, (bool, bit)):
                     self.write('if (')
                     self.visit(a)
                     self.write(')')
@@ -1513,7 +1514,7 @@ def _convertInitVal(reg, init):
     else:
         assert isinstance(reg, intbv)
         tipe = intbv
-    if tipe is bool:
+    if tipe is bool or tipe is bit:
         v = '1' if init else '0'
     elif tipe is intbv:
         init = int(init)  # int representation

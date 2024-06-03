@@ -24,7 +24,7 @@ from functools import reduce
 
 import pytest
 
-from myhdl import concat, intbv, Signal
+from myhdl import concat, intbv, Signal, bit
 
 random.seed(2)  # random, but deterministic
 
@@ -206,8 +206,11 @@ class TestConcat:
         self.ConcatToUnsizedBase(bases, extslist)
 
     def testConcatMixBoolToSizedBase(self):
+        # josyb: what is is test for
+        # imo it wil always be `True`, wont'it?
         if type(bool) is not type:
             return
+
         bases = []
         for base in self.bases:
             seq = (base, intbv(base), Signal(intbv(base)))
@@ -217,7 +220,8 @@ class TestConcat:
             newexts = []
             for ext in exts:
                 if len(ext) == 1:
-                    seq = (ext, bool(int(ext)), Signal(bool(int(ext))))
+                    # seq = (ext, bool(int(ext)), Signal(bool(int(ext))))
+                    seq = (ext, bit(int(ext)), Signal(bit(int(ext))))
                 else:
                     seq = (ext, intbv(ext), Signal(intbv(ext)))
                 newexts.append(random.choice(seq))

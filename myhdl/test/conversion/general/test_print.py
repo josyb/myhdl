@@ -21,6 +21,7 @@ def PrintBench():
         si1.next = 11
         i2[:] = -7
         si2.next = -5
+        sb.next = 1
         yield delay(10)
         print('')
         print(i1)
@@ -42,6 +43,7 @@ def PrintBench():
         yield delay(10)
         print("i1 is %s, i2 is %s" % (i1, i2))
         print("i1 %s i2 %s b %s si1 %s si2 %s" % (i1, i2, b, si1, si2))
+        print("b %s" % b)
         print("i1 %d i2 %d b %d si1 %d si2 %d" % (i1, i2, b, si1, si2))
         print(b)
         # print "%% %s" % i1

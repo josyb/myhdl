@@ -26,7 +26,7 @@ from random import randrange
 
 import pytest
 
-from myhdl import intbv
+from myhdl import intbv, bit
 
 random.seed(2)  # random, but deterministic
 maxint = sys.maxsize
@@ -111,9 +111,9 @@ class TestIntBvIndexing:
                 res = bv[i]
                 resi = bvi[i]
                 assert res == ref
-                assert type(res) == bool
+                assert type(res) == bit
                 assert resi == ref ^ 1
-                assert type(resi) == bool
+                assert type(resi) == bit
 
     def testGetSlice(self):
         self.seqsSetup()

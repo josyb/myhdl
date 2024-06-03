@@ -55,6 +55,7 @@ from myhdl._util import _flatten
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._block import _Block
 from myhdl._getHierarchy import _getHierarchy
+from myhdl._bit import bit
 from myhdl.conversion._misc import (_error, _kind, _context,
                                     _ConversionMixin, _Label, _genUniqueSuffix, _isConstant)
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _analyzeTopFunc,
@@ -539,7 +540,7 @@ def _writeSigDecls(f, intf, siglist, memlist):
             sig_vhdl_objs = [inferVhdlObj(each) for each in m.mem]
 
             if all([each._init == m.mem[0]._init for each in m.mem]):
-                if isinstance(m.mem[0]._init, bool):
+                if isinstance(m.mem[0]._init, bit):
                     val_str = (
                         ' := (others => \'%s\')' % str(int(m.mem[0]._init)))
 
@@ -580,7 +581,7 @@ def _writeModuleFooter(f, arch):
 def _getRangeString(s):
     if isinstance(s._val, EnumItemType):
         return ''
-    elif s._type is bool:
+    elif s._type is bit:
         return ''
     elif s._nrbits is not None:
         msb = s._nrbits - 1
@@ -592,7 +593,7 @@ def _getRangeString(s):
 def _getTypeString(s):
     if isinstance(s._val, EnumItemType):
         return s._val._type._name
-    elif s._type is bool:
+    elif s._type is bit:
         return "std_logic"
     if s._min is not None and s._min < 0:
         return "signed "
@@ -629,7 +630,7 @@ def _convertGens(genlist, siglist, memlist, vfile):
         print(st, file=vfile)
     print(file=vfile)
     for s in constwires:
-        if s._type is bool:
+        if s._type is bit:
             c = int(s._val)
             pre, suf = "'", "'"
         elif s._type is intbv:
@@ -729,7 +730,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         return s
 
     def BitRepr(self, item, var):
-        if isinstance(var._val, bool):
+        if isinstance(var._val, bit):
             return '\'%s\'' % tobin(item, len(var))
         else:
             return '"%s"' % tobin(item, len(var))
@@ -764,8 +765,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             else:
                 pre, suf = "to_signed(", ", %s)" % vhd.size
         elif isinstance(vhd, vhd_boolean):
+            print(f'inferCast: vhd: {vhd}, ori: {ori}')
             if not isinstance(ori, vhd_boolean):
-                pre, suf = "bool(", ")"
+                if not isinstance(ori, vhd_std_logic):
+                    pre, suf = "bool(", ")"
         elif isinstance(vhd, vhd_std_logic):
             if not isinstance(ori, vhd_std_logic):
                 if isinstance(ori, vhd_unsigned):
@@ -795,6 +798,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.writeline()
         else:
             vhd = inferVhdlObj(obj)
+            print(f'writeDeclaration: name: {name}, vhd: {vhd}')
             if isinstance(vhd, vhd_enum):
                 tipe = obj._val._type._name
             else:
@@ -924,8 +928,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
 
     def visit_BoolOp(self, node):
-        if isinstance(node.vhd, vhd_std_logic):
-            self.write("stdl")
+        # if isinstance(node.vhd, vhd_std_logic):
+        #     self.write("stdl")
         self.write("(")
         self.visit(node.values[0])
         for n in node.values[1:]:
@@ -1136,7 +1140,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         pre, suf = '', ''
         opening, closing = '(', ')'
         sep = ", "
-        if f is bool:
+        if f is bool or f is bit:
             opening, closing = '', ''
             arg = node.args[0]
             arg.vhd = node.vhd
@@ -1249,7 +1253,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             # NameConstant
             node.id = str(node.value)
             self.getName(node)
-        elif isinstance(node.value, bool):
+        elif isinstance(node.value, (bool, bit)):
             # NameConstant
             node.id = str(node.value)
             self.getName(node)
@@ -1564,11 +1568,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 assert hasattr(node.vhd, 'size')
                 s = '"%s"' % ('Z' * node.vhd.size)
         elif n in self.tree.vardict:
-            s = n
             obj = self.tree.vardict[n]
             ori = inferVhdlObj(obj)
             pre, suf = self.inferCast(node.vhd, ori)
-            s = "%s%s%s" % (pre, s, suf)
+            print(f'_toVHDL: _ConvertVisitor: getName: n : {n}, obj: {obj}, ori: {ori}')
+            s = f'{pre}{n}{suf}'
 
         elif n in self.tree.argnames:
             assert n in self.tree.symdict
@@ -1581,7 +1585,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
             s = n
-            if isinstance(obj, bool):
+            if isinstance(obj, (bool, bit)):
                 if isinstance(node.vhd, vhd_std_logic):
                     s = "'%s'" % int(obj)
                 else:
@@ -1590,7 +1594,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 if isinstance(node.vhd, vhd_int):
                     s = self.IntRepr(obj)
                 elif isinstance(node.vhd, vhd_boolean):
-                    s = "%s" % bool(obj)
+                    s = "%s" % bit(obj)
                 elif isinstance(node.vhd, vhd_std_logic):
                     s = "'%s'" % int(obj)
                 elif isinstance(node.vhd, vhd_unsigned):
@@ -1993,7 +1997,7 @@ def _convertInitVal(reg, init):
     else:
         assert isinstance(reg, intbv)
         tipe = intbv
-    if tipe is bool:
+    if tipe is bool or tipe is bit:
         v = "'1'" if init else "'0'"
     elif tipe is intbv:
         init = int(init)  # int representation
@@ -2268,17 +2272,20 @@ def maxType(o1, o2):
 
 def inferVhdlObj(obj):
     vhd = None
-    if (isinstance(obj, _Signal) and obj._type is intbv) or \
-       isinstance(obj, intbv):
+    if (isinstance(obj, _Signal) and obj._type is intbv) or isinstance(obj, intbv):
         if obj.min is None or obj.min < 0:
             vhd = vhd_signed(size=len(obj))
         else:
             vhd = vhd_unsigned(size=len(obj))
-    elif (isinstance(obj, _Signal) and obj._type is bool) or \
-            isinstance(obj, bool):
+    elif (isinstance(obj, _Signal) and (obj._type is bool)):
+        vhd = vhd_boolean()
+    elif (isinstance(obj, _Signal) and (obj._type is bit)):
         vhd = vhd_std_logic()
-    elif (isinstance(obj, _Signal) and isinstance(obj._val, EnumItemType)) or\
-            isinstance(obj, EnumItemType):
+    elif isinstance(obj, bool):
+        vhd = vhd_boolean()
+    elif isinstance(obj, bit):
+        vhd = vhd_std_logic()
+    elif (isinstance(obj, _Signal) and isinstance(obj._val, EnumItemType)) or isinstance(obj, EnumItemType):
         if isinstance(obj, _Signal):
             tipe = obj._val._type
         else:
@@ -2349,7 +2356,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
                     a.vhd = vhd_unsigned(a.vhd.size)
                 s += a.vhd.size
             node.vhd = vhd_unsigned(s)
-        elif f is bool:
+        elif f is bool or f is bit:
             node.vhd = vhd_boolean()
         elif f in (int, ord):
             node.vhd = vhd_int()
@@ -2386,7 +2393,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         if node.value is None:
             # NameConstant
             node.vhd = inferVhdlObj(node.value)
-        elif isinstance(node.value, bool):
+        elif isinstance(node.value, (bool, bit)):
             # NameConstant
             node.vhd = inferVhdlObj(node.value)
         elif isinstance(node.value, int):
@@ -2557,7 +2564,8 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             #                node.vhd = vhd_std_logic()
             #            else:
             #                node.vhd = node.operand.vhd = vhd_boolean()
-            node.vhd = node.operand.vhd = vhd_boolean()
+            # node.vhd = node.operand.vhd = vhd_boolean()
+            node.vhd = node.operand.vhd = vhd_std_logic()
         elif isinstance(node.op, ast.USub):
             if isinstance(node.vhd, vhd_unsigned):
                 node.vhd = vhd_signed(node.vhd.size + 1)

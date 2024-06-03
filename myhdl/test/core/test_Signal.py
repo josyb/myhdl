@@ -26,7 +26,7 @@ from random import randrange
 
 import pytest
 
-from myhdl import Signal, intbv
+from myhdl import Signal, intbv, bit
 from myhdl._simulator import _siglist
 
 random.seed(1)  # random, but deterministic
@@ -104,17 +104,18 @@ class TestSig:
         for s in (self.sigs + self.incompatibleSigs):
             for n in (self.vals + self.incompatibleVals):
                 assert isinstance(s.val, s._type)
-                if isinstance(s.val, (int, intbv)):
+                if isinstance(s.val, (int, intbv, bit)):
                     t = (int, intbv)
                 else:
                     t = s._type
+
                 if not isinstance(n, t):
                     i += 1
                     with pytest.raises((TypeError, ValueError)):
                         oldval = s.val
                         s.next = n
 
-        assert i >= len(self.incompatibleSigs), "Nothing tested %s" % i
+        assert i >= len(self.incompatibleSigs), f"Nothing tested {i}"
 
     def testAfterUpdate(self):
         """ updated val and next should be equal but not identical """
@@ -474,9 +475,9 @@ class TestSignalIntBvIndexing:
                 res = sbv[i]
                 resi = sbvi[i]
                 assert res == ref
-                assert type(res) == bool
+                assert type(res) == bit  # bool
                 assert resi == ref ^ 1
-                assert type(resi) == bool
+                assert type(resi) == bit  # bool
 
     def testGetSlice(self):
         self.seqsSetup()

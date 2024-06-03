@@ -74,11 +74,11 @@ def HecCalculatorPlain(hec, header):
             yield header
             h[:] = 0
             for i in downrange(len(header)):
-                bit = header[i]
+                xbit = header[i]
                 h[:] = concat(h[7:2],
-                              bit ^ h[1] ^ h[7],
-                              bit ^ h[0] ^ h[7],
-                              bit ^ h[7]
+                              xbit ^ h[1] ^ h[7],
+                              xbit ^ h[0] ^ h[7],
+                              xbit ^ h[7]
                               )
             hec.next = h ^ COSET
 

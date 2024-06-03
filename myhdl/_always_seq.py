@@ -25,6 +25,7 @@ from myhdl._util import _isGenFunc
 from myhdl._Signal import _Signal, _WaiterList, _isListOfSigs
 from myhdl._always import _Always, _get_sigdict
 from myhdl._instance import _getCallInfo
+from myhdl._bit import bit
 
 # evacuate this later
 AlwaysSeqError = AlwaysError
@@ -32,6 +33,8 @@ AlwaysSeqError = AlwaysError
 
 class _error:
     pass
+
+
 _error.EdgeType = "first argument should be an edge"
 _error.ResetType = "reset argument should be a ResetSignal"
 _error.ArgType = "decorated object should be a classic (non-generator) function"
@@ -48,8 +51,8 @@ class ResetSignal(_Signal):
         This is to be used in conjunction with the always_seq decorator,
         as the reset argument.
         """
-        _Signal.__init__(self, bool(val))
-        self.active = bool(active)
+        _Signal.__init__(self, bit(val))
+        self.active = bit(active)
         self.isasync = isasync
 
 
@@ -77,6 +80,7 @@ def always_seq(edge, reset):
         if func.__code__.co_argcount > 0:
             raise AlwaysSeqError(_error.NrOfArgs)
         return _AlwaysSeq(func, edge, reset, callinfo=callinfo, sigdict=sigdict)
+
     return _always_seq_decorator
 
 

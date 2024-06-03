@@ -238,7 +238,7 @@ class _VerificationClass(object):
             print("Conversion verification succeeded", file=sys.stderr)
         else:
             print("Conversion verification failed", file=sys.stderr)
-            # print >> sys.stderr, s ,
+            print(s, file=sys.stderr)
             return 1
 
         return 0

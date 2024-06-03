@@ -33,6 +33,7 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
+from myhdl._bit import bit
 from myhdl._bin import bin
 
 # from myhdl._enum import EnumItemType
@@ -129,9 +130,7 @@ class _Signal(object):
         val -- initial value
 
         """
-        self._init = deepcopy(val)
         self._val = deepcopy(val)
-        self._next = deepcopy(val)
         self._min = self._max = None
         self._name = self._driven = None
         self._read = self._used = False
@@ -139,9 +138,16 @@ class _Signal(object):
         self._nrbits = 0
         self._numeric = True
         self._printVcd = self._printVcdStr
-        if isinstance(val, bool):
-            self._type = bool
-            self._setNextVal = self._setNextBool
+        if isinstance(val, bit):
+            self._type = bit
+            self._setNextVal = self._setNextBit
+            self._printVcd = self._printVcdBit
+            self._nrbits = 1
+        elif isinstance(val, bool):
+            ''' replace it by bit() '''
+            self._type = bit
+            self._val = bit(val)
+            self._setNextVal = self._setNextBit
             self._printVcd = self._printVcdBit
             self._nrbits = 1
         elif isinstance(val, int):
@@ -165,6 +171,8 @@ class _Signal(object):
                 self._setNextVal = self._setNextMutable
             if hasattr(val, '_nrbits'):
                 self._nrbits = val._nrbits
+        self._init = deepcopy(self._val)
+        self._next = deepcopy(self._val)
         self._eventWaiters = _WaiterList()
         self._posedgeWaiters = _PosedgeWaiterList(self)
         self._negedgeWaiters = _NegedgeWaiterList(self)
@@ -280,17 +288,17 @@ class _Signal(object):
         self._used = True
 
     # set next methods
-    def _setNextBool(self, val):
-        if isinstance(val, intbv):
+    def _setNextBit(self, val):
+        if isinstance(val, (intbv, bit)):
             val = val._val
         if not val in (0, 1):
             raise ValueError("Expected boolean value, got %s (%s)" % (repr(val), type(val)))
         self._next = val
 
     def _setNextInt(self, val):
-        if isinstance(val, intbv):
+        if isinstance(val, (intbv, bit)):
             val = val._val
-        elif not isinstance(val, (int, intbv)):
+        elif not isinstance(val, (int, intbv, bit)):
             raise TypeError("Expected int or intbv, got %s" % type(val))
         self._next = val
 

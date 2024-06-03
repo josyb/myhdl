@@ -33,7 +33,7 @@ class Cartesian2D(object):
 
 
 @block
-def Encoder(Clk, Reset, Encoder, Position):
+def Encode(Clk, Reset, Encoder, Position):
     lpos = Signal(intbv(0, -2 ** 15, 2 ** 15))
 
     @always_seq(Clk.posedge, reset=Reset)
@@ -63,9 +63,9 @@ def XYTable(Clk, Reset, Table, Position):
         Position: an Cartesian2D() object telling us the position    
     '''
     pos = Cartesian2D()
-    tablex = Encoder(Clk, Reset, Table.x, pos.x)
+    tablex = Encode(Clk, Reset, Table.x, pos.x)
     tablex.name = 'Table_X'
-    tabley = Encoder(Clk, Reset, Table.y, pos.y)
+    tabley = Encode(Clk, Reset, Table.y, pos.y)
     tabley.name = 'Table_Y'
 
     @always_comb
