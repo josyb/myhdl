@@ -940,9 +940,9 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant) and isinstance(node.operand.value, int):
             # assume number
             node.operand.value = -node.operand.value
-                node.operand.vhd = node.vhd
-                self.visit(node.operand)
-                return
+            node.operand.vhd = node.vhd
+            self.visit(node.operand)
+            return
 
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             if isinstance(node.op, ast.UAdd):
@@ -1164,7 +1164,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             opening, closing = '', ''
             pre, suf = self.inferCast(node.vhd, node.vhdOri)
             # convert number argument to integer
-                if isinstance(node.args[0], ast.Constant):
+            if isinstance(node.args[0], ast.Constant):
                 node.args[0].n = int(node.args[0].value)
         elif inspect.isclass(f) and issubclass(f, intbv):
             pre, post = "", ""
