@@ -37,19 +37,18 @@ import warnings
 import myhdl
 from myhdl import *
 from myhdl import ToVerilogError, ToVerilogWarning
+from myhdl._block import _Block
+from myhdl._enum import EnumItemType
 from myhdl._extractHierarchy import (_HierExtr, _isMem, _getMemInfo,
                                      _UserVerilogCode, _userCodeMap)
-
+from myhdl._getHierarchy import _getHierarchy
 from myhdl._instance import _Instantiator
+from myhdl._Signal import _Signal, Constant
+from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl.conversion._misc import (_error, _kind, _context,
                                     _ConversionMixin, _Label, _genUniqueSuffix, _isConstant)
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _analyzeTopFunc,
                                        _Ram, _Rom)
-from myhdl._Signal import _Signal, Constant
-from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
-
-from myhdl._block import _Block
-from myhdl._getHierarchy import _getHierarchy
 
 _converting = 0
 _profileFunc = None
@@ -501,20 +500,23 @@ def _intRepr(n, radix=''):
     # write size for large integers (beyond 32 bits signed)
     # with some safety margin
     # XXX signed indication 's' ???
-    p = abs(n)
-    size = ''
-    num = str(p).rstrip('L')
-    if radix == "hex" or p >= 2 ** 30:
-        radix = "'h"
-        num = hex(p)[2:].rstrip('L')
-    if p >= 2 ** 30:
-        size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
-#            if not radix:
-#                radix = "'d"
-    r = "%s%s%s" % (size, radix, num)
-    if n < 0:  # add brackets and sign on negative numbers
-        r = "(-%s)" % r
-    return r
+    if isinstance(n, EnumItemType):
+        return n._toVerilog()
+    else:
+        p = abs(n)
+        size = ''
+        num = str(p).rstrip('L')
+        if radix == "hex" or p >= 2 ** 30:
+            radix = "'h"
+            num = hex(p)[2:].rstrip('L')
+        if p >= 2 ** 30:
+            size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
+    #            if not radix:
+    #                radix = "'d"
+        r = "%s%s%s" % (size, radix, num)
+        if n < 0:  # add brackets and sign on negative numbers
+            r = "(-%s)" % r
+        return r
 
 
 def _convertGens(genlist, vfile):
@@ -856,16 +858,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             return
         elif f is ord:
             opening, closing = '', ''
-            node.args[0].s = str(ord(node.args[0].s))
+            node.args[0].value = str(ord(node.args[0].value))
         elif f is int:
             opening, closing = '', ''
             # convert number argument to integer
-            if sys.version_info >= (3, 8, 0):
-                if isinstance(node.args[0], ast.Constant):
-                    node.args[0].n = int(node.args[0].n)
-            else:
-                if isinstance(node.args[0], ast.Num):
-                    node.args[0].n = int(node.args[0].n)
+            if isinstance(node.args[0], ast.Constant):
+                node.args[0].value = int(node.args[0].value)
         elif f in (intbv, modbv):
             self.visit(node.args[0])
             return
@@ -917,40 +915,21 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
         self.context = None
 
-    if sys.version_info >= (3, 9, 0):
-
-        def visit_Constant(self, node):
-            if node.value is None:
-                # NameConstant
-                self.write(nameconstant_map[node.obj])
-            elif isinstance(node.value, bool):
-                self.write(nameconstant_map[node.obj])
-            elif isinstance(node.value, int):
-                # Num
-                if self.context == _context.PRINT:
-                    self.write('"%s"' % node.value)
-                else:
-                    self.write(self.IntRepr(node.value))
-            elif isinstance(node.value, str):
-                # Str
-                s = node.value
-                if self.context == _context.PRINT:
-                    self.write('"%s"' % s)
-                elif len(s) == s.count('0') + s.count('1'):
-                    self.write("%s'b%s" % (len(s), s))
-                else:
-                    self.write(s)
-
-    else:
-
-        def visit_Num(self, node):
+    def visit_Constant(self, node):
+        if node.value is None:
+            # NameConstant
+            self.write(nameconstant_map[node.obj])
+        elif isinstance(node.value, bool):
+            self.write(nameconstant_map[node.obj])
+        elif isinstance(node.value, int):
+            # Num
             if self.context == _context.PRINT:
-                self.write('"%s"' % node.n)
+                self.write('"%s"' % node.value)
             else:
-                self.write(self.IntRepr(node.n))
-
-        def visit_Str(self, node):
-            s = node.s
+                self.write(self.IntRepr(node.value))
+        elif isinstance(node.value, str):
+            # Str
+            s = node.value
             if self.context == _context.PRINT:
                 self.write('"%s"' % s)
             elif len(s) == s.count('0') + s.count('1'):
@@ -958,26 +937,19 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             else:
                 self.write(s)
 
-        def visit_NameConstant(self, node):
-            self.write(nameconstant_map[node.obj])
-
     def visit_Continue(self, node):
         self.write("disable %s;" % self.labelStack[-1])
 
     def visit_Expr(self, node):
         expr = node.value
         # docstrings on unofficial places
-        if isinstance(expr, ast.Str):
-            doc = _makeDoc(expr.s, self.ind)
+        if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+            doc = _makeDoc(expr.value, self.ind)
             self.write(doc)
             return
         # skip extra semicolons
-        if sys.version_info >= (3, 8, 0):
-            if isinstance(expr, ast.Constant):
-                return
-        else:
-            if isinstance(expr, ast.Num):
-                return
+        if isinstance(expr, ast.Constant):
+            return
         self.visit(expr)
         # ugly hack to detect an orphan "task" call
         if isinstance(expr, ast.Call) and hasattr(expr, 'tree'):
@@ -1706,12 +1678,8 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         node.signed = node.operand.signed
         if isinstance(node.op, ast.USub):
             node.obj = int(-1)
-            if sys.version_info >= (3, 8, 0):
-                if isinstance(node.operand, ast.Constant):
-                    node.signed = True
-            else:
-                if isinstance(node.operand, ast.Num):
-                    node.signed = True
+            if isinstance(node.operand, ast.Constant):
+                node.signed = True
 
     def visit_Attribute(self, node):
         if isinstance(node.ctx, ast.Store):
@@ -1751,21 +1719,8 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             return
         self.generic_visit(node)
 
-    if sys.version_info >= (3, 9, 0):
-
-        def visit_Constant(self, node):
-            node.signed = False
-
-    else:
-
-        def visit_Num(self, node):
-            node.signed = False
-
-        def visit_Str(self, node):
-            node.signed = False
-
-        def visit_NameConstant(self, node):
-            node.signed = False
+    def visit_Constant(self, node):
+        node.signed = False
 
     def visit_Name(self, node):
         if isinstance(node.ctx, ast.Store):
