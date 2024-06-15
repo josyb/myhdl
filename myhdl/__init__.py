@@ -49,7 +49,7 @@ traceSignals -- function that enables signal tracing in a VCD file
 toVerilog -- function that converts a design to Verilog
 
 """
-__version__ = "0.11.46"
+__version__ = "0.12.1"
 
 
 class StopSimulation(Exception):
@@ -164,10 +164,6 @@ from ._enum import enum, EnumType, EnumItemType
 from ._traceSignals import traceSignals
 from ._openport import OpenPort
 
-from myhdl import conversion
-from .conversion import toVerilog
-from .conversion import toVHDL
-
 from ._tristate import Tristate
 
 __all__ = ["bin",
@@ -199,9 +195,6 @@ __all__ = ["bin",
            "EnumType",
            "EnumItemType",
            "traceSignals",
-           "toVerilog",
-           "toVHDL",
-           "conversion",
            "Tristate",
-           "OpenPort"
+           "OpenPort",
            ]

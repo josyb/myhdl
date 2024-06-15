@@ -24,13 +24,15 @@ import sys
 import inspect
 import string
 
-from myhdl import ExtractHierarchyError, ToVerilogError, ToVHDLError
-from myhdl._Signal import _Signal, _isListOfSigs
-from myhdl._util import _flatten
-from myhdl._util import _genfunc
-from myhdl._misc import _isGenSeq
-from myhdl._resolverefs import _resolveRefs
-from myhdl._getcellvars import _getCellVars
+# from myhdl import ExtractHierarchyError, ToVerilogError, ToVHDLError
+from myhdl import ToVerilogError, ToVHDLError
+# from myhdl._Signal import _Signal, _isListOfSigs
+from myhdl._Signal import _Signal
+# from myhdl._util import _flatten
+# from myhdl._util import _genfunc
+# from myhdl._misc import _isGenSeq
+# from myhdl._resolverefs import _resolveRefs
+# from myhdl._getcellvars import _getCellVars
 
 _profileFunc = None
 
@@ -217,162 +219,160 @@ def _addUserCode(specs, arg, funcname, func, frame):
             _userCodeMap[hdl][id(arg)] = classMap[spec](
                 code, namespace, funcname, func, sourcefile, sourceline)
 
+# class _CallFuncVisitor(object):
+#
+#     def __init__(self):
+#         self.linemap = {}
+#
+#     def visitAssign(self, node):
+#         if isinstance(node.expr, ast.CallFunc):
+#             self.lineno = None
+#             self.visit(node.expr)
+#             self.linemap[self.lineno] = node.lineno
+#
+#     def visitName(self, node):
+#         self.lineno = node.lineno
 
-class _CallFuncVisitor(object):
-
-    def __init__(self):
-        self.linemap = {}
-
-    def visitAssign(self, node):
-        if isinstance(node.expr, ast.CallFunc):
-            self.lineno = None
-            self.visit(node.expr)
-            self.linemap[self.lineno] = node.lineno
-
-    def visitName(self, node):
-        self.lineno = node.lineno
-
-
-class _HierExtr(object):
-
-    def __init__(self, name, dut, *args, **kwargs):
-
-        global _profileFunc
-        _memInfoMap.clear()
-        for hdl in _userCodeMap:
-            _userCodeMap[hdl].clear()
-        self.skipNames = ('always_comb', 'instance',
-                          'always_seq', '_always_seq_decorator',
-                          'always', '_always_decorator',
-                          'instances',
-                          'processes', 'posedge', 'negedge')
-        self.skip = 0
-        self.hierarchy = hierarchy = []
-        self.absnames = absnames = {}
-        self.level = 0
-
-        _profileFunc = self.extractor
-        sys.setprofile(_profileFunc)
-        _top = dut(*args, **kwargs)
-        sys.setprofile(None)
-        if not hierarchy:
-            raise ExtractHierarchyError(_error.NoInstances)
-
-        self.top = _top
-
-        # streamline hierarchy
-        hierarchy.reverse()
-        # walk the hierarchy to define relative and absolute names
-        names = {}
-        top_inst = hierarchy[0]
-        obj, subs = top_inst.obj, top_inst.subs
-        names[id(obj)] = name
-        absnames[id(obj)] = name
-        if not top_inst.level == 1:
-            raise ExtractHierarchyError(_error.InconsistentToplevel % (top_inst.level, name))
-        for inst in hierarchy:
-            obj, subs = inst.obj, inst.subs
-            if id(obj) not in names:
-                raise ExtractHierarchyError(_error.InconsistentHierarchy)
-            inst.name = names[id(obj)]
-            tn = absnames[id(obj)]
-            for sn, so in subs:
-                names[id(so)] = sn
-                absnames[id(so)] = "%s_%s" % (tn, sn)
-                if isinstance(so, (tuple, list)):
-                    for i, soi in enumerate(so):
-                        sni = "%s_%s" % (sn, i)
-                        names[id(soi)] = sni
-                        absnames[id(soi)] = "%s_%s_%s" % (tn, sn, i)
-
-    def extractor(self, frame, event, arg):
-        if event == "call":
-
-            funcname = frame.f_code.co_name
-            # skip certain functions
-            if funcname in self.skipNames:
-                self.skip += 1
-            if not self.skip:
-                self.level += 1
-
-        elif event == "return":
-
-            funcname = frame.f_code.co_name
-            func = frame.f_globals.get(funcname)
-            if func is None:
-                # Didn't find a func in the global space, try the local "self"
-                # argument and see if it has a method called *funcname*
-                obj = frame.f_locals.get('self')
-                if hasattr(obj, funcname):
-                    func = getattr(obj, funcname)
-
-            if not self.skip:
-                isGenSeq = _isGenSeq(arg)
-                if isGenSeq:
-                    specs = {}
-                    for hdl in _userCodeMap:
-                        spec = "__%s__" % hdl
-                        if spec in frame.f_locals and frame.f_locals[spec]:
-                            specs[spec] = frame.f_locals[spec]
-                        spec = "%s_code" % hdl
-                        if func and hasattr(func, spec) and getattr(func, spec):
-                            specs[spec] = getattr(func, spec)
-                        spec = "%s_instance" % hdl
-                        if func and hasattr(func, spec) and getattr(func, spec):
-                            specs[spec] = getattr(func, spec)
-                    if specs:
-                        _addUserCode(specs, arg, funcname, func, frame)
-                # building hierarchy only makes sense if there are generators
-                if isGenSeq and arg:
-                    sigdict = {}
-                    memdict = {}
-                    symdict = frame.f_globals.copy()
-                    symdict.update(frame.f_locals)
-                    cellvars = []
-
-                    # All nested functions will be in co_consts
-                    if func:
-                        local_gens = []
-                        consts = func.__code__.co_consts
-                        for item in _flatten(arg):
-                            genfunc = _genfunc(item)
-                            if genfunc.__code__ in consts:
-                                local_gens.append(item)
-                        if local_gens:
-                            cellvarlist = _getCellVars(symdict, local_gens)
-                            cellvars.extend(cellvarlist)
-                            objlist = _resolveRefs(symdict, local_gens)
-                            cellvars.extend(objlist)
-                    # for dict in (frame.f_globals, frame.f_locals):
-                    for n, v in symdict.items():
-                        # extract signals and memories
-                        # also keep track of whether they are used in generators
-                        # only include objects that are used in generators
-                        # if not n in cellvars:
-                        # continue
-                        if isinstance(v, _Signal):
-                            sigdict[n] = v
-                            if n in cellvars:
-                                v._markUsed()
-                        if _isListOfSigs(v):
-                            m = _makeMemInfo(v)
-                            memdict[n] = m
-                            if n in cellvars:
-                                m._used = True
-
-                    subs = []
-                    for n, sub in frame.f_locals.items():
-                        for elt in _inferArgs(arg):
-                            if elt is sub:
-                                subs.append((n, sub))
-
-                    inst = _Instance(self.level, arg, subs, sigdict, memdict)
-                    self.hierarchy.append(inst)
-
-                self.level -= 1
-
-            if funcname in self.skipNames:
-                self.skip -= 1
+# class _HierExtr(object):
+#
+#     def __init__(self, name, dut, *args, **kwargs):
+#
+#         global _profileFunc
+#         _memInfoMap.clear()
+#         for hdl in _userCodeMap:
+#             _userCodeMap[hdl].clear()
+#         self.skipNames = ('always_comb', 'instance',
+#                           'always_seq', '_always_seq_decorator',
+#                           'always', '_always_decorator',
+#                           'instances',
+#                           'processes', 'posedge', 'negedge')
+#         self.skip = 0
+#         self.hierarchy = hierarchy = []
+#         self.absnames = absnames = {}
+#         self.level = 0
+#
+#         _profileFunc = self.extractor
+#         sys.setprofile(_profileFunc)
+#         _top = dut(*args, **kwargs)
+#         sys.setprofile(None)
+#         if not hierarchy:
+#             raise ExtractHierarchyError(_error.NoInstances)
+#
+#         self.top = _top
+#
+#         # streamline hierarchy
+#         hierarchy.reverse()
+#         # walk the hierarchy to define relative and absolute names
+#         names = {}
+#         top_inst = hierarchy[0]
+#         obj, subs = top_inst.obj, top_inst.subs
+#         names[id(obj)] = name
+#         absnames[id(obj)] = name
+#         if not top_inst.level == 1:
+#             raise ExtractHierarchyError(_error.InconsistentToplevel % (top_inst.level, name))
+#         for inst in hierarchy:
+#             obj, subs = inst.obj, inst.subs
+#             if id(obj) not in names:
+#                 raise ExtractHierarchyError(_error.InconsistentHierarchy)
+#             inst.name = names[id(obj)]
+#             tn = absnames[id(obj)]
+#             for sn, so in subs:
+#                 names[id(so)] = sn
+#                 absnames[id(so)] = "%s_%s" % (tn, sn)
+#                 if isinstance(so, (tuple, list)):
+#                     for i, soi in enumerate(so):
+#                         sni = "%s_%s" % (sn, i)
+#                         names[id(soi)] = sni
+#                         absnames[id(soi)] = "%s_%s_%s" % (tn, sn, i)
+#
+#     def extractor(self, frame, event, arg):
+#         if event == "call":
+#
+#             funcname = frame.f_code.co_name
+#             # skip certain functions
+#             if funcname in self.skipNames:
+#                 self.skip += 1
+#             if not self.skip:
+#                 self.level += 1
+#
+#         elif event == "return":
+#
+#             funcname = frame.f_code.co_name
+#             func = frame.f_globals.get(funcname)
+#             if func is None:
+#                 # Didn't find a func in the global space, try the local "self"
+#                 # argument and see if it has a method called *funcname*
+#                 obj = frame.f_locals.get('self')
+#                 if hasattr(obj, funcname):
+#                     func = getattr(obj, funcname)
+#
+#             if not self.skip:
+#                 isGenSeq = _isGenSeq(arg)
+#                 if isGenSeq:
+#                     specs = {}
+#                     for hdl in _userCodeMap:
+#                         spec = "__%s__" % hdl
+#                         if spec in frame.f_locals and frame.f_locals[spec]:
+#                             specs[spec] = frame.f_locals[spec]
+#                         spec = "%s_code" % hdl
+#                         if func and hasattr(func, spec) and getattr(func, spec):
+#                             specs[spec] = getattr(func, spec)
+#                         spec = "%s_instance" % hdl
+#                         if func and hasattr(func, spec) and getattr(func, spec):
+#                             specs[spec] = getattr(func, spec)
+#                     if specs:
+#                         _addUserCode(specs, arg, funcname, func, frame)
+#                 # building hierarchy only makes sense if there are generators
+#                 if isGenSeq and arg:
+#                     sigdict = {}
+#                     memdict = {}
+#                     symdict = frame.f_globals.copy()
+#                     symdict.update(frame.f_locals)
+#                     cellvars = []
+#
+#                     # All nested functions will be in co_consts
+#                     if func:
+#                         local_gens = []
+#                         consts = func.__code__.co_consts
+#                         for item in _flatten(arg):
+#                             genfunc = _genfunc(item)
+#                             if genfunc.__code__ in consts:
+#                                 local_gens.append(item)
+#                         if local_gens:
+#                             cellvarlist = _getCellVars(symdict, local_gens)
+#                             cellvars.extend(cellvarlist)
+#                             objlist = _resolveRefs(symdict, local_gens)
+#                             cellvars.extend(objlist)
+#                     # for dict in (frame.f_globals, frame.f_locals):
+#                     for n, v in symdict.items():
+#                         # extract signals and memories
+#                         # also keep track of whether they are used in generators
+#                         # only include objects that are used in generators
+#                         # if not n in cellvars:
+#                         # continue
+#                         if isinstance(v, _Signal):
+#                             sigdict[n] = v
+#                             if n in cellvars:
+#                                 v._markUsed()
+#                         if _isListOfSigs(v):
+#                             m = _makeMemInfo(v)
+#                             memdict[n] = m
+#                             if n in cellvars:
+#                                 m._used = True
+#
+#                     subs = []
+#                     for n, sub in frame.f_locals.items():
+#                         for elt in _inferArgs(arg):
+#                             if elt is sub:
+#                                 subs.append((n, sub))
+#
+#                     inst = _Instance(self.level, arg, subs, sigdict, memdict)
+#                     self.hierarchy.append(inst)
+#
+#                 self.level -= 1
+#
+#             if funcname in self.skipNames:
+#                 self.skip -= 1
 
 
 def _inferArgs(arg):

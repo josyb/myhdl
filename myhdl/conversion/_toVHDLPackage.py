@@ -19,55 +19,146 @@
 
 import myhdl
 
-_version = myhdl.__version__.replace('.', '')
-_shortversion = _version.replace('dev', '')[:-2]
+vMajor, vminor, vsubminor = myhdl.__version__.split('.')
 
-_package = """\
+_package = f"""\
 library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+    use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
-package pck_myhdl_%(version)s is
+package pck_myhdl is
+
+    type version is record 
+        Major : integer;
+        minor : integer;
+        subminor : integer;
+    end record version;
+    Constant PackageVersion : version := (Major => {vMajor}, minor => {vminor}, subminor => {vsubminor});
+        
+    function check_package_version(Major: integer; minor: integer; subminor: integer) return boolean;
+    
+    type array_of_sl is array (natural range <>) of std_logic;
+    type array_of_slv is array (natural range <>) of std_logic_vector;
+    type array_of_unsigned is array (natural range <>) of unsigned;
+    type array_of_signed is array (natural range <>) of signed;
 
     attribute enum_encoding: string;
 
-    function stdl (arg: boolean) return std_logic;
+    function to_std_logic_vector(aslv : array_of_slv) return std_logic_vector;
+    function to_unsigned(au : array_of_unsigned) return unsigned;
+    function to_unsigned(as : array_of_signed) return unsigned;
+    function to_array(slv : std_logic_vector; width : natural) return array_of_slv;
+    function to_array(vu : unsigned; width : natural) return array_of_unsigned;
+    function to_array(vs : unsigned; width : natural) return array_of_signed;
 
+    function stdl (arg: boolean) return std_logic;
     function stdl (arg: integer) return std_logic;
 
     function to_unsigned (arg: boolean; size: natural) return unsigned;
-
-    function to_signed (arg: boolean; size: natural) return signed;
-
-    function to_integer(arg: boolean) return integer;
-
-    function to_integer(arg: std_logic) return integer;
-
     function to_unsigned (arg: std_logic; size: natural) return unsigned;
 
+    function to_signed (arg: boolean; size: natural) return signed;
     function to_signed (arg: std_logic; size: natural) return signed;
 
+    function to_integer(arg: boolean) return integer;
+    function to_integer(arg: std_logic) return integer;
+
+
+
     function bool (arg: std_logic) return boolean;
-
     function bool (arg: unsigned) return boolean;
-
     function bool (arg: signed) return boolean;
-
     function bool (arg: integer) return boolean;
 
     function "-" (arg: unsigned) return signed;
 
     function tern_op(cond: boolean; if_true: std_logic; if_false: std_logic) return std_logic;
-
     function tern_op(cond: boolean; if_true: unsigned; if_false: unsigned) return unsigned;
-
     function tern_op(cond: boolean; if_true: signed; if_false: signed) return signed;
+    function tern_op(cond: boolean; if_true: integer; if_false: integer) return integer;
 
-end pck_myhdl_%(version)s;
+end pck_myhdl;
 
 
-package body pck_myhdl_%(version)s is
+package body pck_myhdl is
 
+    function check_package_version(Major: integer; minor: integer; subminor: integer) return boolean is
+        variable r : boolean := False;
+    begin
+        if PackageVersion.Major > Major then
+            r := True;
+        elsif PackageVersion.Major = Major then
+            if PackageVersion.minor > minor then 
+                r := True;
+            elsif PackageVersion.minor = minor then
+                if PackageVersion.subminor >= subminor then
+                    r := True;
+                end if;
+            end if;
+        end if;
+        return r;
+    end function;
+
+    function to_std_logic_vector(aslv : array_of_slv) return std_logic_vector is
+        constant w : natural := 1 + aslv(0)'high - aslv(0)'low;
+        variable r : std_logic_vector(aslv'length * w - 1 downto 0);
+    begin
+        for i in 0 to aslv'high loop
+            r((i + 1) * w - 1 downto i * w) := aslv(i);
+        end loop;
+        return r;
+    end function;
+
+    function to_unsigned(au : array_of_unsigned) return unsigned is
+        constant w : natural := 1 + au(0)'high - au(0)'low;
+        variable r : unsigned(au'length * w - 1 downto 0);
+    begin
+        for i in 0 to au'high loop
+            r((i + 1) * w - 1 downto i * w) := au(i);
+        end loop;
+        return r;
+    end function;
+
+    function to_unsigned(as : array_of_signed) return unsigned is
+        constant w : natural := 1 + as(0)'high - as(0)'low;
+        variable r : unsigned(as'length * w - 1 downto 0);
+    begin
+        for i in 0 to as'high loop
+            r((i + 1) * w - 1 downto i * w) := unsigned(as(i));
+        end loop;
+        return r;
+    end function;
+
+    function to_array(slv : std_logic_vector; width : natural) return array_of_slv is
+        constant NUM_ELEMENTS : natural := (slv'high - slv'low + 1) / width;
+        variable r            : array_of_slv(0 to NUM_ELEMENTS - 1)(width - 1 downto 0);
+    begin
+        for i in 0 to NUM_ELEMENTS - 1 loop
+            r(i) := slv((i + 1) * width - 1 downto i * width);
+        end loop;
+        return r;
+    end function;
+
+    function to_array(vu : unsigned; width : natural) return array_of_unsigned is
+        constant NUM_ELEMENTS : natural := (vu'high - vu'low + 1) / width;
+        variable r            : array_of_unsigned(0 to NUM_ELEMENTS - 1)(width - 1 downto 0);
+    begin
+        for i in 0 to NUM_ELEMENTS - 1 loop
+            r(i) := vu((i + 1) * width - 1 downto i * width);
+        end loop;
+        return r;
+    end function;
+    
+    function to_array(vs : unsigned; width : natural) return array_of_signed is
+        constant NUM_ELEMENTS : natural := (vs'high - vs'low + 1) / width;
+        variable r            : array_of_signed(0 to NUM_ELEMENTS - 1)(width - 1 downto 0);
+    begin
+        for i in 0 to NUM_ELEMENTS - 1 loop
+            r(i) := signed(vs((i + 1) * width - 1 downto i * width));
+        end loop;
+        return r;
+    end function;
+        
     function stdl (arg: boolean) return std_logic is
     begin
         if arg then
@@ -189,6 +280,16 @@ package body pck_myhdl_%(version)s is
         end if;
     end function tern_op;
 
-end pck_myhdl_%(version)s;
+    function tern_op(cond: boolean; if_true: integer; if_false: integer) return integer is
+    begin
+        if cond then
+            return if_true;
+        else
+            return if_false;
+        end if;
+    end function tern_op;
 
-""" % {'version': _shortversion}
+
+end pck_myhdl;
+
+"""

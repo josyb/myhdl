@@ -3,11 +3,11 @@ import os
 from tempfile import mkdtemp
 from shutil import rmtree
 
-from myhdl import (block, Signal, intbv, always, toVHDL, toVerilog)
+from myhdl import (block, Signal, intbv, always)
 
-from myhdl import __version__
-_version = __version__.replace('.', '')
-_shortversion = _version.replace('dev', '')[:-2]
+# from myhdl import __version__
+# _version = __version__.replace('.', '')
+# _shortversion = _version.replace('dev', '')[:-2]
 
 
 @block
@@ -34,39 +34,12 @@ def test_toVHDL_set_dir():
     clock = Signal(bool(0))
 
     try:
-        toVHDL.directory = tmp_dir
-        toVHDL(simple_dir_model(din, dout, clock))
-
+        dfc = simple_dir_model(din, dout, clock)
+        dfc.convert('VHDL', directory=tmp_dir)
         assert os.path.exists(os.path.join(tmp_dir, 'simple_dir_model.vhd'))
+        assert os.path.exists(os.path.join(tmp_dir, "pck_myhdl.vhd"))
 
     finally:
-        toVHDL.directory = None
-        rmtree(tmp_dir)
-
-
-def test_toVHDL_myhdl_package_set_dir():
-    '''In order that the MyHDL package files are located in the 
-    same place as the generated VHDL files, when the directory attribute of 
-    toVHDL is set, this location should be used for the generated MyHDL 
-    package files.
-    '''
-    tmp_dir = mkdtemp()
-
-    din = Signal(intbv(0)[5:])
-    dout = Signal(intbv(0)[5:])
-    clock = Signal(bool(0))
-
-    try:
-        toVHDL.directory = tmp_dir
-        toVHDL(simple_dir_model(din, dout, clock))
-
-        assert os.path.exists(
-            os.path.join(tmp_dir, "pck_myhdl_%s.vhd" % _shortversion))
-
-    finally:
-
-        toVHDL.directory = None
-
         rmtree(tmp_dir)
 
 
@@ -82,18 +55,13 @@ def test_toVerilog_set_dir():
     dout = Signal(intbv(0)[5:])
     clock = Signal(bool(0))
 
-    no_testbench_state = toVerilog.no_testbench
-    toVerilog.no_testbench = True
-
     try:
-        toVerilog.directory = tmp_dir
-        toVerilog(simple_dir_model(din, dout, clock))
+        dfc = simple_dir_model(din, dout, clock)
+        dfc.convert('Verilog', directory=tmp_dir, testbench=False)
 
         assert os.path.exists(os.path.join(tmp_dir, 'simple_dir_model.v'))
 
     finally:
-        toVerilog.directory = None
-        toVerilog.no_testbench = no_testbench_state
         rmtree(tmp_dir)
 
 
@@ -110,18 +78,10 @@ def test_toVerilog_testbench_set_dir():
     dout = Signal(intbv(0)[5:])
     clock = Signal(bool(0))
 
-    no_testbench_state = toVerilog.no_testbench
-    toVerilog.no_testbench = False
-
     try:
-        toVerilog.directory = tmp_dir
-        toVerilog(simple_dir_model(din, dout, clock))
-
+        dfc = simple_dir_model(din, dout, clock)
+        dfc.convert('Verilog', directory=tmp_dir)
         assert os.path.exists(os.path.join(tmp_dir, 'tb_simple_dir_model.v'))
 
     finally:
-
-        toVerilog.directory = None
-        toVerilog.no_testbench = no_testbench_state
-
         rmtree(tmp_dir)

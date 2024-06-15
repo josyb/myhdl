@@ -20,6 +20,7 @@
 """ myhdl _getHierarchy module.
 
 """
+import re
 
 from myhdl._extractHierarchy import _Instance
 from myhdl._block import _Block
@@ -44,8 +45,22 @@ class _Hierarchy(object):
             inst.name = names[id(obj)]
             tn = absnames[id(obj)]
             for sn, so in subs:
-                names[id(so)] = sn
-                absnames[id(so)] = "%s_%s" % (tn, sn)
+                # names[id(so)] = sn
+                # absnames[id(so)] = "%s_%s" % (tn, sn)
+                if sn is None:
+                    names[id(so)] = sn
+                    absnames[id(so)] = "%s" % (sn)
+                else:
+                    # remove 'rtl[0-9]+_'
+                    if re.search(r'rtl', sn, re.RegexFlag.I):
+                        csn, _, _ = sn.partition('_rtl')
+                    else:
+                        csn = sn
+                    names[id(so)] = csn
+                    if inst.level > 1 and tn != 'None':
+                        absnames[id(so)] = "%s_%s" % (tn, csn)
+                    else:
+                        absnames[id(so)] = "%s" % (csn)
         # print (names)
         # print(absnames)
 

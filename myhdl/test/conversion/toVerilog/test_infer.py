@@ -3,7 +3,7 @@ path = os.path
 import unittest
 
 from myhdl import (block, Signal, enum, intbv, delay, instance,
-                   StopSimulation, toVerilog)
+                   StopSimulation)
 from myhdl._Simulation import Simulation
 from myhdl import ConversionError
 from myhdl.conversion._misc import _error
@@ -185,7 +185,9 @@ class TestErrors(unittest.TestCase):
 
     def check(self, *args):
         try:
-            i = toVerilog(*args)
+            # i = toVerilog(*args)
+            i = args[0](args[1:])
+            i.convert('Verilog')
         except ConversionError as e:
             self.assertEqual(e.kind, _error.NotSupported)
         except:

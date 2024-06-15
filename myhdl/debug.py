@@ -1,6 +1,6 @@
 import platform
 
-from . import __version__
+from myhdl import __version__
 
 
 def print_versions():

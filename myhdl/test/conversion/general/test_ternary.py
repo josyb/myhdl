@@ -2,9 +2,7 @@ import os
 path = os.path
 
 from myhdl import (block, Signal, intbv, delay, always_comb,
-                   always, instance, StopSimulation,
-                   conversion, toVHDL
-                   )
+                   always, instance, StopSimulation, conversion)
 
 
 @block
@@ -40,13 +38,14 @@ def ternary2(dout, clk, rst):
 
 
 @block
-def TernaryBench(ternary):
+def TernaryBench(ternary, name):
 
     dout = Signal(intbv(0)[8:])
     clk = Signal(bool(0))
     rst = Signal(bool(0))
 
     ternary_inst = ternary(dout, clk, rst)
+    ternary_inst.name = name
 
     @instance
     def stimulus():
@@ -72,11 +71,9 @@ def TernaryBench(ternary):
 
 # uncomment when we have a VHDL-2008 compliant simulator
 def test_ternary1():
-    toVHDL.name = 'ternary1'
-    assert conversion.verify(TernaryBench(ternary1)) == 0
+    assert conversion.verify(TernaryBench(ternary1, 'ternary1')) == 0
 
 
 def test_ternary2():
-    toVHDL.name = 'ternary2'
-    assert conversion.verify(TernaryBench(ternary2)) == 0
+    assert conversion.verify(TernaryBench(ternary2, 'ternary2')) == 0
 

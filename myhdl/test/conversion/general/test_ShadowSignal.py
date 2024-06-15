@@ -1,6 +1,5 @@
 from myhdl import (block, Signal, intbv, delay, always_comb, instance,
-                   TristateSignal, ConcatSignal, conversion, StopSimulation,
-                   toVerilog, toVHDL)
+                   TristateSignal, ConcatSignal, conversion, StopSimulation)
 
 
 @block
@@ -221,7 +220,8 @@ def bench_permute(conv=False):
     mapping = (0, 2, 1)
 
     if conv:
-        dut = conv(permute(x, a, mapping))
+        dut = permute(x, a, mapping)
+        dut.convert(conv)
     else:
         dut = permute(x, a, mapping)
 
@@ -242,6 +242,5 @@ def bench_permute(conv=False):
 def test_permute():
     assert conversion.verify(bench_permute()) == 0
 
-
-bench_permute(toVHDL)
-bench_permute(toVerilog)
+# bench_permute('VHDL')
+# bench_permute('Verilog')

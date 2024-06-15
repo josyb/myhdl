@@ -17,13 +17,18 @@
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-""" myhdl toVerilog package.
+""" myhdl conversion package.
 
 """
 import inspect
 import ast
+from datetime import datetime, timezone
+import re
 
 from myhdl import ConversionError
+from myhdl._enum import EnumItemType
+from myhdl._intbv import intbv
+from myhdl._Signal import _Signal
 
 
 class _error(object):
@@ -36,6 +41,7 @@ class _error(object):
     IntbvBitWidth = "intbv object should have a bit width"
     ListAsPort = "List of signals as a port is not supported"
     ListElementAssign = "Can't assign to list element; use slice assignment to change its value"
+    MissingNext = "Missing '.next' attribute in assignment"
     ModbvRange = "modbv object should have full bit vector range"
     NrBitsMismatch = "Nr of bits mismatch with earlier assignment"
     NotASignal = "Non-local object should be a Signal"
@@ -167,6 +173,10 @@ def _LabelGenerator():
 _genLabel = _LabelGenerator()
 
 
+class _loopInt(int):
+    pass
+
+
 class _Label(object):
 
     def __init__(self, name):
@@ -176,10 +186,115 @@ class _Label(object):
     def __str__(self):
         return str(self.name)
 
+
+# type inference
+class sig_type(object):
+
+    def __init__(self, size=0):
+        self.size = size
+
+    def __repr__(self):
+        return "{}({})".format(type(self).__name__, self.size)
+
+
+class sig_string(sig_type):
+    pass
+
+
+class sig_enum(sig_type):
+
+    def __init__(self, tipe):
+        self._type = tipe
+
+    def toStr(self, constr=True):
+        return self._type.__dict__['_name']
+
+
+class sig_std_logic(sig_type):
+
+    def __init__(self):
+        sig_type.__init__(self)
+        self.size = 1
+
+    def toStr(self, constr=True):
+        return 'std_logic'
+
+
+class sig_boolean(sig_type):
+
+    def __init__(self, size=0):
+        sig_type.__init__(self)
+        self.size = 1
+
+    def toStr(self, constr=True):
+        return 'boolean'
+
+
+class sig_vector(sig_type):
+
+    def __init__(self, size=0):
+        sig_type.__init__(self, size)
+
+
+class sig_unsigned(sig_vector):
+
+    def toStr(self, constr=True):
+        if constr:
+            return "unsigned({} downto 0)".format(self.size - 1)
+        else:
+            return "unsigned"
+
+
+class sig_signed(sig_vector):
+
+    def toStr(self, constr=True):
+        if constr:
+            return "signed({} downto 0)".format(self.size - 1)
+        else:
+            return "signed"
+
+
+class sig_int(sig_type):
+
+    def toStr(self, constr=True):
+        return "integer"
+
+
+class sig_nat(sig_int):
+
+    def toStr(self, constr=True):
+        return "natural"
+
+
+def inferSigObj(obj):
+    sig = None
+    if (isinstance(obj, _Signal) and obj._type is intbv) or \
+       isinstance(obj, intbv):
+        if obj.min is None or obj.min < 0:
+            sig = sig_signed(size=len(obj))
+        else:
+            sig = sig_unsigned(size=len(obj))
+    elif (isinstance(obj, _Signal) and obj._type is bool) or \
+            isinstance(obj, bool):
+        sig = sig_std_logic()
+    elif (isinstance(obj, _Signal) and isinstance(obj._val, EnumItemType)) or\
+            isinstance(obj, EnumItemType):
+        if isinstance(obj, _Signal):
+            tipe = obj._val._type
+        else:
+            tipe = obj._type
+        sig = sig_enum(tipe)
+    elif isinstance(obj, int):
+        if obj >= 0:
+            sig = sig_nat()
+        else:
+            sig = sig_int()
+        # sig = sig_int()
+    return sig
+
+
 # this can be made more sophisticated to deal with existing suffixes
 # also, may require reset facility
-
-
 class _UniqueSuffixGenerator(object):
 
     def __init__(self):
@@ -224,8 +339,84 @@ def _get_argnames(node):
 def _makeDoc(doc, comment, indent=''):
     if doc is None:
         return ''
-    doc = inspect.cleandoc(doc)
     pre = '\n' + indent + comment
-    doc = comment + doc
+    doc = inspect.cleandoc(doc)
     doc = doc.replace('\n', pre)
-    return doc
+    return indent + comment + doc
+
+
+def getutcdatetime():
+    # get the current utc time
+    t = datetime.now(timezone.utc)
+    # convert to unix, this will keep the utc timezone
+    unix = t.timestamp()
+    # convert back to datetime, specifying that the timestamp is in UTC
+    t2 = '{}'.format(datetime.fromtimestamp(unix, tz=timezone.utc))
+    # leave out milliseconds etc.
+    return '{} UTC'.format(t2[:19])
+
+
+def natural_key(string_):
+    """
+        a helper routine to 'improve' the sort
+        See http://www.codinghorror.com/blog/archives/001018.html
+    """
+    return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
+
+
+def sortalign(sl, sort=False, port=False, sep=':'):
+    '''
+        aligning and sorting strings
+        oroignally tailored for VHDL
+        so will need work for Verilog and SystemVerilog?
+    '''
+    # align the colons
+    maxpos = 0
+    for l in sl:
+        if sep in l:
+            t = l.find(sep)
+            maxpos = t if t > maxpos else maxpos
+
+    if maxpos:
+        for i, l in enumerate(sl):
+            if sep in l:
+                p = l.find(sep)
+                b, c, e = l.partition(sep)
+                sl[i] = b + ' ' * (maxpos - p) + c + e
+
+    # align after 'in', 'out' or 'inout'
+    if port:
+        portdirections = (': in', ': out', ': inout')
+        maxpos = 0
+        for l in sl:
+            for tst in portdirections:
+                if tst in l:
+                    t = l.find(tst) + len(tst)
+                    maxpos = t if t > maxpos else maxpos
+                    continue
+        if maxpos:
+            for i, l in enumerate(sl):
+                for tst in portdirections:
+                    if tst in l:
+                        p = l.find(tst)
+                        b, c, e = l.partition(tst)
+                        sl[i] = b + c + ' ' * (maxpos - p - len(tst)) + e
+
+    # align then :=' if any
+    maxpos = 0
+    for l in sl:
+        if ':=' in l:
+            t = l.find(':=')
+            maxpos = t if t > maxpos else maxpos
+    if maxpos:
+        for i, l in enumerate(sl):
+            if ':=' in l:
+                p = l.find(':=')
+                b, c, e = l.partition(':=')
+                sl[i] = b + ' ' * (maxpos - p) + c + e
+
+    if sort:
+        # sort the signals
+        return sorted(sl, key=natural_key)
+    else:
+        return sl

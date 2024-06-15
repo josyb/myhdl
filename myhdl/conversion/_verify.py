@@ -9,8 +9,6 @@ from collections import namedtuple
 
 import myhdl
 from myhdl._Simulation import Simulation
-from myhdl.conversion._toVHDL import toVHDL
-from myhdl.conversion._toVerilog import toVerilog
 from myhdl._block import _Block
 
 _version = myhdl.__version__.replace('.', '')
@@ -96,33 +94,34 @@ class _VerificationClass(object):
     __slots__ = ("simulator", "_analyzeOnly")
 
     def __init__(self, analyzeOnly=False):
-        self.simulator = 'ghdl'
+        # self.simulator = 'ghdl'
+        self.simulator = 'iverilog'
         self._analyzeOnly = analyzeOnly
 
     def __call__(self, func, *args, **kwargs):
 
         if not self.simulator:
             raise ValueError("No simulator specified")
+
         if self.simulator not in _simulators:
             raise ValueError("Simulator %s is not registered" % self.simulator)
+
         hdlsim = _simulators[self.simulator]
         hdl = hdlsim.hdl
-        if hdl == 'Verilog' and toVerilog.name is not None:
-            name = toVerilog.name
-        elif hdl == 'VHDL' and toVHDL.name is not None:
-            name = toVHDL.name
-        elif isinstance(func, _Block):
+
+        if isinstance(func, _Block):
             name = func.func.__name__
         else:
-            warnings.warn(
-                "\n    analyze()/verify(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-            try:
-                name = func.__name__
-            except:
-                raise TypeError(str(type(func)))
+            raise SyntaxError(f'{func} must be decorated with @block')
+            # warnings.warn(
+            #     "\n    analyze()/verify(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
+            #     stacklevel=2,
+            #     category=DeprecationWarning,
+            # )
+            # try:
+            #     name = func.__name__
+            # except:
+            #     raise TypeError(str(type(func)))
 
         vals = {}
         vals['topname'] = name
@@ -138,16 +137,19 @@ class _VerificationClass(object):
         skipchars = hdlsim.skipchars
         ignore = hdlsim.ignore
 
-        if isinstance(func, _Block):
-            if hdl == "VHDL":
-                inst = func.convert(hdl='VHDL', **kwargs)
-            else:
-                inst = func.convert(hdl='Verilog', **kwargs)
-        else:
-            if hdl == "VHDL":
-                inst = toVHDL(func, *args, **kwargs)
-            else:
-                inst = toVerilog(func, *args, **kwargs)
+        # if isinstance(func, _Block):
+        #     if hdl == "VHDL":
+        #         inst = func.convert(hdl='VHDL', **kwargs)
+        #     else:
+        #         inst = func.convert(hdl='Verilog', **kwargs)
+        # else:
+        #     raise SyntaxError(f'{func} must be decorated with @block')
+        #     # if hdl == "VHDL":
+        #     #     inst = toVHDL(func, *args, **kwargs)
+        #     # else:
+        #     #     inst = toVerilog(func, *args, **kwargs)
+
+        inst = func.convert(hdl, **kwargs)
 
         if hdl == "VHDL":
             if not os.path.exists("work"):

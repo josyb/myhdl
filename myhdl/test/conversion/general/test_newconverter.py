@@ -132,12 +132,15 @@ def sac11(a, b, c, d, e):
 
     @always_comb
     def comb():
+        # ''' mixing 0,1 and True, False for Signal(bool()) '''
+
+        d.next = False
         if a:
             d.next = e
         elif b and not c:
-            d.next = 1
-        else:
             d.next = not e
+        elif not b and c:
+            d.next = 1
 
     return comb
 
@@ -147,13 +150,19 @@ def sac12(a, b, c, d, e):
 
     @always_comb
     def comb():
+        ''' mixing 0,1 and True, False for Signal(bool()) '''
+
+        ''' False '''
+        d.next = False  # ''' False '''
         if a:
             d.next = e
         else:
             if b and not c:
+                ''' 1 '''
                 d.next = 1
             else:
                 d.next = not e
+        ''' Done '''
 
     return comb
 
@@ -186,8 +195,19 @@ def sac14(a, b):
 
 
 @block
+def sac15(clk, a, b, c):
+    ''' expecting 'new' VHDL 2008 q <= '0' when reset else d; '''
+
+    @always_seq(clk.posedge, reset=None)
+    def sync():
+        b.next = not a if c else a
+
+    return sync
+
+
+@block
 def simplecounter(RANGE, Clk, SClr, CntEn, Q):
-    ''' a simple counter '''
+    ''' a simple wrap-around counter '''
 
     MAX_COUNT = Constant(intbv(RANGE - 1)[6:])
 
@@ -330,6 +350,7 @@ if __name__ == '__main__':
         return instances()
 
     def convert():
+        clk = Signal(bool(0))
         A, B, C, D, E = [Signal(bool(0)) for __ in range(5)]
         AA = Signal(intbv()[2:])
         BB = Signal(intbv()[2:])
@@ -349,12 +370,14 @@ if __name__ == '__main__':
         # dfc = sac8(A, B, C, D, E)
         # dfc = sac9(A, B, C, D, E)
         # dfc = sac10(CC, DD, EE)
-        # dfc = simplecounter(42, A, B, C, Q)
+        dfc = simplecounter(42, A, B, C, Q)
         # dfc = sac11(A, B, C, D, E)
         # dfc = sac12(A, B, C, D, E)
         # dfc = sac13(A, B, C)
-        dfc = sac14(AA, BB)
-        dfc.convert(hdl='Verilog')
+        # dfc = sac14(AA, BB)
+        # dfc = sac15(clk, A, B, C)
+        # dfc.convert(hdl='Verilog')
+        dfc.convert(hdl='VHDL')
 
         # WIDTH_D = 8
         #

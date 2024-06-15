@@ -31,7 +31,7 @@ def incRef(count, enable, clock, reset, n):
     """
 
     @instance
-    def logic():
+    def comblogic():
         while 1:
             yield clock.posedge, reset.negedge
             if reset == ACTIVE_LOW:
@@ -40,7 +40,7 @@ def incRef(count, enable, clock, reset, n):
                 if enable:
                     count.next = (count + 1) % n
 
-    return logic
+    return comblogic
 
 
 @block
@@ -48,7 +48,7 @@ def incGen(count, enable, clock, reset, n):
     """ Generator with __verilog__ is not permitted """
 
     @instance
-    def logic():
+    def comblogic():
         incGen.verilog_code = "Template string"
         while 1:
                 yield clock.posedge, reset.negedge
@@ -58,7 +58,7 @@ def incGen(count, enable, clock, reset, n):
                     if enable:
                         count.next = (count + 1) % n
 
-    return logic
+    return comblogic
 
 
 @block
@@ -137,7 +137,7 @@ end
 def inc_comb(nextCount, count, n):
 
     @always_comb
-    def logic():
+    def comblogic():
         # make if fail in conversion
         import types
         nextCount.next = (count + 1) % n
@@ -149,14 +149,14 @@ def inc_comb(nextCount, count, n):
 assign $nextCount = ($count + 1) % $n;
 """
 
-    return logic
+    return comblogic
 
 
 @block
 def inc_seq(count, nextCount, enable, clock, reset):
 
     @always(clock.posedge, reset.negedge)
-    def logic():
+    def comblogic():
         if reset == ACTIVE_LOW:
             count.next = 0
         else:
@@ -292,7 +292,7 @@ class TestInc(TestCase):
         try:
             inc_inst = incGen(count_v, enable, clock, reset, n=n).convert(hdl='Verilog')
         except ConversionError as e:
-            self.assertEqual(e.kind, _error.NotSupported)
+            self.assertEqual(e.kind, _error.MissingNext)
         else:
             self.fail()
 

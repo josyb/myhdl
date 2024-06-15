@@ -265,14 +265,14 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         self.raiseError(node, _error.NotSupported, "try-finally statement")
 
     def visit_Assign(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if len(node.targets) > 1:
             self.raiseError(node, _error.NotSupported, "multiple assignments")
         self.visit(node.targets[0])
         self.visit(node.value)
 
     def visit_Call(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         # ast.Call signature changed in python 3.5
         # http://greentreesnakes.readthedocs.org/en/latest/nodes.html#Call
         starargs = any(isinstance(arg, ast.Starred) for arg in node.args)
@@ -285,13 +285,13 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         self.generic_visit(node)
 
     def visit_Compare(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if len(node.ops) != 1:
             self.raiseError(node, _error.NotSupported, "chained comparison")
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if node.args.vararg or node.args.kwarg:
             self.raiseError(node, _error.NotSupported, "extra positional or named arguments")
         if not self.toplevel:
@@ -320,7 +320,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
                 else_[:] = node
 
     def visit_If(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         node.ignore = False
         if not node.orelse:
             test = node.test
@@ -338,7 +338,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         node.else_ = else_
 
     def visit_Print(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if node.dest is not None:
             self.raiseError(node, _error.NotSupported, "printing to a file with >> syntax")
         if not node.nl:
@@ -442,13 +442,13 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.kind = _kind.NORMAL
 
     def visit_BinOp(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.left)
         self.visit(node.right)
         node.obj = int(-1)
 
     def visit_BoolOp(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         for n in node.values:
             self.visit(n)
         for n in node.values:
@@ -458,7 +458,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         node.obj = bool()
 
     def visit_UnaryOp(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.operand)
         op = node.op
         node.obj = node.operand.obj
@@ -470,7 +470,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.obj = int(-1)
 
     def visit_Attribute(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if isinstance(node.ctx, ast.Store):
             self.setAttr(node)
         else:
@@ -479,15 +479,15 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             if isinstance(node.value, ast.Name):
                 n = node.value.id
                 obj = node.value.obj
-                if isinstance(obj, _Signal) and isinstance(obj._init, modbv):
-                    if not obj._init._hasFullRange():
+                if isinstance(obj, _Signal):
+                    if isinstance(obj._init, modbv) and not obj._init._hasFullRange():
                         print(obj._init)
                         self.raiseError(node, _error.ModbvRange, n)
 
     def setAttr(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if node.attr != 'next':
-            self.raiseError(node, _error.NotSupported, "attribute assignment")
+            self.raiseError(node, _error.MissingNext, "attribute assignment")
         self.tree.kind = _kind.TASK
         # self.access = _access.OUTPUT
         self.visit(node.value)
@@ -495,7 +495,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # self.access = _access.INPUT
 
     def getAttr(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.value)
         node.obj = None
         if isinstance(node.value, ast.Name):
@@ -528,7 +528,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.raiseError(node, _error.UnsupportedAttribute, node.attr)
 
     def visit_Assign(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         target, value = node.targets[0], node.value
         self.access = _access.OUTPUT
         self.visit(target)
@@ -568,7 +568,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(value)
 
     def visit_AugAssign(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         # declare node as an rhs for type inference optimization
         node.isRhs = True
         self.access = _access.INOUT
@@ -577,11 +577,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
 
     def visit_Break(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.labelStack[-2].isActive = True
 
     def visit_Call(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.func)
         f = self.getObj(node.func)
         node.obj = None
@@ -679,7 +679,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.visit(arg)
 
     def visit_Compare(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         node.obj = bool()
         for n in [node.left] + node.comparators:
             self.visit(n)
@@ -706,7 +706,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                         node.edge = sig.posedge
 
     def visit_Constant(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         node.obj = None  # safeguarding?
         # ToDo check for tuples?
         if isinstance(node.value, int):
@@ -723,11 +723,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.obj = node.value
 
     def visit_Continue(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.labelStack[-1].isActive = True
 
     def visit_For(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         node.breakLabel = _Label("BREAK")
         node.loopLabel = _Label("LOOP")
         self.labelStack.append(node.breakLabel)
@@ -754,7 +754,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         raise AssertionError("subclass must implement this")
 
     def visit_If(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if node.ignore:
             return
         for test, suite in node.tests:
@@ -794,7 +794,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.isFullCase = True
 
     def visit_ListComp(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         mem = node.obj = _Ram()
         self.kind = _kind.DECLARATION
         try:
@@ -818,14 +818,14 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         mem.depth = cf.args[0].obj
 
     def visit_Name(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         if isinstance(node.ctx, ast.Store):
             self.setName(node)
         else:
             self.getName(node)
 
     def setName(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         # XXX INOUT access in Store context, unlike with compiler
         # XXX check whether ast context is correct
         n = node.id
@@ -850,7 +850,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.refStack.add(n)
 
     def getName(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         n = node.id
         node.obj = None
         if n not in self.refStack:
@@ -922,7 +922,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.raiseError(node, _error.NotSupported, "return statement")
 
     def visit_Print(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.tree.hasPrint = True
         f = []
         nr = 0
@@ -988,7 +988,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.accessIndex(node)
 
     def accessSlice(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.value)
         node.obj = self.getObj(node.value)
         self.access = _access.INPUT
@@ -1008,7 +1008,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.obj = node.obj[leftind:rightind]
 
     def accessIndex(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.visit(node.value)
         self.access = _access.INPUT
         if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
@@ -1031,11 +1031,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.obj = bool()  # XXX default
 
     def visit_Tuple(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.generic_visit(node)
 
     def visit_While(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         node.breakLabel = _Label("BREAK")
         node.loopLabel = _Label("LOOP")
         self.labelStack.append(node.breakLabel)
@@ -1059,7 +1059,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack.pop()
 
     def visit_Yield(self, node, *args):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.tree.hasYield += 1
         n = node.value
         self.visit(n)
@@ -1087,7 +1087,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
                 self.tree.sigdict[n] = v
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1103,7 +1103,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
         self.refStack.pop()
 
     def visit_Module(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.generic_visit(node)
         for n in self.tree.outputs:
             s = self.tree.sigdict[n]
@@ -1115,7 +1115,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
             s._markRead()
 
     def visit_Return(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         # value should be None
         if node.value is None:
             pass
@@ -1132,7 +1132,7 @@ class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
         self.tree.senslist = senslist
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1155,7 +1155,7 @@ class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
         self.refStack.pop()
 
     def visit_Module(self, node):
-        # ic(pp.pformat(vars(node)))
+        ic(pp.pformat(vars(node)))
         _AnalyzeBlockVisitor.visit_Module(self, node)
         # ic(astdump(node, show_offsets=False))
         # ic(pp.pformat(vars(node)))
@@ -1178,7 +1178,7 @@ class _AnalyzeAlwaysSeqVisitor(_AnalyzeBlockVisitor):
         self.tree.varregs = varregs
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1196,7 +1196,7 @@ class _AnalyzeAlwaysDecoVisitor(_AnalyzeBlockVisitor):
                 self.raiseError(_error.NotSupported, "delay argument in @always decorator")
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1214,7 +1214,7 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
         self.tree.returnObj = None
 
     def visit_FunctionDef(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         argnames = _get_argnames(node)
         for i, arg in enumerate(self.args):
@@ -1244,7 +1244,7 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
                                 "pure function without return value")
 
     def visit_Return(self, node):
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.kind = _kind.DECLARATION
         if node.value is not None:
             self.visit(node.value)

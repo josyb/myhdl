@@ -39,7 +39,8 @@ from io import StringIO
 import myhdl
 # from myhdl import *
 from myhdl import ToVHDLError, ToVHDLWarning
-from myhdl._extractHierarchy import (_HierExtr, _isMem, _getMemInfo,
+# from myhdl._extractHierarchy import (_HierExtr, _isMem, _getMemInfo,
+from myhdl._extractHierarchy import (_isMem, _getMemInfo,
                                      _UserVhdlCode, _userCodeMap)
 
 from myhdl._instance import _Instantiator
@@ -166,15 +167,16 @@ class _ToVHDLConvertor(object):
             finally:
                 _converting = 0
         else:
-            warnings.warn(
-                "\n    toVHDL(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
-                stacklevel=2,
-                category=DeprecationWarning,
-            )
-            try:
-                h = _HierExtr(name, func, *args, **kwargs)
-            finally:
-                _converting = 0
+            # warnings.warn(
+            #     "\n    toVHDL(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
+            #     stacklevel=2,
+            #     category=DeprecationWarning,
+            # )
+            # try:
+            #     h = _HierExtr(name, func, *args, **kwargs)
+            # finally:
+            #     _converting = 0
+            pass
 
         if self.directory is None:
             directory = ''

@@ -468,3 +468,4 @@ if __name__ == '__main__':
 
     i_dut = binOpsCheck2(a, z)
     i_dut.convert(hdl='Verilog')
+    i_dut.convert(hdl='VHDL')

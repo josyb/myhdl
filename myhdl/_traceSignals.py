@@ -108,15 +108,15 @@ class _TraceSignalsClass(object):
             else:
                 directory = self.directory
 
-            if isinstance(dut, _Block):
-                h = _getHierarchy(name, dut)
-            else:
-                warnings.warn(
-                    "\n    traceSignals(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
-                    category=DeprecationWarning,
-                    stacklevel=2,
-                    )
-                h = _HierExtr(name, dut, *args, **kwargs)
+            # if isinstance(dut, _Block):
+            h = _getHierarchy(name, dut)
+            # else:
+            #     warnings.warn(
+            #         "\n    traceSignals(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
+            #         category=DeprecationWarning,
+            #         stacklevel=2,
+            #         )
+            #     h = _HierExtr(name, dut, *args, **kwargs)
 
             if self.filename is None:
                 filename = name

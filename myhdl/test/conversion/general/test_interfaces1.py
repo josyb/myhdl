@@ -21,15 +21,15 @@ def one_level(clock, reset, ia, ib):
 
 
 @block
-def two_level(clock, reset, ia, ib):
+def two_level(clock, reset, intfa, intfb):
 
-    ic, ie = MyIntf(), MyIntf()
-    one_inst = one_level(clock, reset, ic, ie)
+    intfc, intfe = MyIntf(), MyIntf()
+    one_inst = one_level(clock, reset, intfc, intfe)
 
     @always_seq(clock.posedge, reset=reset)
     def rtl():
-        ia.x.next = ib.x + ic.x
-        ia.y.next = ib.y + ic.y
+        intfa.x.next = intfb.x + intfc.x
+        intfa.y.next = intfb.y + intfc.y
 
     return one_inst, rtl
 

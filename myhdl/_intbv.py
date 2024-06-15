@@ -53,7 +53,7 @@ class intbv(object):
             self._max = val._max
             _nrbits = val._nrbits
         else:
-            raise TypeError("intbv constructor arg should be int or string")
+            raise TypeError(f"intbv constructor arg {val} should be int, intbv or string")
         self._nrbits = _nrbits
         self._handleBounds()
 
@@ -69,20 +69,18 @@ class intbv(object):
     def _handleBounds(self):
         if self._max is not None:
             if self._val >= self._max:
-                raise ValueError("intbv value %s >= maximum %s" %
-                                 (self._val, self._max))
+                raise ValueError(f"intbv value {self._val} >= maximum {self._max}")
         if self._min is not None:
             if self._val < self._min:
-                raise ValueError("intbv value %s < minimum %s" %
-                                 (self._val, self._min))
+                raise ValueError(f"intbv value {self._val} < minimum {self._min}")
 
     def _hasFullRange(self):
-        min, max = self._min, self._max
-        if max <= 0:
+        _min, _max = self._min, self._max
+        if _max <= 0:
             return False
-        if min not in (0, -max):
+        if _min not in (0, -_max):
             return False
-        return max & max - 1 == 0
+        return _max & _max - 1 == 0
 
     # hash
     def __hash__(self):
@@ -106,7 +104,7 @@ class intbv(object):
     # iterator method
     def __iter__(self):
         if not self._nrbits:
-            raise TypeError("Cannot iterate over unsized intbv")
+            raise TypeError("Cannot iterate over unsized intbv (with _nrbits == 0)")
         return iter([self[i] for i in range(self._nrbits - 1, -1, -1)])
 
     # logical testing
@@ -129,13 +127,13 @@ class intbv(object):
             j = int(j)
             if j < 0:
                 raise ValueError("intbv[i:j] requires j >= 0\n"
-                                 "            j == %s" % j)
+                                 f"            j == {j}")
             if i is None:  # default
                 return intbv(self._val >> j)
             i = int(i)
             if i <= j:
                 raise ValueError("intbv[i:j] requires i > j\n"
-                                 "            i, j == %s, %s" % (i, j))
+                                 f"            i, j == {i}, {j}")
             res = intbv((self._val & (1 << i) - 1) >> j, _nrbits=i - j)
             return res
         else:
@@ -153,7 +151,7 @@ class intbv(object):
             j = int(j)
             if j < 0:
                 raise ValueError("intbv[i:j] = v requires j >= 0\n"
-                                 "            j == %s" % j)
+                                 f"            j == {j}")
             if i is None:  # default
                 q = self._val % (1 << j)
                 self._val = val * (1 << j) + q
@@ -162,11 +160,11 @@ class intbv(object):
             i = int(i)
             if i <= j:
                 raise ValueError("intbv[i:j] = v requires i > j\n"
-                                 "            i, j, v == %s, %s, %s" % (i, j, val))
+                                 f"            i, j, v =={i}, {j}, {val}")
             lim = (1 << (i - j))
             if val >= lim or val < -lim:
                 raise ValueError("intbv[i:j] = v abs(v) too large\n"
-                                 "            i, j, v == %s, %s, %s" % (i, j, val))
+                                 f"            i, j, v =={i}, {j}, {val}")
             mask = (lim - 1) << j
             self._val &= ~mask
             self._val |= (val << j)
@@ -179,7 +177,7 @@ class intbv(object):
                 self._val &= ~(1 << i)
             else:
                 raise ValueError("intbv[i] = v requires v in (0, 1)\n"
-                                 "            i == %s " % i)
+                                 f"            i == {i}")
 
             self._handleBounds()
 
@@ -349,7 +347,7 @@ class intbv(object):
         else:
             self._val **= other
         if not isinstance(self._val, int):
-            raise ValueError("intbv value should be integer")
+            raise ValueError(f"intbv value should be integer (<> {self._val}")
         self._handleBounds()
         return self
 
@@ -483,7 +481,20 @@ class intbv(object):
             return "{:x}".format(v)
 
     def __repr__(self):
-        return "intbv(" + repr(self._val) + ")[{}:]".format(self._nrbits)
+        nrbits = self._nrbits
+        if nrbits:
+            # return "intbv(" + repr(self._val) + ")[{}:]".format(self._nrbits)
+            return f"intbv({repr(self._val)})[{self._nrbits}:]"
+        else:
+            return f"intbv({repr(self._val)})"
+
+    def __format__(self, specification):
+        if specification == 'x':
+            ndigits = (self._nrbits + 3) // 4
+            # print(specification, ndigits)
+            return '{:0{}x}'.format(self._val, ndigits,)
+        else:
+            return f'{self._val}'
 
     def signed(self):
         ''' Return new intbv with the values interpreted as signed

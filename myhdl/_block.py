@@ -31,7 +31,6 @@ from myhdl._extractHierarchy import (_makeMemInfo,
                                      _UserVerilogCode, _UserVhdlCode,
                                      _UserVerilogInstance, _UserVhdlInstance)
 from myhdl._Signal import _Signal, _isListOfSigs
-
 from weakref import WeakValueDictionary
 
 
@@ -308,7 +307,8 @@ class _Block(object):
         """Converts this BlockInstance to another HDL
 
         Args:
-            hdl (Optional[str]): Target HDL. Defaults to Verilog
+            hdl (str): Target HDL; one of 
+                ['Verilog', 'VHDL', 'SystemVerilog'] must be specified
             path (Optional[str]): Destination folder. Defaults to current
                 working dir.
             name (Optional[str]): Module and output file name. Defaults to
@@ -319,10 +319,11 @@ class _Block(object):
                 testbench should be created. Defaults to True.
             timescale(Optional[str]): Verilog only. Defaults to '1ns/10ps'
         """
-        from myhdl.conversion._converter import _Converter
+        # print(f'_Block.convert({hdl}, {kwargs})')
+        from myhdl.conversion._converter import Converter
         self._clear()
         # converter = myhdl.conversion._converter._Converter(hdl, **kwargs)
-        converter = _Converter(hdl, **kwargs)
+        converter = Converter(hdl, **kwargs)
         return converter(self)
 
         # if hdl.lower() == 'vhdl':

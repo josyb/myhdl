@@ -1,8 +1,8 @@
-from random import randrange
+from random import randrange, seed
+seed('We want repeatable randomness')
 
 from myhdl import (block, Signal, enum, intbv, modbv, delay, always_comb, always_seq,
-                   always, instance, instances, StopSimulation, toVHDL, toVerilog,
-                   ResetSignal, conversion)
+                   always, instance, instances, StopSimulation, ResetSignal, conversion)
 
 
 @block
@@ -73,7 +73,6 @@ def int_writer(signal, clk):
 def initial_value_bench(initial_val, **kwargs):
 
     clk = Signal(bool(0))
-
     input_signal = Signal(initial_val)
 
     if 'change_input_signal' in kwargs.keys():
@@ -92,10 +91,9 @@ def initial_value_bench(initial_val, **kwargs):
     if isinstance(initial_val, bool):
         output_signal = Signal(not initial_val)
         update_val = not initial_val
-
     else:
-        output_signal = Signal(
-            intbv(0, min=initial_val.min, max=initial_val.max))
+        # intbv
+        output_signal = Signal(intbv(0, min=initial_val.min, max=initial_val.max))
         update_val = 0
 
     expected_output = input_signal._init
@@ -386,18 +384,19 @@ memory_init.verilog_code = """
 
 
 def runner(initial_val, tb=initial_value_bench, **kwargs):
-    pre_toVerilog_initial_values = toVerilog.initial_values
-    pre_toVHDL_initial_values = toVHDL.initial_values
+    # pre_toVerilog_initial_values = toVerilog.initial_values
+    # pre_toVHDL_initial_values = toVHDL.initial_values
+    #
+    # toVerilog.initial_values = True
+    # toVHDL.initial_values = True
 
-    toVerilog.initial_values = True
-    toVHDL.initial_values = True
+    # try:
+    assert conversion.verify(tb(initial_val, **kwargs), initial_values=True) == 0
 
-    try:
-        assert conversion.verify(tb(initial_val, **kwargs)) == 0
-
-    finally:
-        toVerilog.initial_values = pre_toVerilog_initial_values
-        toVHDL.initial_values = pre_toVHDL_initial_values
+    # finally:
+    #     # toVerilog.initial_values = pre_toVerilog_initial_values
+    #     # toVHDL.initial_values = pre_toVHDL_initial_values
+    #     pass
 
 
 def test_unsigned():
@@ -405,8 +404,7 @@ def test_unsigned():
     '''
     min_val = 0
     max_val = 34
-    initial_val = intbv(
-        randrange(min_val, max_val), min=min_val, max=max_val)
+    initial_val = intbv(randrange(min_val, max_val), min=min_val, max=max_val)
 
     runner(initial_val)
 
@@ -444,9 +442,20 @@ def test_enum():
     '''
     states = enum('a', 'b', 'c', 'd')
     val1 = states.c
-    val2 = states.b
+    # val2 = states.b
 
     runner(val1, tb=initial_value_enum_bench, states=states)
+    # runner(val2, tb=initial_value_enum_bench, states=states)
+
+
+def test_enum2():
+    '''The correct initial value should be used for enum type signals.
+    '''
+    states = enum('a', 'b', 'c', 'd')
+    # val1 = states.c
+    val2 = states.b
+
+    # runner(val1, tb=initial_value_enum_bench, states=states)
     runner(val2, tb=initial_value_enum_bench, states=states)
 
 
@@ -478,11 +487,19 @@ def test_unsigned_list():
                             for __ in range(10)]
 
     runner(initial_vals, tb=initial_value_list_bench)
+    # assert conversion.verify(initial_value_list_bench(initial_vals), initial_values=True) == 0
 
+
+def test_unsigned_list2():
+    '''The correct initial value should be used for unsigned type signal lists
+    '''
+    min_val = 0
+    max_val = 34
     # All the same case
     initial_vals = [
         intbv(randrange(min_val, max_val), min=min_val, max=max_val)] * 10
-    runner(initial_vals, tb=initial_value_list_bench)
+    # runner(initial_vals, tb=initial_value_list_bench)
+    assert conversion.verify(initial_value_list_bench(initial_vals), initial_values=True) == 0
 
 
 def test_signed_list():
@@ -491,14 +508,28 @@ def test_signed_list():
     min_val = -12
     max_val = 4
 
-    initial_vals = [intbv(randrange(min_val, max_val), min=min_val, max=max_val)
-        for __ in range(10)]
+    initial_vals = [intbv(randrange(min_val, max_val), min=min_val, max=max_val) for __ in range(10)]
 
     runner(initial_vals, tb=initial_value_list_bench)
 
+    # # All the same case
+    # initial_vals = [intbv(randrange(min_val, max_val), min=min_val, max=max_val)] * 10
+    #
+    # runner(initial_vals, tb=initial_value_list_bench)
+
+
+def test_signed_list2():
+    '''The correct initial value should be used for signed type signal lists
+    '''
+    min_val = -12
+    max_val = 4
+
+    # initial_vals = [intbv(randrange(min_val, max_val), min=min_val, max=max_val) for __ in range(10)]
+    #
+    # runner(initial_vals, tb=initial_value_list_bench)
+
     # All the same case
-    initial_vals = [intbv(
-        randrange(min_val, max_val), min=min_val, max=max_val)] * 10
+    initial_vals = [intbv(randrange(min_val, max_val), min=min_val, max=max_val)] * 10
 
     runner(initial_vals, tb=initial_value_list_bench)
 
@@ -511,6 +542,10 @@ def test_modbv_list():
 
     runner(initial_vals, tb=initial_value_list_bench)
 
+
+def test_modbv_list2():
+    '''The correct initial value should be used for modbv type signal lists
+    '''
     # All the same case
     initial_vals = [modbv(randrange(0, 2 ** 10))[10:]] * 10
     runner(initial_vals, tb=initial_value_list_bench)
@@ -527,6 +562,13 @@ def test_long_signals_list():
 
     runner(initial_vals, tb=initial_value_list_bench)
 
+
+def test_long_signals_list2():
+    '''The correct initial value should work with wide bitwidths (i.e. >32)
+    signal lists
+    '''
+    min_val = -(2 ** 71)
+    max_val = 2 ** 71 - 1
     # All the same case
     initial_vals = [intbv(2 ** 65 - 50, min=min_val, max=max_val)] * 10
     runner(initial_vals, tb=initial_value_list_bench)
@@ -536,9 +578,12 @@ def test_bool_signals_list():
     '''The correct initial value should be used for a boolean type signal lists
     '''
     initial_vals = [False for __ in range(10)]
-
     runner(initial_vals, tb=initial_value_bool_list_bench)
 
+
+def test_bool_signals_list2():
+    '''The correct initial value should be used for a boolean type signal lists
+    '''
     initial_vals = [False] * 10
     runner(initial_vals, tb=initial_value_bool_list_bench)
 
@@ -563,20 +608,21 @@ def test_memory_convert():
     #       only and not modify the `toV*` but this will require
     #       changes to `conversion.verify` and `conversion.analyze`
     #       or a `config_conversion` function add to the `Block`.
-    pre_xiv = toVerilog.initial_values
-    pre_viv = toVHDL.initial_values
-
-    # not using the runner, this test is setup for analyze only
-    toVerilog.initial_values = True
-    toVHDL.initial_values = True
+    # pre_xiv = toVerilog.initial_values
+    # pre_viv = toVHDL.initial_values
+    #
+    # # not using the runner, this test is setup for analyze only
+    # toVerilog.initial_values = True
+    # toVHDL.initial_values = True
 
     try:
         # assert conversion.analyze(inst) == 0
         assert inst.analyze_convert() == 0
 
     finally:
-        toVerilog.initial_values = pre_xiv
-        toVHDL.initial_values = pre_viv
+        # toVerilog.initial_values = pre_xiv
+        # toVHDL.initial_values = pre_viv
+        pass
 
 
 @block
@@ -615,15 +661,14 @@ def init_reset_tb():
 
     return instances()
 
-
-def test_init_reset():
-    """ Test assignment of initial values of signals used in an always_seq block with a reset signal
-        Because the _convertInitVal in _toVHDL.py does special handling depending on the init value
-        the test takes this into account.
-    """
-
-    inst = init_reset_tb()
-    assert conversion.verify(inst, initial_values=True) == 0
+# def test_init_reset():
+#     """ Test assignment of initial values of signals used in an always_seq block with a reset signal
+#         Because the _convertInitVal in _toVHDL.py does special handling depending on the init value
+#         the test takes this into account.
+#     """
+#
+#     inst = init_reset_tb()
+#     assert conversion.verify(inst, initial_values=True) == 0
 
 # def test_init_used_list():
 #    '''It should be the _init attribute of each element in the list

@@ -124,7 +124,7 @@ def FramerCtrl_ref(SOF, state, syncFlag, clk, reset_n, t_State):
     """
 
     @instance
-    def logic():
+    def comblogic():
         index = intbv(0, min=0, max=8)  # position in frame
         while 1:
             yield clk.posedge, reset_n.negedge
@@ -153,7 +153,7 @@ def FramerCtrl_ref(SOF, state, syncFlag, clk, reset_n, t_State):
                     raise ValueError("Undefined state")
                 index[:] = (index + 1) % FRAME_SIZE
 
-    return logic
+    return comblogic
 
 
 @block
@@ -175,7 +175,7 @@ class FramerCtrlTest(TestCase):
         state_v = Signal(intbv(0)[8:])
 
         framerctrl_ref_inst = FramerCtrl_ref(SOF, state, syncFlag, clk, reset_n, t_State)
-        framerctrl_inst = FramerCtrl(SOF, state, syncFlag, clk, reset_n, t_State).convert()
+        framerctrl_inst = FramerCtrl(SOF, state, syncFlag, clk, reset_n, t_State).convert('Verilog')
         framerctrl_v_inst = FramerCtrl_v(FramerCtrl.__name__,
                                          SOF_v, state_v, syncFlag, clk, reset_n)
 

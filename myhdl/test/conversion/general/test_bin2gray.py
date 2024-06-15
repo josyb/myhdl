@@ -1,5 +1,3 @@
-import os
-path = os.path
 
 from myhdl import block, Signal, intbv, delay, instance, always_comb
 
@@ -47,6 +45,28 @@ def bin2gray(B, G, width):
 
 
 @block
+def bin2gray3(B, G):
+
+    """ Gray encoder.
+
+    B -- input intbv signal, binary encoded
+    G -- output intbv signal, gray encoded
+
+    """
+
+    width = len(B)
+
+    @always_comb
+    def logic():
+        Bext = intbv(0)[width + 1:]
+        Bext[:] = B
+        for i in range(width):
+            G.next[i] = Bext[i + 1] ^ Bext[i]
+
+    return logic
+
+
+@block
 def bin2grayBench(width, bin2gray):
 
     B = Signal(intbv(0)[width:])
@@ -75,3 +95,14 @@ def test1():
 
 def test2():
     assert bin2grayBench(width=8, bin2gray=bin2gray2).verify_convert() == 0
+
+
+if __name__ == '__main__':
+    print('running test_bin2gray: main')
+    B = Signal(intbv(0)[8:])
+    G = Signal(intbv(0)[8:])
+
+    dfc = bin2gray3(B, G)
+    # dfc.convert('Verilog')
+    dfc.convert('VHDL')
+

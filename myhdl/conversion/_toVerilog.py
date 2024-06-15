@@ -39,7 +39,7 @@ from myhdl import *
 from myhdl import ToVerilogError, ToVerilogWarning
 from myhdl._block import _Block
 from myhdl._enum import EnumItemType
-from myhdl._extractHierarchy import (_HierExtr, _isMem, _getMemInfo,
+from myhdl._extractHierarchy import (_isMem, _getMemInfo,
                                      _UserVerilogCode, _userCodeMap)
 from myhdl._getHierarchy import _getHierarchy
 from myhdl._instance import _Instantiator

@@ -2,7 +2,7 @@ import os
 path = os.path
 from random import randrange
 
-from myhdl import (block, Signal, intbv, delay, always_comb,
+from myhdl import (block, Signal, Constant, intbv, delay, always_comb, always_seq,
                    instance, StopSimulation, conversion
                    )
 D = 256
@@ -61,6 +61,34 @@ def rom4(dout, addr, clk):
 
 
 @block
+def rom5(dout, addr, clk):
+
+    ROM5 = [Constant(intbv(v)[len(dout):]) for v in ROM]
+
+    @always_seq(clk.posedge, reset=None)
+    def read():
+        dout.next = ROM5[addr]
+
+    return read
+
+
+@block
+def rom6(dout, addr, offset, clk):
+
+    ROM5 = [Constant(intbv(v)[len(dout):]) for v in ROM]
+
+    @always_seq(clk.posedge, reset=None)
+    def read():
+        '''
+            not sure that this is the 'preferred' way to
+            add an offset to an address
+        '''
+        dout.next = ROM5[addr + offset]
+
+    return read
+
+
+@block
 def RomBench(rom):
 
     dout = Signal(intbv(0)[8:])
@@ -106,3 +134,14 @@ def test3():
 def test4():
     assert conversion.verify(RomBench(rom4)) == 0
 
+
+if __name__ == '__main__':
+    clk = Signal(bool(0))
+    dout = Signal(intbv(0)[8:])
+    addr = Signal(intbv(0)[8:])
+    offset = Signal(intbv(0)[8:])
+    # dfc = rom4(dout, addr, clk)
+    # dfc = rom5(dout, addr, clk)
+    dfc = rom6(dout, addr, offset, clk)
+    # dfc.convert(hdl='Verilog')
+    dfc.convert(hdl='VHDL')

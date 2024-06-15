@@ -13,10 +13,10 @@ width = 8
 @block
 def add(x, a, b):
 
-    def logic():
+    def comblogic():
         x.next = a + b
 
-    L0 = always_comb(logic)
+    L0 = always_comb(comblogic)
     return L0
 
 
@@ -55,10 +55,10 @@ def test_bugreports_001():
 # @block
 # def add(x, a, b):
 #
-#     def logic():
+#     def comblogic():
 #         x.next = a + b
 #
-#     L0 = always_comb(logic)
+#     L0 = always_comb(comblogic)
 #     return L0
 
 
@@ -127,7 +127,7 @@ def test_bugreports_003():
     reset_n = Signal(bool(1))
     SOF = Signal(bool(0))
 
-    DUT_Verilog_003(SOF, clk, reset_n).convert()
+    DUT_Verilog_003(SOF, clk, reset_n).convert('Verilog')
     verilogCompile(DUT_Verilog_003.__name__)
 
 # test()

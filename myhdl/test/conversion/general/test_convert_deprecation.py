@@ -1,4 +1,4 @@
-from myhdl import (Signal, intbv, always_comb, conversion, toVHDL, toVerilog)
+from myhdl import (Signal, intbv, always_comb, conversion)
 from myhdl._Simulation import Simulation
 from myhdl._traceSignals import traceSignals
 
@@ -31,27 +31,26 @@ GG = Signal(intbv(0)[width:])
 
 
 def testOldVerify():
-    with pytest.deprecated_call():
+    with pytest.raises(Exception):
         conversion.verify(bin2gray_depr, width, BB, GG)
 
 
 def testOldAnalyze():
-    with pytest.deprecated_call():
+    with pytest.raises(Exception):
         conversion.analyze(bin2gray_depr, width, BB, GG)
 
-
-def testOldToVHDL():
-    with pytest.deprecated_call():
-        toVHDL(bin2gray_depr, width, BB, GG)
-
-
-def testOldToVerilog():
-    with pytest.deprecated_call():
-        toVerilog(bin2gray_depr, width, BB, GG)
+# def testOldToVHDL():
+#     with pytest.deprecated_call():
+#         toVHDL(bin2gray_depr, width, BB, GG)
+#
+#
+# def testOldToVerilog():
+#     with pytest.deprecated_call():
+#         toVerilog(bin2gray_depr, width, BB, GG)
 
 
 def testOldToTraceSignals():
-    with pytest.deprecated_call():
+    with pytest.raises(Exception):
         vcd = traceSignals(bin2gray_depr, width, BB, GG)
         sim = Simulation(vcd)
         sim.run(20)

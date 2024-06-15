@@ -27,3 +27,12 @@ v = Signal(intbv(0, min=-3, max=9))
 
 def test_constants():
     assert constants(v, u, x, y, z, a).analyze_convert() == 0
+
+
+if __name__ == '__main__':
+    x, y, z, a = [Signal(bool(0)) for i in range(4)]
+    u = Signal(intbv(0)[8:])
+    v = Signal(intbv(0, min=-3, max=9))
+    dfc = constants(v, u, x, y, z, a)
+    # dfc.convert(hdl='VHDL', initial_values=True)
+    dfc.convert(hdl='Verilog')

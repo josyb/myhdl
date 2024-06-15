@@ -6,7 +6,7 @@ import random
 from random import randrange
 random.seed(2)
 
-from myhdl import (block, Signal, intbv, delay, instance, toVerilog)
+from myhdl import (block, Signal, intbv, delay, instance)
 from myhdl._Simulation import Simulation
 
 from .util import setupCosimulation
@@ -124,10 +124,11 @@ class TestRandomScrambler(TestCase):
             self.assertEqual(output, output_v)
 
     def test(self):
-        rs = toVerilog(RandomScrambler(
+        rs = RandomScrambler(
                        o7, o6, o5, o4, o3, o2, o1, o0,
                        i7, i6, i5, i4, i3, i2, i1, i0
-                       ))
+                       )
+        rs.convert('Verilog')
         # time.sleep(1)
         rs_v = RandomScrambler_v(RandomScrambler.__name__,
                                  v7, v6, v5, v4, v3, v2, v1, v0,

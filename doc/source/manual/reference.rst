@@ -161,11 +161,11 @@ The API on a block instance looks as follows:
    Quit an active simulation. This is method is currently required because
    only a single simulation can be active.
 
-.. method:: <block_instance>.convert(hdl='Verilog', **kwargs)  
+.. method:: <block_instance>.convert(hdl, **kwargs)  
 
    Converts MyHDL code to a target HDL.
 
-   *hdl*: 'VHDL' or 'Verilog'. Defaults to Verilog.
+   *hdl*: 'VHDL', 'Verilog' or 'SystemVerilog'. No default value.
 
    Supported keyword arguments:
 
@@ -776,8 +776,8 @@ Verilog
 
 .. _ref-conv:
 
-Conversion to Verilog and VHDL
-==============================
+Conversion to Verilog, SystemVerilog and VHDL
+=============================================
 
 
 
@@ -845,21 +845,20 @@ Conversion
        This attribute is used to set the directory to which converted VHDL
        files are written. By default, the current working directory is used.
 
-    .. attribute:: component_declarations
-
-       This attribute can be used to add component declarations to the
-       VHDL output. When a string is assigned to it, it will be copied
-       to the appropriate place in the output file.
-
     .. attribute:: library 
 
        This attribute can be used to set the library in the VHDL output
        file. The assigned value should be a string. The default 
        library is ``work``.
 
+    .. attribute:: use_clauses
+    
+    	This attribute can be used to list specific declararations of a previously
+    	defined `user` library
+    	
     .. attribute:: std_logic_ports
 
-       This boolean attribute can be used to have only ``std_logic`` type
+       This boolean attribute can be used to have ``std_logic_vector`` type
        ports on the top-level interface (when ``True``) instead of the
        default ``signed/unsigned`` types (when ``False``, the default). 
 

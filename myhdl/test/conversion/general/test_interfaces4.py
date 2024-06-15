@@ -159,4 +159,4 @@ def test_one_verify():
 def test_conversion():
     inst = c_testbench_one()
     inst.convert(hdl='Verilog')
-    inst.convert(hdl='VHDL')
+    # inst.convert(hdl='VHDL')

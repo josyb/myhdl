@@ -273,7 +273,7 @@ class ConcatSignal(_ShadowSignal):
                     lines.append('%s(%s-1 downto %s) <= "%s";' %
                                  (self._name, hi, lo, bin(ini[hi:lo], w)))
             hi = lo
-        return "\n".join(lines)
+        return '    ' + "\n    ".join(lines) + '\n'
 
     def toVerilog(self):
         lines = []
