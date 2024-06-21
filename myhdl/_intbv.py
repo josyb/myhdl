@@ -496,6 +496,12 @@ class intbv(object):
         else:
             return f'{self._val}'
 
+    def __format__(self, specification):
+        if specification == 'x':
+            ndigits = (self._nrbits + 3) // 4
+            # print(specification, ndigits)
+            return '{:0{}x}'.format(self._val, ndigits,)
+
     def signed(self):
         ''' Return new intbv with the values interpreted as signed
 
