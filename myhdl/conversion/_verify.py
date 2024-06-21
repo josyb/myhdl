@@ -94,8 +94,8 @@ class _VerificationClass(object):
     __slots__ = ("simulator", "_analyzeOnly")
 
     def __init__(self, analyzeOnly=False):
-        # self.simulator = 'ghdl'
-        self.simulator = 'iverilog'
+        self.simulator = 'ghdl'
+        # self.simulator = 'iverilog'
         self._analyzeOnly = analyzeOnly
 
     def __call__(self, func, *args, **kwargs):

@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU Lesser General Public
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+from enum import IntEnum
 
 """ myhdl conversion package.
 
@@ -24,6 +25,7 @@ import inspect
 import ast
 from datetime import datetime, timezone
 import re
+import warnings
 
 from myhdl import ConversionError
 from myhdl._enum import EnumItemType
@@ -75,18 +77,18 @@ class _error(object):
     UnkownConvertor = "Unknown target language"
 
 
-class _access(object):
+class _access(IntEnum):
     INPUT, OUTPUT, INOUT, UNKNOWN = range(4)
 
 
-class _kind(object):
+class _kind(IntEnum):
     NORMAL, DECLARATION, ALWAYS, INITIAL, ALWAYS_DECO, \
         ALWAYS_COMB, SIMPLE_ALWAYS_COMB, ALWAYS_SEQ, \
         TASK, REG \
  = range(10)
 
 
-class _context(object):
+class _context(IntEnum):
     BOOLEAN, YIELD, PRINT, SIGNED, UNKNOWN = range(5)
 
 
@@ -145,8 +147,7 @@ class _ConversionMixin(object):
 
     def raiseError(self, node, kind, msg=""):
         lineno = self.getLineNo(node)
-        info = "in file %s, line %s:\n    " % \
-            (self.tree.sourcefile, self.tree.lineoffset + lineno)
+        info = f"in file {self.tree.sourcefile}, line {self.tree.lineoffset + lineno}:\n    "
         raise ConversionError(kind, msg, info)
 
     def require(self, node, test, msg=""):
@@ -166,7 +167,7 @@ class _ConversionMixin(object):
 def _LabelGenerator():
     i = 1
     while 1:
-        yield "MYHDL%s" % i
+        yield f"MYHDL{i}"
         i += 1
 
 
@@ -186,15 +187,17 @@ class _Label(object):
     def __str__(self):
         return str(self.name)
 
-
 # type inference
+# these are at the memonet only applicable to VHDL ...
+
+
 class sig_type(object):
 
     def __init__(self, size=0):
         self.size = size
 
     def __repr__(self):
-        return "{}({})".format(type(self).__name__, self.size)
+        return f"{type(self).__name__}({self.size})"
 
 
 class sig_string(sig_type):
@@ -240,7 +243,7 @@ class sig_unsigned(sig_vector):
 
     def toStr(self, constr=True):
         if constr:
-            return "unsigned({} downto 0)".format(self.size - 1)
+            return f"unsigned({self.size} - 1 downto 0)"
         else:
             return "unsigned"
 
@@ -249,7 +252,7 @@ class sig_signed(sig_vector):
 
     def toStr(self, constr=True):
         if constr:
-            return "signed({} downto 0)".format(self.size - 1)
+            return f"signed({self.size} - 1 downto 0)"
         else:
             return "signed"
 
@@ -274,9 +277,11 @@ def inferSigObj(obj):
             sig = sig_signed(size=len(obj))
         else:
             sig = sig_unsigned(size=len(obj))
+
     elif (isinstance(obj, _Signal) and obj._type is bool) or \
             isinstance(obj, bool):
         sig = sig_std_logic()
+
     elif (isinstance(obj, _Signal) and isinstance(obj._val, EnumItemType)) or\
             isinstance(obj, EnumItemType):
         if isinstance(obj, _Signal):
@@ -284,12 +289,13 @@ def inferSigObj(obj):
         else:
             tipe = obj._type
         sig = sig_enum(tipe)
+
     elif isinstance(obj, int):
         if obj >= 0:
             sig = sig_nat()
         else:
             sig = sig_int()
-        # sig = sig_int()
+
     return sig
 
 
@@ -305,7 +311,7 @@ class _UniqueSuffixGenerator(object):
 
     def next(self):
         self.i += 1
-        return "_%s" % self.i
+        return f"_{self.i}"
 
 
 _genUniqueSuffix = _UniqueSuffixGenerator()
@@ -364,59 +370,64 @@ def natural_key(string_):
     return [int(s) if s.isdigit() else s for s in re.split(r'(\d+)', string_)]
 
 
-def sortalign(sl, sort=False, port=False, sep=':'):
+def sortalign(sl, sort=False, port=False, sep=':', language='VHDL'):
     '''
         aligning and sorting strings
         oroignally tailored for VHDL
         so will need work for Verilog and SystemVerilog?
     '''
-    # align the colons
-    maxpos = 0
-    for l in sl:
-        if sep in l:
-            t = l.find(sep)
-            maxpos = t if t > maxpos else maxpos
+    if language == 'VHDL':
 
-    if maxpos:
-        for i, l in enumerate(sl):
-            if sep in l:
-                p = l.find(sep)
-                b, c, e = l.partition(sep)
-                sl[i] = b + ' ' * (maxpos - p) + c + e
-
-    # align after 'in', 'out' or 'inout'
-    if port:
-        portdirections = (': in', ': out', ': inout')
+        # align the colons
         maxpos = 0
         for l in sl:
-            for tst in portdirections:
-                if tst in l:
-                    t = l.find(tst) + len(tst)
-                    maxpos = t if t > maxpos else maxpos
-                    continue
+            if sep in l:
+                t = l.find(sep)
+                maxpos = t if t > maxpos else maxpos
+
         if maxpos:
             for i, l in enumerate(sl):
+                if sep in l:
+                    p = l.find(sep)
+                    b, c, e = l.partition(sep)
+                    sl[i] = b + ' ' * (maxpos - p) + c + e
+
+        # align after 'in', 'out' or 'inout'
+        if port:
+            portdirections = (': in', ': out', ': inout')
+            maxpos = 0
+            for l in sl:
                 for tst in portdirections:
                     if tst in l:
-                        p = l.find(tst)
-                        b, c, e = l.partition(tst)
-                        sl[i] = b + c + ' ' * (maxpos - p - len(tst)) + e
+                        t = l.find(tst) + len(tst)
+                        maxpos = t if t > maxpos else maxpos
+                        continue
+            if maxpos:
+                for i, l in enumerate(sl):
+                    for tst in portdirections:
+                        if tst in l:
+                            p = l.find(tst)
+                            b, c, e = l.partition(tst)
+                            sl[i] = b + c + ' ' * (maxpos - p - len(tst)) + e
 
-    # align then :=' if any
-    maxpos = 0
-    for l in sl:
-        if ':=' in l:
-            t = l.find(':=')
-            maxpos = t if t > maxpos else maxpos
-    if maxpos:
-        for i, l in enumerate(sl):
+        # align then :=' if any
+        maxpos = 0
+        for l in sl:
             if ':=' in l:
-                p = l.find(':=')
-                b, c, e = l.partition(':=')
-                sl[i] = b + ' ' * (maxpos - p) + c + e
+                t = l.find(':=')
+                maxpos = t if t > maxpos else maxpos
+        if maxpos:
+            for i, l in enumerate(sl):
+                if ':=' in l:
+                    p = l.find(':=')
+                    b, c, e = l.partition(':=')
+                    sl[i] = b + ' ' * (maxpos - p) + c + e
 
-    if sort:
-        # sort the signals
-        return sorted(sl, key=natural_key)
+        if sort:
+            # sort the signals
+            return sorted(sl, key=natural_key)
+        else:
+            return sl
     else:
+        warnings.warn(f'sorting ports and signals not yet implemented for {language}')
         return sl

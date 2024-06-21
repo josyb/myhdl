@@ -266,7 +266,7 @@ def binOpsCheckBench1():
         yield clk.posedge
         assert x == 0x0
         assert y == 0x0
-        assert z == 0x0
+        assert 0x0 == z
         yield clk.posedge
 
     i_binOpsCheck = binOpsCheck0(a, b, c, x, y, z)
@@ -466,6 +466,8 @@ if __name__ == '__main__':
     a = Signal(intbv(0)[3:])
     z = Signal(intbv(0)[3:])
 
-    i_dut = binOpsCheck2(a, z)
+    # i_dut = binOpsCheck2(a, z)
+    # i_dut = binOpsCheckBench0()
+    i_dut = binOpsCheckBench1()
     i_dut.convert(hdl='Verilog')
     i_dut.convert(hdl='VHDL')

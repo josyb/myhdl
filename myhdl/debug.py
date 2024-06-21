@@ -15,7 +15,7 @@ def print_versions():
     print("INSTALLED VERSIONS")
     print("------------------")
     for k, v in versions:
-        print("{}: {}".format(k, v))
+        print(f"{k}: {v}")
 
 
 if __name__ == "__main__":

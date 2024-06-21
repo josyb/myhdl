@@ -56,9 +56,10 @@ def bin2gray3(B, G):
 
     width = len(B)
 
+    Bext = intbv(0)[width + 1:]
+
     @always_comb
     def logic():
-        Bext = intbv(0)[width + 1:]
         Bext[:] = B
         for i in range(width):
             G.next[i] = Bext[i + 1] ^ Bext[i]

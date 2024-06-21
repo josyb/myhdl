@@ -28,12 +28,12 @@ def adapter(o_err, i_err, o_spec, i_spec):
     other_vec = ConcatSignal(*other_bits)
 
     @always_comb
-    def assign():
+    def comb():
         nomatch.next = 0
-        other.next = (other_vec != 0)
         o_err.next = o_err_vec
+        other.next = (other_vec != 0)
 
-    return assign
+    return comb
 
 
 @block

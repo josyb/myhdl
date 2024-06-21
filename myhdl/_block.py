@@ -24,7 +24,7 @@ import inspect
 import functools
 
 import myhdl
-from myhdl import BlockError, BlockInstanceError, Cosimulation
+from myhdl import BlockError, Cosimulation
 from myhdl._instance import _Instantiator
 from myhdl._util import _flatten
 from myhdl._extractHierarchy import (_makeMemInfo,

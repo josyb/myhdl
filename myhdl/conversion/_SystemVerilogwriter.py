@@ -50,7 +50,7 @@ class SystemVerilogWriter(object):
                  "radix",
                  "header",
                  "no_myhdl_header",
-                 "no_testbench",
+                 "testbench",
                  "portmap",
                  "trace",
                  "initial_values",
@@ -58,6 +58,7 @@ class SystemVerilogWriter(object):
                  "file",
                  "hdl",
                  "comment",
+                 "directory",
                  "path",
                  "filename",
                  "ind",
@@ -78,13 +79,15 @@ class SystemVerilogWriter(object):
         self.radix = ''
         self.header = ''
         self.no_myhdl_header = False
-        self.no_testbench = True
+        self.testbench = True
         self.trace = False
         self.initial_values = False
         self.usercode = _UserVerilogCode
         self.ind = ''
         for key, value in kwargs.items():
             ic("{0} = {1}".format(key, value))
+            if key in ['trace', 'initial_values']:
+                setattr(self, key, value)
 
         self.ConvertAlwaysVisitor = _ConvertAlwaysVisitor
         self.ConvertInitialVisitor = _ConvertInitialVisitor
@@ -94,9 +97,13 @@ class SystemVerilogWriter(object):
         self.ConvertAlwaysCombVisitor = _ConvertAlwaysCombVisitor
 
     def openfile(self, name, directory):
+        self.directory = directory
         self.filename = name + ".sv"
         self.path = os.path.join(directory, self.filename)
         setattr(self, 'file', open(self.path, 'w'))
+
+    def writePackages(self, directory):
+        pass
 
     def writeFileHeader(self):
         vvars = dict(filename=self.filename,
@@ -283,6 +290,14 @@ class SystemVerilogWriter(object):
     def writeModuleFooter(self):
         print("\nendmodule", file=self.file)
 
+    def writeTestBench(self, intf):
+        print(f'{self.testbench}: testbench tb_{self.filename} to:  {self.directory} ')
+        if self.testbench:
+            tbpath = os.path.join(self.directory, "tb_" + self.filename)
+            tbfile = open(tbpath, 'w')
+            _writeTestBench(tbfile, intf, self.trace)
+            tbfile.close()
+
     def emitline(self):
         pass
 
@@ -296,7 +311,7 @@ class SystemVerilogWriter(object):
         self.radix = ''
         self.header = ""
         self.no_myhdl_header = False
-        self.no_testbench = False
+        self.testbench = True
         self.trace = False
 
 
@@ -542,6 +557,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             # default behavior
             # there should only be a single target
             self.visit(node.targets[0])
+            if isinstance(node.targets[0], ast.Attribute) and isinstance(node.value, ast.Constant):
+                node.value.dst = node.targets[0].obj
             if self.isSigAss:
                 self.write(' <= ')
                 self.isSigAss = False
@@ -642,7 +659,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 Visitor = _ConvertTaskVisitor
             else:
                 Visitor = _ConvertFunctionVisitor
-            v = Visitor(node.tree, self.funcBuf)
+            v = Visitor(node.tree, self.funcBuf, self.writer)
             v.visit(node.tree)
 
     def visit_Compare(self, node):
@@ -657,52 +674,31 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
         self.context = None
 
-    if sys.version_info >= (3, 9, 0):
-
-        def visit_Constant(self, node):
-            ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
-            if node.value is None:
-                # NameConstant
-                self.write(nameconstant_map[node.obj])
-            elif isinstance(node.value, bool):
-                self.write(nameconstant_map[node.obj])
-            elif isinstance(node.value, int):
-                # Num
-                if self.context == _context.PRINT:
-                    self.write('"{}"' % node.value)
+    def visit_Constant(self, node):
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        if node.value is None:
+            # NameConstant
+            self.write(nameconstant_map[node.obj])
+        elif isinstance(node.value, bool):
+            self.write(nameconstant_map[node.obj])
+        elif isinstance(node.value, int):
+            # Num
+            if self.context == _context.PRINT:
+                self.write('"{}"' % node.value)
+            else:
+                if hasattr(node, 'dst') and isinstance(node.dst._val, bool):
+                    self.write(nameconstant_map[bool(node.obj)])
                 else:
                     self.write(self.IntRepr(node.value))
-            elif isinstance(node.value, str):
-                # Str
-                s = node.value
-                if self.context == _context.PRINT:
-                    self.write('"{}"' % s)
-                elif len(s) == s.count('0') + s.count('1'):
-                    self.write("{}'b{}".format(len(s), s))
-                else:
-                    self.write(s)
-
-    else:
-
-        def visit_Num(self, node):
-            ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
-            if self.context == _context.PRINT:
-                self.write('"{}"' % node.n)
-            else:
-                self.write(self.IntRepr(node.n))
-
-        def visit_Str(self, node):
-            ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
-            s = node.s
+        elif isinstance(node.value, str):
+            # Str
+            s = node.value
             if self.context == _context.PRINT:
                 self.write('"{}"' % s)
             elif len(s) == s.count('0') + s.count('1'):
                 self.write("{}'b{}".format(len(s), s))
             else:
                 self.write(s)
-
-        def visit_NameConstant(self, node):
-            self.write(nameconstant_map[node.obj])
 
     def visit_Continue(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
@@ -1041,7 +1037,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         argnr = 0
         for s in node.format:
             if isinstance(s, str):
-                self.write('$write("{}");' % s)
+                self.write(f'$write("{s}");')
             else:
                 a = node.args[argnr]
                 argnr += 1
@@ -1074,13 +1070,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     for n in tipe._names:
                         self.writeline()
                         item = getattr(tipe, n)
-                        self.write("'b{}: ".format(item._val))
-                        self.write('$write("{}");' % n)
+                        self.write(f"'b{item._val}: ")
+                        self.write(f'$write("{n}");')
                     self.dedent()
                     self.writeline()
                     self.write("endcase")
                 else:
-                    self.write('$write("{}", ' % fs)
+                    self.write(f'$write("{fs}", ')
                     self.visit(a)
                     self.write(');')
                 self.context = _context.UNKNOWN
@@ -1108,7 +1104,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
            _isConstant(node.value.args[0], self.tree.symdict):
             c = self.getVal(node)
             self.write("{}'h".format(c._nrbits))
-            self.write("%x".format(c._val))
+            self.write("{:x}".format(c._val))
             return
 
         addSignBit = isinstance(node.ctx, ast.Load) and (self.context == _context.SIGNED)
@@ -1232,14 +1228,14 @@ class _ConvertAlwaysVisitor(_ConvertVisitor):
 
     def visit_FunctionDef(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
-        self.writer.writeDoc(node)
+        self.writeDoc(node)
         w = node.body[-1]
         y = w.body[0]
         if isinstance(y, ast.Expr):
             y = y.value
         assert isinstance(y, ast.Yield)
-        self.writeAlwaysHeader(self.tree)
-        self.writeDeclarations(self.tree)
+        self.writeAlwaysHeader()
+        self.writeDeclarations()
         # assert isinstance(w.body, astNode.Stmt)
         for stmt in w.body[1:]:
             self.writeline()
@@ -1258,10 +1254,11 @@ class _ConvertInitialVisitor(_ConvertVisitor):
 
     def visit_FunctionDef(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
-        self.writer.writeDoc(node)
+        self.writeDoc(node)
         self.write("initial begin: {}".format(self.tree.name))
         self.indent()
-        self.writeDeclarations(self.tree)
+        # self.writeDeclarations(self.tree)
+        self.writeDeclarations()
         self.visit_stmt(node.body)
         self.dedent()
         self.writeline()
@@ -1334,23 +1331,6 @@ class _ConvertAlwaysDecoVisitor(_ConvertVisitor):
         self.writeline(2)
 
 
-def _convertInitVal(self, reg, init):
-    if isinstance(reg, _Signal):
-        tipe = reg._type
-    else:
-        assert isinstance(reg, intbv)
-        tipe = intbv
-    if tipe is bool:
-        v = '1' if init else '0'
-    elif tipe is intbv:
-        init = int(init)  # int representation
-        v = "{}".format(init) if init is not None else "'bz"
-    else:
-        assert isinstance(init, EnumItemType)
-        v = init._toVerilog()
-    return v
-
-
 class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
 
     def __init__(self, tree, blockBuf, funcBuf, writer):
@@ -1392,11 +1372,27 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         self.write("end")
         self.writeline(2)
 
+    def _convertInitVal(self, reg, init):
+        if isinstance(reg, _Signal):
+            tipe = reg._type
+        else:
+            assert isinstance(reg, intbv)
+            tipe = intbv
+        if tipe is bool:
+            v = '1' if init else '0'
+        elif tipe is intbv:
+            init = int(init)  # int representation
+            v = "{}".format(init) if init is not None else "'bz"
+        else:
+            assert isinstance(init, EnumItemType), '<> {}'.format(repr(init))
+            v = init._toVerilog()
+        return v
+
 
 class _ConvertFunctionVisitor(_ConvertVisitor):
 
-    def __init__(self, tree, funcBuf):
-        _ConvertVisitor.__init__(self, tree, funcBuf)
+    def __init__(self, tree, funcBuf, writer):
+        _ConvertVisitor.__init__(self, tree, funcBuf, writer)
         self.returnObj = tree.returnObj
         self.returnLabel = _Label("RETURN")
 
@@ -1416,7 +1412,7 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
         self.writeOutputDeclaration()
         self.indent()
         self.writeInputDeclarations()
-        self.writer.writeDeclarations()
+        self.writeDeclarations()
         self.dedent()
         self.writeline()
         self.write("begin: {}".format(self.returnLabel))
@@ -1440,8 +1436,8 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
 
 class _ConvertTaskVisitor(_ConvertVisitor):
 
-    def __init__(self, tree, funcBuf):
-        _ConvertVisitor.__init__(self, tree, funcBuf)
+    def __init__(self, tree, funcBuf, writer):
+        _ConvertVisitor.__init__(self, tree, funcBuf, writer)
         self.returnLabel = _Label("RETURN")
 
     def writeInterfaceDeclarations(self):
@@ -1459,7 +1455,7 @@ class _ConvertTaskVisitor(_ConvertVisitor):
         self.write("task {};".format(self.tree.name))
         self.indent()
         self.writeInterfaceDeclarations()
-        self.writer.writeDeclarations()
+        self.writeDeclarations()
         self.dedent()
         self.writeline()
         self.write("begin: {}".format(self.returnLabel))
@@ -1481,7 +1477,7 @@ myhdl_header = """\
 
 
 def _writeTestBench(f, intf, trace=False):
-    print("module tb_{};".format(intf.name), file=f)
+    print(f"module tb_{intf.name};", file=f)
     print(file=f)
     fr = StringIO()
     to = StringIO()
