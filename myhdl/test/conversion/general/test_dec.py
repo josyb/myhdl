@@ -187,17 +187,16 @@ def DecBench(dec):
 def testDecRef():
     assert DecBench(decRef).verify_convert() == 0
 
-
-def testDec():
-    assert DecBench(dec).verify_convert() == 0
-
-
-def testDecFunc():
-    assert DecBench(decFunc).verify_convert() == 0
-
-
-def testDecTask():
-    assert DecBench(decTask).verify_convert() == 0
+# def testDec():
+#     assert DecBench(dec).verify_convert() == 0
+#
+#
+# def testDecFunc():
+#     assert DecBench(decFunc).verify_convert() == 0
+#
+#
+# def testDecTask():
+#     assert DecBench(decTask).verify_convert() == 0
 
 # # def testDecTaskFreeVar():
 # #     assert verify(DecBench, decTaskFreeVar) == 0

@@ -5,7 +5,7 @@ from myhdl import (block, Signal, delay, always, always_comb,
 class HDLClass(object):
 
     @block
-    def model(self, clock, input_interface, output_interface):
+    def model(self, clock, input_interface, output_interface, message):
 
         internal_in = Signal(False)
         internal_out = Signal(False)
@@ -17,7 +17,8 @@ class HDLClass(object):
 
         @always(clock.posedge)
         def do_something():
-            print('something')
+            # print(message)
+            print('do_something')
             internal_out.next = internal_in.next
 
         return do_something, assignments
@@ -27,13 +28,11 @@ class InterfaceWithInstanceSignal(object):
 
     def __init__(self):
 
-        self.internal_ins = [
-            Signal(False), Signal(False), Signal(False), Signal(False)]
-        self.internal_outs = [
-            Signal(False), Signal(False), Signal(False), Signal(False)]
+        self.internal_ins = [Signal(False) for __ in range(4)]
+        self.internal_outs = [Signal(False) for __ in range(4)]
 
     @block
-    def model(self, clock, input_interface, output_interface, index):
+    def model(self, clock, input_interface, output_interface, index, message):
 
         internal_in = self.internal_ins[index]
         internal_out = self.internal_outs[index]
@@ -45,7 +44,8 @@ class InterfaceWithInstanceSignal(object):
 
         @always(clock.posedge)
         def do_something():
-            print('something')
+            # print(message)
+            print('do_something')
             internal_out.next = internal_in.next
 
         return do_something, assignments
@@ -59,11 +59,9 @@ def different_class_pipeline(clock, input_interface, output_interface):
 
     intermediate_interface = Signal(False)
 
-    class_hdl_inst1 = class_inst1.model(
-        clock, input_interface, intermediate_interface)
+    class_hdl_inst1 = class_inst1.model(clock, input_interface, intermediate_interface, 'message_1')
 
-    class_hdl_inst2 = class_inst2.model(
-        clock, intermediate_interface, output_interface)
+    class_hdl_inst2 = class_inst2.model(clock, intermediate_interface, output_interface, 'message_2')
 
     return class_hdl_inst1, class_hdl_inst2
 
@@ -77,17 +75,13 @@ def common_class_pipeline(clock, input_interface, output_interface):
     intermediate_interface_2 = Signal(False)
     intermediate_interface_3 = Signal(False)
 
-    class_hdl_inst1 = class_inst.model(
-        clock, input_interface, intermediate_interface)
+    class_hdl_inst1 = class_inst.model(clock, input_interface, intermediate_interface, 'message_1')
 
-    class_hdl_inst2 = class_inst.model(
-        clock, intermediate_interface, intermediate_interface_2)
+    class_hdl_inst2 = class_inst.model(clock, intermediate_interface, intermediate_interface_2, 'message_2')
 
-    class_hdl_inst3 = class_inst.model(
-        clock, intermediate_interface_2, intermediate_interface_3)
+    class_hdl_inst3 = class_inst.model(clock, intermediate_interface_2, intermediate_interface_3, 'message_3')
 
-    class_hdl_inst4 = class_inst.model(
-        clock, intermediate_interface_3, output_interface)
+    class_hdl_inst4 = class_inst.model(clock, intermediate_interface_3, output_interface, 'message_4')
 
     return class_hdl_inst1, class_hdl_inst2, class_hdl_inst3, class_hdl_inst4
 
@@ -101,17 +95,13 @@ def interface_with_method_pipeline(clock, input_interface, output_interface):
     intermediate_interface_2 = Signal(False)
     intermediate_interface_3 = Signal(False)
 
-    class_hdl_inst1 = class_inst.model(
-        clock, input_interface, intermediate_interface, 0)
+    class_hdl_inst1 = class_inst.model(clock, input_interface, intermediate_interface, 0, 'message_1')
 
-    class_hdl_inst2 = class_inst.model(
-        clock, intermediate_interface, intermediate_interface_2, 1)
+    class_hdl_inst2 = class_inst.model(clock, intermediate_interface, intermediate_interface_2, 1, 'message_2')
 
-    class_hdl_inst3 = class_inst.model(
-        clock, intermediate_interface_2, intermediate_interface_3, 2)
+    class_hdl_inst3 = class_inst.model(clock, intermediate_interface_2, intermediate_interface_3, 2, 'message_3')
 
-    class_hdl_inst4 = class_inst.model(
-        clock, intermediate_interface_3, output_interface, 3)
+    class_hdl_inst4 = class_inst.model(clock, intermediate_interface_3, output_interface, 3, 'message_4')
 
     return class_hdl_inst1, class_hdl_inst2, class_hdl_inst3, class_hdl_inst4
 
@@ -129,23 +119,20 @@ def bench(class_name='different_class'):
     def clkgen():
 
         clk.next = 0
-        for dummy in range(N):
+        for __ in range(N):
             yield delay(10)
             clk.next = not clk
 
         raise StopSimulation()
 
     if class_name == 'common_class':
-        pipeline_inst = common_class_pipeline(
-            clk, input_interface, output_interface)
+        pipeline_inst = common_class_pipeline(clk, input_interface, output_interface)
 
     elif class_name == 'interface':
-        pipeline_inst = interface_with_method_pipeline(
-            clk, input_interface, output_interface)
+        pipeline_inst = interface_with_method_pipeline(clk, input_interface, output_interface)
 
     elif class_name == 'different_class':
-        pipeline_inst = different_class_pipeline(
-            clk, input_interface, output_interface)
+        pipeline_inst = different_class_pipeline(clk, input_interface, output_interface)
 
     return pipeline_inst, clkgen
 
@@ -161,3 +148,9 @@ def test_single_class_single_method():
 def test_single_interface_with_single_method():
     assert conversion.verify(bench(class_name='interface')) == 0
 
+
+if __name__ == '__main__':
+    dfc = bench(class_name='interface')
+    # dfc.config_sim(trace=True)
+    # dfc.run_sim()
+    dfc.convert(hdl='VHDL')

@@ -40,7 +40,7 @@ def registerSimulator(name=None, hdl=None, analyze=None, elaborate=None, simulat
 registerSimulator(
     name="ghdl",
     hdl="VHDL",
-    analyze="ghdl -a --std=08 --workdir=work pck_myhdl_%(version)s.vhd %(topname)s.vhd",
+    analyze="ghdl -a --std=08 --workdir=work pck_myhdl.vhd %(topname)s.vhd",
     elaborate="ghdl -e --std=08 --workdir=work %(unitname)s",
     simulate="ghdl -r --std=08 --workdir=work %(unitname)s --ieee-asserts=disable"
 )
@@ -48,7 +48,7 @@ registerSimulator(
 registerSimulator(
     name="nvc",
     hdl="VHDL",
-    analyze="nvc --work=work_nvc -a pck_myhdl_%(version)s.vhd %(topname)s.vhd",
+    analyze="nvc --work=work_nvc -a pck_myhdl.vhd %(topname)s.vhd",
     elaborate="nvc --work=work_nvc -e %(topname)s",
     simulate="nvc --work=work_nvc -r %(topname)s"
 )
@@ -240,7 +240,7 @@ class _VerificationClass(object):
             print("Conversion verification succeeded", file=sys.stderr)
         else:
             print("Conversion verification failed", file=sys.stderr)
-            # print >> sys.stderr, s ,
+            print(s, file=sys.stderr)
             return 1
 
         return 0

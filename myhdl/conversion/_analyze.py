@@ -660,7 +660,6 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                                     "ord: expect string argument with length 1")
             elif f is delay:
                 node.obj = delay(0)
-            # suprize: identity comparison on unbound methods doesn't work in python 2.5??
             elif f == intbv.signed:
                 obj = node.func.value.obj
                 if len(obj):
@@ -752,15 +751,15 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         ic(astdump(node, show_offsets=False))
         node.obj = None  # safeguarding?
         # ToDo check for tuples?
-        if isinstance(node.value, int):
+        if node.value in (True, False, None):
+            # NameConstant
+            node.obj = node.value
+        elif isinstance(node.value, int):
             # Num
             if node.value in (0, 1):
                 node.obj = bool(node.value)
             else:
                 node.obj = node.value
-        elif node.value in (True, False, None):
-            # NameConstant
-            node.obj = node.value
         elif isinstance(node.value, str):
             # Str
             node.obj = node.value
@@ -978,7 +977,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Print(self, node):
         ic.indent()
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.tree.hasPrint = True
         f = []
         nr = 0
@@ -1047,7 +1046,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         ic.dedent()
 
     def accessSlice(self, node):
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.value)
         node.obj = self.getObj(node.value)
         self.access = _access.INPUT

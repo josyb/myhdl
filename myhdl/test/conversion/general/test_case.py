@@ -157,5 +157,5 @@ if __name__ == '__main__':
     # dfc = map_case4(z, a)
     # dfc = map_case4_full(z, a)
     dfc = bench_case(map_case4, 4)
-    dfc.convert(hdl='Verilog')
+    # dfc.convert(hdl='Verilog')
     dfc.convert(hdl='VHDL')
