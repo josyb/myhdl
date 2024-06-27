@@ -221,3 +221,8 @@ def testDecRef():
 # #     def testDecTaskFreeVar(self):
 # #         sim = self.bench(decTaskFreeVar)
 # #         sim.run(quiet=1)
+
+
+if __name__ == '__main__':
+    dft = DecBench(decRef)
+    dft.convert(hdl='VHDL')

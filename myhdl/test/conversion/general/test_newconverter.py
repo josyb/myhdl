@@ -15,7 +15,7 @@ def sac(a, b, c):
 
     @always_comb
     def comb():
-        ''' this is a continuous assignment '''
+        ''' this will become / is a continuous assignment '''
         c.next = a and not b
 
     return comb
@@ -41,6 +41,7 @@ def sac3(a, b):
 
     @always_comb
     def comb():
+        ''' indexing '''
         b.next = a[0] and not a[1]
 
     return comb
@@ -48,15 +49,13 @@ def sac3(a, b):
 
 @block
 def sac4(a, b):
-    ''' an always_comb '''
 
     LEN_V = len(a)
 
     @always_comb
     def comb():
-        ''' an always_comb '''
-        b.next = 0
         ''' looping '''
+        b.next = 0
         for i in range(LEN_V):
             b.next = b or a[i]
 
@@ -68,6 +67,7 @@ def sac5(a, b , c):
 
     @always_comb
     def comb():
+        ''' more indexing '''
         b.next = a[0]
         c.next = a[1]
 
@@ -79,6 +79,7 @@ def sac6(a, b):
 
     @always_comb
     def comb():
+        ''' indexing both sides '''
         b.next[1] = a[0]
         b.next[0] = a[1]
 
@@ -90,6 +91,7 @@ def sac7(a, b):
 
     @always_comb
     def comb():
+        ''' slicing both sides '''
         b.next[8:] = a[:8]
         b.next[:8] = a[8:]
 
@@ -101,6 +103,7 @@ def sac8(a, b, c, d , e):
 
     @always_comb
     def comb():
+        ''' binops '''
         e.next = not a and b and (c or d)
 
     return comb
@@ -111,6 +114,7 @@ def sac9(a, b, c, d , e):
 
     @always_comb
     def comb():
+        ''' bitops ... '''
         e.next = ~a & b & (c | d)
 
     return comb
@@ -121,6 +125,7 @@ def sac10(aa, bb, cc):
 
     @always_comb
     def comb():
+        ''' lhs slicing '''
         cc.next[4:] = aa
         cc.next[:4] = bb
 
@@ -132,15 +137,16 @@ def sac11(a, b, c, d, e):
 
     @always_comb
     def comb():
-        # ''' mixing 0,1 and True, False for Signal(bool()) '''
-
+        ''' mixing 0,1 and True, False for Signal(bool()) '''
         d.next = False
         if a:
             d.next = e
         elif b and not c:
-            d.next = not e
+            d.next = 0
         elif not b and c:
             d.next = 1
+        else:
+            d.next = True
 
     return comb
 
@@ -196,13 +202,39 @@ def sac14(a, b):
 
 @block
 def sac15(clk, a, b, c):
-    ''' expecting 'new' VHDL 2008 q <= '0' when reset else d; '''
+    ''' IfExp expecting 'new' VHDL 2008 q <= '0' when reset else d; '''
 
     @always_seq(clk.posedge, reset=None)
     def sync():
         b.next = not a if c else a
 
     return sync
+
+
+@block
+def sac16(a, b, c, d, e, f):
+    ''' checking all kinds of everything, assignment it is '''
+
+    orr = intbv(0)[4:]
+
+    WIDTH_C = len(c)
+
+    @always_comb
+    def comb():
+        orr[:] = c[:4] | c[4:]
+        a.next = orr.signed()
+        b.next[4:] = c[:4]
+        b.next[:4] = c[4:]
+        bb = False
+        e.next = 0
+        for i in range(WIDTH_C):
+            f.next[i] = c[WIDTH_C - 1 - i]
+            if c[i]:
+                bb = not bb
+                e.next = not e
+        d.next = bb
+
+    return comb
 
 
 @block
@@ -226,6 +258,30 @@ def simplecounter(RANGE, Clk, SClr, CntEn, Q):
 
 
 @block
+def simplecounter2(RANGE, Clk, SClr, CntEn, Q):
+    ''' a simple wrap-around counter '''
+
+    MAX_COUNT = Constant(intbv(RANGE - 1)[6:])
+    '''
+        we should make this work as well
+        # MAX_COUNT = Constant(RANGE - 1)
+    '''
+
+    @always_seq(Clk.posedge, reset=None)
+    def sc():
+        ''' a simple counter with augmented assign '''
+        if SClr or CntEn:
+            if SClr:
+                Q.next = 0
+            elif Q == MAX_COUNT:
+                Q.next = 0
+            else:
+                Q.next += 1
+
+    return instances()
+
+
+@block
 def scramble(Pattern, A, Y):
     NBR_BITS = len(Pattern)
 
@@ -238,6 +294,17 @@ def scramble(Pattern, A, Y):
                 Y.next[i] = A[i]
 
     return instances()
+
+
+@block
+def subtracting(s, a, b, c, d):
+
+    @always_comb
+    def comb():
+        c.next = a - b if s else a + b
+        d.next = a - b if s else a + b
+
+    return comb
 
 
 @block
@@ -360,6 +427,11 @@ if __name__ == '__main__':
         CC = Signal(intbv()[4:])
         DD = Signal(intbv()[4:])
         EE = Signal(intbv()[8:])
+        FF = Signal(intbv()[8:])
+        SS = Signal(intbv(0, -8, 8))
+        SS8 = Signal(intbv(0, -128, 128))
+        TT8 = Signal(intbv(0, -128, 128))
+        TT9 = Signal(intbv(0, -256, 256))
         # dfc = sac(A, B, C)
         # dfc = sac2(A, B, C, D, E)
         # dfc = sac3(AA, B)
@@ -370,13 +442,16 @@ if __name__ == '__main__':
         # dfc = sac8(A, B, C, D, E)
         # dfc = sac9(A, B, C, D, E)
         # dfc = sac10(CC, DD, EE)
-        # dfc = simplecounter(42, A, B, C, Q)
         # dfc = sac11(A, B, C, D, E)
         # dfc = sac12(A, B, C, D, E)
         # dfc = sac13(A, B, C)
         # dfc = sac14(AA, BB)
-        dfc = sac15(clk, A, B, C)
-        # dfc.convert(hdl='Verilog')
+        # dfc = sac15(clk, A, B, C)
+        # dfc = sac16(SS, FF, EE, D, E, DD)
+        # dfc = simplecounter(42, A, B, C, Q)
+        # dfc = simplecounter2(42, A, B, C, Q)
+        dfc = subtracting(A, EE, SS, TT8, TT9)
+        dfc.convert(hdl='Verilog')
         dfc.convert(hdl='VHDL')
 
         # WIDTH_D = 8

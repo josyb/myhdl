@@ -41,6 +41,7 @@ class intbv(object):
                 else:
                     # make sure there is a leading zero bit in positive numbers
                     _nrbits = builtins.max(len(bin(max - 1)) + 1, len(bin(min)))
+
         if isinstance(val, int):
             self._val = val
         elif isinstance(val, str):
@@ -81,6 +82,10 @@ class intbv(object):
         if _min not in (0, -_max):
             return False
         return _max & _max - 1 == 0
+
+    @property
+    def issigned(self):
+        return True if self._min is not None and self._min < 0 else False
 
     # hash
     def __hash__(self):
@@ -136,6 +141,43 @@ class intbv(object):
                                  f"            i, j == {i}, {j}")
             res = intbv((self._val & (1 << i) - 1) >> j, _nrbits=i - j)
             return res
+            # upper, lower = key.start, key.stop
+            # if self._nrbits:
+            #     if lower is None:
+            #         lower = 0
+            #     else:
+            #         lower = int(lower)
+            #         if lower < 0:
+            #             lower = self._nrbits + lower
+            #         if lower < 0:
+            #             raise ValueError(f'lower: {key.stop} results in negative stop index {lower}')
+            #     if upper is None:
+            #         upper = self._nrbits - 1
+            #     else:
+            #         upper = int(upper)
+            #         if upper < 0:
+            #             upper = self._nrbits + upper
+            #         if upper < 0:
+            #             raise ValueError(f'upper: {key.start} results in negative start index {upper}')
+            #     return intbv((self._val & ((1 << upper) - 1)) >> lower, _nrbits=upper - lower)
+            # else:
+            #     # unconstrained
+            #     if upper is  None and lower is None:
+            #         raise ValueError(f'Cannot slice unconstrained intbv[{upper}:{lower}]')
+            #     if lower is None:
+            #         lower = 0
+            #     else:
+            #         lower = int(lower)
+            #         if lower < 0:
+            #             raise ValueError(f'Slicing unconstrained intbv cannot accept negative lower {lower}')
+            #     if upper is None:
+            #         return intbv(self._val >> lower)
+            #     else:
+            #         upper = int(upper)
+            #         if upper < 0:
+            #             raise ValueError(f'Slicing unconstrained intbv cannot accept negative upper {upper}')
+            #         return intbv(self._val & ((1 << upper) - 1) >> lower, _nrbits=upper - lower)
+
         else:
             i = int(key)
             res = bool((self._val >> i) & 0x1)
@@ -492,15 +534,10 @@ class intbv(object):
         if specification == 'x':
             ndigits = (self._nrbits + 3) // 4
             # print(specification, ndigits)
-            return '{:0{}x}'.format(self._val, ndigits,)
+            # return '{:0{}x}'.format(self._val, ndigits,)
+            return f'{self._val:0{ndigits}x}'
         else:
             return f'{self._val}'
-
-    def __format__(self, specification):
-        if specification == 'x':
-            ndigits = (self._nrbits + 3) // 4
-            # print(specification, ndigits)
-            return '{:0{}x}'.format(self._val, ndigits,)
 
     def signed(self):
         ''' Return new intbv with the values interpreted as signed

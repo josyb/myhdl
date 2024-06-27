@@ -1736,7 +1736,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(';')
 
     def visit_Tuple(self, node):
-        assert self.context != None
+        assert self.context is not None
         sep = ", "
         tpl = node.elts
         self.visit(tpl[0])

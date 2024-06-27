@@ -32,6 +32,8 @@ AlwaysSeqError = AlwaysError
 
 class _error:
     pass
+
+
 _error.EdgeType = "first argument should be an edge"
 _error.ResetType = "reset argument should be a ResetSignal"
 _error.ArgType = "decorated object should be a classic (non-generator) function"
@@ -77,6 +79,7 @@ def always_seq(edge, reset):
         if func.__code__.co_argcount > 0:
             raise AlwaysSeqError(_error.NrOfArgs)
         return _AlwaysSeq(func, edge, reset, callinfo=callinfo, sigdict=sigdict)
+
     return _always_seq_decorator
 
 
@@ -100,8 +103,8 @@ class _AlwaysSeq(_Always):
         super(_AlwaysSeq, self).__init__(
             func, senslist, callinfo=callinfo, sigdict=sigdict)
 
-        if self.inouts:
-            raise AlwaysSeqError(_error.SigAugAssign, self.inouts)
+        # if self.inouts:
+        #     raise AlwaysSeqError(_error.SigAugAssign, self.inouts)
 
         if self.embedded_func:
             raise AlwaysSeqError(_error.EmbeddedFunction)

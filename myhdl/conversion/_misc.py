@@ -89,7 +89,7 @@ class _kind(IntEnum):
 
 
 class _context(IntEnum):
-    BOOLEAN, YIELD, PRINT, SIGNED, UNKNOWN = range(5)
+    TARGET, BOOLEAN, YIELD, PRINT, SINGLEBIT, UNSIGNED, SIGNED, UNKNOWN = range(8)
 
 
 class _ConversionMixin(object):

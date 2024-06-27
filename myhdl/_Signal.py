@@ -287,9 +287,10 @@ class _Signal(object):
 
     # set next methods
     def _setNextBool(self, val):
-        if isinstance(val, intbv):
-            val = val._val
-        if not val in (0, 1):
+        # if isinstance(val, intbv):
+        #     val = val._val
+        # only accept boolean values
+        if not val in [0, 1, True, False]:
             raise ValueError("Expected boolean value, got %s (%s)" % (repr(val), type(val)))
         self._next = val
 

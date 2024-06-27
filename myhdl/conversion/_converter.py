@@ -34,6 +34,8 @@ from types import GeneratorType
 from icecream import ic
 ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
+ic.disable()
+
 from astpretty import pformat as astdump
 import pprint
 pp = pprint.PrettyPrinter(indent=4, width=120)
@@ -240,13 +242,12 @@ def _maybeNegative(obj):
         return True
     return False
 
-
-def maybeNegative(sig):
-    if isinstance(sig, sig_signed):
-        return True
-    if isinstance(sig, sig_int) and not isinstance(sig, sig_nat):
-        return True
-    return False
+# def maybeNegative(sig):
+#     if isinstance(sig, sig_signed):
+#         return True
+#     if isinstance(sig, sig_int) and not isinstance(sig, sig_nat):
+#         return True
+#     return False
 
 
 def _intRepr(n, radix=''):
@@ -276,27 +277,27 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         self.hdl = hdl
 
     def visit_FunctionDef(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         # don't visit arguments and decorators
         for stmt in node.body:
             ic(self.__class__.__name__, astdump(stmt, show_offsets=False))
             self.visit(stmt)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_Assert(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.test)
         # node.test.sig = sig_boolean()
-        ic.dedent()
+        # ic.dedent()
 
     def visit_Assign(self, node):
         ''' this is only for completeness '''
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.generic_visit(node)
-        ic.dedent()
+        # ic.dedent()
 
     # def visit_Attribute(self, node):
     #     ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
@@ -321,7 +322,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
     #     self.visit(node.value)
 
     def visit_Attribute(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if isinstance(node.ctx, ast.Store):
             self.setAttr(node)
@@ -332,7 +333,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         # node.sig = inferSigObj(node.obj)
         # node.sigOri = copy(node.sig)
         ic(self.__class__.__name__, pp.pformat(vars(node)))
-        ic.dedent()
+        # ic.dedent()
 
     def setAttr(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
@@ -395,7 +396,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
 
     def visit_AugAssign(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.target)
         self.visit(node.value)
@@ -409,10 +410,10 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     node.left, node.right = node.target, node.value
         #     self.inferBinOpType(node)
         # node.sig = copy(node.target.sig)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_BinOp(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.left)
         self.visit(node.right)
@@ -428,7 +429,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     pass
         # else:
         #     self.inferBinOpType(node)
-        ic.dedent()
+        # ic.dedent()
 
     # def inferBinOpType(self, node):
     #     left, op, right = node.left, node.op, node.right
@@ -482,7 +483,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
     #     node.sigOri = copy(node.sig)
 
     def visit_BoolOp(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False))
         # if self.hdl == 'VHDL':
         #     # VHDL
@@ -495,10 +496,10 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         for n in node.values:
             self.visit(n)
         node.signed = False
-        ic.dedent()
+        # ic.dedent()
 
     def visit_Call(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         f = self.getObj(node.func)
         # node.sig = inferSigObj(node.obj)
@@ -538,11 +539,11 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             node.signed = _maybeNegative(node.tree.returnObj)
             # node.sig = node.tree.sig = inferSigObj(node.tree.returnObj)
         # node.sigOri = copy(node.sig)
-        ic.dedent()
+        # ic.dedent()
         ic(self.__class__.__name__, pp.pformat(vars(node)))
 
     def visit_Compare(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.signed = False
         # node.sig = sig_boolean()
@@ -560,10 +561,10 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         # elif maybeNegative(left.sig) and isinstance(right.sig, sig_unsigned):
         #     right.sig = sig_signed(right.sig.size + 1)
         # node.sigOri = copy(node.sig)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_Constant(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.signed = False
 
@@ -583,40 +584,40 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     # Str
         #     node.sig = sig_string()
         # node.sigOri = copy(node.sig)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_For(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         var = node.target.id
         # make it possible to detect loop variable
         self.tree.vardict[var] = _loopInt(-1)
         self.generic_visit(node)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_If(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if node.ignore:
-            ic.dedent()
+            # ic.dedent()
             return
         self.generic_visit(node)
         # for test, __ in node.tests:
         #     test.sig = sig_boolean()
-        ic.dedent()
+        # ic.dedent()
 
     def visit_IfExp(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.generic_visit(node)
         # node.test.sig = sig_boolean()
-        ic.dedent()
+        # ic.dedent()
 
     def visit_ListComp(self, node):
         pass  # do nothing
 
     def visit_Name(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         # if node.id in self.tree.vardict:
         #     node.obj = self.tree.vardict[node.id]
@@ -626,7 +627,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             self.getName(node)
         # node.sig = inferSigObj(node.obj)
         # node.sigOri = copy(node.sig)
-        ic.dedent()
+        # ic.dedent()
 
     def setName(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
@@ -637,7 +638,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         node.signed = _maybeNegative(node.obj)
 
     def visit_Subscript(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.slice.toint = True
         if isinstance(node.slice, ast.Slice):
@@ -645,7 +646,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         else:
             self.accessIndex(node)
         ic(self.__class__.__name__, pp.pformat(vars(node)))
-        ic.dedent()
+        # ic.dedent()
 
     def accessSlice(self, node):
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
@@ -689,14 +690,14 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         # node.sigOri = copy(node.sig)
 
     def visit_Tuple(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.signed = False
         self.generic_visit(node)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_UnaryOp(self, node):
-        ic.indent()
+        # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False))
         self.visit(node.operand)
         node.signed = node.operand.signed
@@ -722,13 +723,13 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     elif isinstance(node.sig, sig_nat):
         #         node.sig = sig_int()
         # node.sigOri = copy(node.sig)
-        ic.dedent()
+        # ic.dedent()
 
     def visit_While(self, node):
-        ic.indent()
+        # # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.generic_visit(node)
-        ic.dedent()
+        # ic.dedent()
 
 
 def _annotateTypes(hdl, genlist, usercode):
