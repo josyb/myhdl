@@ -556,7 +556,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Assign(self, node):
         # ic.indent()
-        ic.enable()
+        # ic.enable()
         ic(astdump(node, show_offsets=False))
         target, value = node.targets[0], node.value
         self.access = _access.OUTPUT
@@ -723,11 +723,13 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Compare(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
-        node.obj = bool()
+        ic.enable()
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        assert len(node.ops) == 1, 'Cannot compare more than two values, split into two comparisons'
+        # node.obj = bool()
         for n in [node.left] + node.comparators:
             self.visit(n)
-        op, arg = node.ops[0], node.comparators[0]
+        op, arg = node.ops[0], node.comparators[0]  # we expect a single comparison
 # #         node.expr.target = self.getObj(arg)
 # #         arg.target = self.getObj(node.expr)
         # detect specialized case for the test
@@ -749,10 +751,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                     elif v == 1:
                         node.edge = sig.posedge
         # ic.dedent()
+        ic.disable()
 
     def visit_Constant(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
 
         node.obj = None  # safeguarding?
         # ToDo check for tuples?
@@ -891,7 +894,6 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Name(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
         if isinstance(node.ctx, ast.Store):
             self.setName(node)
         else:
@@ -899,7 +901,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # ic.dedent()
 
     def setName(self, node):
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         # XXX INOUT access in Store context, unlike with compiler
         # XXX check whether ast context is correct
         n = node.id
@@ -924,7 +926,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.refStack.add(n)
 
     def getName(self, node):
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         n = node.id
         node.obj = None
         if n not in self.refStack:
@@ -1059,11 +1061,12 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Subscript(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if isinstance(node.slice, ast.Slice):
             self.accessSlice(node)
         else:
             self.accessIndex(node)
+        ic(pp.pformat(vars(node)))
         # ic.dedent()
 
     def accessSlice(self, node):
@@ -1087,13 +1090,10 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.obj = node.obj[leftind:rightind]
 
     def accessIndex(self, node):
-        ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.value)
         self.access = _access.INPUT
-        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
-            self.visit(node.slice)
-        else:
-            self.visit(node.slice.value)
+        self.visit(node.slice)
 
         if isinstance(node.value.obj, _Ram):
             if isinstance(node.ctx, ast.Store):

@@ -769,6 +769,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(e._toVHDL())
 
     def visit_Assert(self, node):
+        ic.enable()
         # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         # XXX
@@ -781,9 +782,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("severity error;")
         self.dedent()
         # ic.dedent()
+        ic.disable()
 
     def visit_Assign(self, node):
-        ic.enable()
+        # ic.enable()
         # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         lhs = node.targets[0]
@@ -862,8 +864,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             # elif isinstance(rhs, ast.Subscript):
             #     pass
 
-            ic(pp.pformat(vars(lhs)))
-            ic(pp.pformat(vars(rhs)))
+            ic(pp.pformat(vars(lhs)), pp.pformat(vars(rhs)))
             match type(rhs):
                 case ast.Compare:
                     if isinstance(lhs.obj, _Signal):
@@ -882,14 +883,15 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                             # pre, suf = 'stdl(', ')'
                             pass
                         else:
-                            # intbv? ???
-                            pass
+                            # intbv
+                            if isinstance(rhs.obj, int):
+                                pre, suf = 'to_unsigned(', f', {lhs.obj._nrbits})'
                     else:
                         # must be a variable?
                         if isinstance(lhs.obj, intbv):
                             if len(lhs.obj) != len(rhs.obj):
-                                pre = 'resize('
-                                suf = f', {len(lhs.obj)})'
+                                # works both ways!
+                                pre, suf = 'resize(', f', {len(lhs.obj)})'
                         else:
                             # bool?
                             pass
@@ -903,7 +905,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(';')
             self.writer.emitline()
         # ic.dedent()
-        ic.disable()
+        # ic.disable()
 
     def visit_AugAssign(self, node, *args):
         # ic.indent()
@@ -1037,20 +1039,31 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         # self.visit(node.comparators[0])
         # self.write(")")
         # self.context = None
-        left, op, right = node.left, node.ops[0], node.comparators[0]
+
+        left, right = node.left, node.comparators[0]
         ic(pp.pformat(vars(left)), pp.pformat(vars(right)))
         pre, suf = '', ''
-        if isinstance(left, ast.Constant) and isinstance(right.obj, _Signal) and isinstance(right.obj._val, bool):
-            pre, suf = 'stdl(', ')'
+        if isinstance(left, ast.Constant):
+            if isinstance(right.obj, _Signal):
+                if isinstance(right.obj._val, bool):
+                    pre, suf = 'stdl(', ')'
+                else:
+                    # intbv
+                    pre, suf = 'to_unsigned(', f', {right.obj._nrbits})'
         self.write(pre)
         self.visit(left)
         self.write(suf)
 
-        self.write(f" {opmap[type(op)]} ")
+        self.write(f" {opmap[type(node.ops[0])]} ")
 
         pre, suf = '', ''
-        if isinstance(right, ast.Constant) and isinstance(left.obj, _Signal) and isinstance(left.obj._val, bool):
-            pre, suf = 'stdl(', ')'
+        if isinstance(right, ast.Constant):
+            if isinstance(left.obj, _Signal):
+                if isinstance(left.obj._val, bool):
+                    pre, suf = 'stdl(', ')'
+                else:
+                    # intbv
+                    pre, suf = 'to_unsigned(', f', {left.obj._nrbits})'
         self.write(pre)
         self.visit(right)
         self.write(suf)
@@ -1062,12 +1075,6 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
-
-        elif isinstance(node.value, bool):
-            if self.context == _context.BOOLEAN:
-                self.write(str(node.value))
-            else:
-                self.write(nameconstant_map[node.obj])
 
         elif isinstance(node.value, int):
             # Num
@@ -1082,6 +1089,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     self.write(f'{len(node.dst)}X"{hex(node.value)[2:]}"')
                 else:
                     self.write(self.IntRepr(node.value))
+
+        elif isinstance(node.value, bool):
+            if self.context == _context.BOOLEAN:
+                self.write(str(node.value))
+            else:
+                self.write(nameconstant_map[node.obj])
 
         elif isinstance(node.value, str):
             # Str

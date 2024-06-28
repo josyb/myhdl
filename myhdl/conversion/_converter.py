@@ -287,10 +287,12 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Assert(self, node):
         # ic.indent()
+        # ic.enable()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.test)
         # node.test.sig = sig_boolean()
         # ic.dedent()
+        # ic.disable()
 
     def visit_Assign(self, node):
         ''' this is only for completeness '''
@@ -543,6 +545,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         ic(self.__class__.__name__, pp.pformat(vars(node)))
 
     def visit_Compare(self, node):
+        ic.enable()
         # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.signed = False
@@ -562,6 +565,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     right.sig = sig_signed(right.sig.size + 1)
         # node.sigOri = copy(node.sig)
         # ic.dedent()
+        ic.disable()
 
     def visit_Constant(self, node):
         # ic.indent()

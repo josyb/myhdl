@@ -73,14 +73,17 @@ def test_adapter():
 
 
 if __name__ == '__main__':
-    print('running test_adapter:main')
+    # print('running test_adapter:main')
+    #
+    # o_spec = ('c', 'a', 'other', 'nomatch')
+    # i_spec = { 'a': 1, 'b': 2, 'c': 0, 'd': 3, 'e': 4, 'f': 5, }
+    #
+    # o_err = Signal(intbv(0)[4:])
+    # i_err = Signal(intbv(0)[6:])
+    #
+    # dfc = adapter(o_err, i_err, o_spec, i_spec)
 
-    o_spec = ('c', 'a', 'other', 'nomatch')
-    i_spec = { 'a': 1, 'b': 2, 'c': 0, 'd': 3, 'e': 4, 'f': 5, }
-
-    o_err = Signal(intbv(0)[4:])
-    i_err = Signal(intbv(0)[6:])
-
-    dfc = adapter(o_err, i_err, o_spec, i_spec)
+    print('converting bench adapter')
+    dfc = bench_adapter()
     # dfc.convert(hdl='Verilog')
     dfc.convert(hdl='VHDL')

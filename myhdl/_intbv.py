@@ -518,9 +518,9 @@ class intbv(object):
             if v < 0:
                 v = 2 ** nrbits + v
             w = (nrbits - 1) // 4 + 1
-            return "{:0{w}x}".format(v, w=w)
+            return f"{v:0{w}x}"
         else:
-            return "{:x}".format(v)
+            return f"{v:x}"
 
     def __repr__(self):
         nrbits = self._nrbits
