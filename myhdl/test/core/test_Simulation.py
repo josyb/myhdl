@@ -25,7 +25,7 @@ from unittest import TestCase
 from myhdl import (Signal, Simulation, SimulationError, StopSimulation, delay,
                    intbv, join, now)
 from myhdl._Simulation import _error
-from helpers import raises_kind
+from myhdl.test.helpers import raises_kind
 
 random.seed(1)  # random, but deterministic
 
@@ -454,10 +454,10 @@ class DeltaCycleOrder(TestCase):
         c = Signal(0)
         d = Signal(0)
         z = Signal(0)
-        delta = [Signal(0) for dummy in range(4)]
+        delta = [Signal(0) for __ in range(4)]
         inputs = Signal(intbv(0))
         s = [a, b, c, d]
-        vectors = [intbv(j) for dummy in range(8) for j in range(16)]
+        vectors = [intbv(j) for __ in range(8) for j in range(16)]
         random.shuffle(vectors)
         index = list(range(4))
 
@@ -480,7 +480,7 @@ class DeltaCycleOrder(TestCase):
                 yield delta[i].posedge
                 s[index[i]].next = inputs.val[index[i]]
 
-        def logic():
+        def comb():
             while 1:
                 # yield a, b, c, d
                 z.next = function(a.val, b.val, c.val, d.val)
@@ -496,7 +496,7 @@ class DeltaCycleOrder(TestCase):
             raise StopSimulation("Delta cycle order")
 
         inputGen = [inGen(i) for i in range(4)]
-        instance = [clkGen(), deltaGen(), logic(), stimulus(), inputGen]
+        instance = [clkGen(), deltaGen(), comb(), stimulus(), inputGen]
         return instance
 
     def testAnd(self):

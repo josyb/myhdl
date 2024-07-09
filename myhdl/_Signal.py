@@ -33,6 +33,7 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
+from myhdl._bit import bit
 from myhdl._bin import bin
 
 # from myhdl._enum import EnumItemType
@@ -64,13 +65,13 @@ class _PosedgeWaiterList(_WaiterList):
         self.sig = sig
 
     def _toVerilog(self):
-        return "posedge %s" % self.sig._name
+        return f"posedge {self.sig._name}"
 
     def _toVHDL(self):
-        return "rising_edge(%s)" % self.sig._name
+        return f"rising_edge({self.sig._name})"
 
     def __repr__(self):
-        return '_PosedgeWaiterList({})'.format(self.sig._name)
+        return f'_PosedgeWaiterList({self.sig._name})'
 
 
 class _NegedgeWaiterList(_WaiterList):
@@ -79,13 +80,13 @@ class _NegedgeWaiterList(_WaiterList):
         self.sig = sig
 
     def _toVerilog(self):
-        return "negedge %s" % self.sig._name
+        return f"negedge {self.sig._name}"
 
     def _toVHDL(self):
-        return "falling_edge(%s)" % self.sig._name
+        return f"falling_edge({self.sig._name})"
 
     def __repr__(self):
-        return '_NegedgeWaiterList({})'.format(self.sig._name)
+        return f'_NegedgeWaiterList({self.sig._name})'
 
 
 def posedge(sig):
@@ -104,7 +105,7 @@ def Signal(val=None, delay=None):
     """ Return a new _Signal (default or delay 0) or DelayedSignal """
     if delay is not None:
         if delay < 0:
-            raise TypeError("Signal: delay should be >= 0")
+            raise TypeError(f"Signal: delay should be >= 0")
         return _DelayedSignal(val, delay)
     else:
         return _Signal(val)
@@ -146,13 +147,34 @@ class _Signal(object):
         self._numeric = True
         self._printVcd = self._printVcdStr
         if isinstance(val, bool):
-            self._type = bool
-            self._setNextVal = self._setNextBool
+            # we will replace this under the covers by a bit() object
+            # replace!
+            # print(f'Signal: replacing bool by bit({val})')
+            self._init = bit(val)
+            self._val = bit(val)
+            self._next = bit(val)
+            self._type = bit
+            self._setNextVal = self._setNextBit
+            self._printVcd = self._printVcdBit
+            self._nrbits = 1
+        elif isinstance(val, bit):
+            self._type = bit
+            self._setNextVal = self._setNextBit
             self._printVcd = self._printVcdBit
             self._nrbits = 1
         elif isinstance(val, int):
-            self._type = (int,)
-            self._setNextVal = self._setNextInt
+            # if val in [0, 1]:
+            #     # print(f'Signal: replacing int 0 | 1 by bit({val})')
+            #     self._init = bit(val)
+            #     self._val = bit(val)
+            #     self._next = bit(val)
+            #     self._type = bit
+            #     self._setNextVal = self._setNextBit
+            #     self._printVcd = self._printVcdBit
+            #     self._nrbits = 1
+            # else:
+                self._type = int
+                self._setNextVal = self._setNextInt
         elif isinstance(val, intbv):
             self._type = intbv
             self._min = val._min
@@ -264,7 +286,7 @@ class _Signal(object):
     @driven.setter
     def driven(self, val):
         if not val in ("reg", "wire", True):
-            raise ValueError('Expected value "reg", "wire", or True, got "%s"' % val)
+            raise ValueError(f'Expected value "reg", "wire", or True, got "{val}"')
         self._driven = val
 
     # support for the 'read' attribute
@@ -275,7 +297,7 @@ class _Signal(object):
     @read.setter
     def read(self, val):
         if not val in (True,):
-            raise ValueError('Expected value True, got "%s"' % val)
+            raise ValueError(f'Expected value True, got "{val}"')
         self._markRead()
 
     def _markRead(self):
@@ -286,60 +308,58 @@ class _Signal(object):
         self._used = True
 
     # set next methods
-    def _setNextBool(self, val):
-        # if isinstance(val, intbv):
-        #     val = val._val
+    def _setNextBit(self, val):
         # only accept boolean values
         if not val in [0, 1, True, False]:
-            raise ValueError("Expected boolean value, got %s (%s)" % (repr(val), type(val)))
+            raise ValueError(f"Expected boolean value, got {repr(val)} ({type(val)})")
         self._next = val
 
     def _setNextInt(self, val):
         if isinstance(val, intbv):
             val = val._val
-        elif not isinstance(val, (int, intbv)):
-            raise TypeError("Expected int or intbv, got %s" % type(val))
+        elif not isinstance(val, (int, intbv, bit)):
+            raise TypeError(f"Expected int or intbv, got {type(val)}")
         self._next = val
 
     def _setNextIntbv(self, val):
         if isinstance(val, intbv):
             val = val._val
         elif not isinstance(val, int):
-            raise TypeError("Expected int or intbv, got %s" % type(val))
+            raise TypeError(f"Expected int or intbv,  got {type(val)}")
         self._next._val = val
         self._next._handleBounds()
 
     def _setNextNonmutable(self, val):
         if not isinstance(val, self._type):
-            raise TypeError("Expected %s, got %s" % (self._type, type(val)))
+            raise TypeError(f"Expected {self._type}, got {type(val)}")
         self._next = val
 
     def _setNextMutable(self, val):
         if not isinstance(val, self._type):
-            raise TypeError("Expected %s, got %s" % (self._type, type(val)))
+            raise TypeError(f"Expected {self._type}, got {type(val)}")
         self._next = deepcopy(val)
 
     # vcd print methods
     def _printVcdStr(self):
-        print("s%s %s" % (str(self._val), self._code), file=sim._tf)
+        print(f"s{str(self._val)} {self._code}", file=sim._tf)
 
     def _printVcdHex(self):
         if self._val is None:
-            print("sz %s" % self._code, file=sim._tf)
+            print(f"sz {self._code}", file=sim._tf)
         else:
-            print("s%s %s" % (hex(self._val), self._code), file=sim._tf)
+            print(f"s{hex(self._val)} {self._code}", file=sim._tf)
 
     def _printVcdBit(self):
         if self._val is None:
-            print("z%s" % self._code, file=sim._tf)
+            print(f"z{self._code}" % self._code, file=sim._tf)
         else:
-            print("%d%s" % (self._val, self._code), file=sim._tf)
+            print(f"{self._val}{self._code}" % (self._val, self._code), file=sim._tf)
 
     def _printVcdVec(self):
         if self._val is None:
-            print("b%s %s" % ('z' * self._nrbits, self._code), file=sim._tf)
+            print(f"b{'z' * self._nrbits} {self._code}", file=sim._tf)
         else:
-            print("b%s %s" % (bin(self._val, self._nrbits), self._code), file=sim._tf)
+            print(f"b{bin(self._val, self._nrbits)} {self._code}", file=sim._tf)
 
     ### use call interface for shadow signals ###
     def __call__(self, left, right=None):
@@ -543,9 +563,9 @@ class _Signal(object):
 
     def __repr__(self):
         if self._name:
-            return '{} = Signal({})'.format(self._name, repr(self._val))
+            return f'{self._name} = Signal({repr(self._val)})'
         else:
-            return "Signal(" + repr(self._val) + ")"
+            return f"Signal({repr(self._val)})"
 
     def _toVerilog(self):
         return self._name
@@ -575,10 +595,10 @@ class _Signal(object):
         self._waiter = _SignalWaiter(genFunc())
 
         def toVHDL():
-            return "%s <= %s;" % (self._name, sig._name)
+            return f"{self._name} <= {sig._name};"
 
         def toVerilog():
-            return "assign %s = %s;" % (self._name, sig._name)
+            return f"assign {self._name} = {sig._name};"
 
         self.toVHDL = toVHDL
         self.toVerilog = toVerilog
@@ -586,8 +606,7 @@ class _Signal(object):
 
 class _DelayedSignal(_Signal):
 
-    __slots__ = ('_nextZ', '_delay', '_timeStamp',
-                 )
+    __slots__ = ('_nextZ', '_delay', '_timeStamp',)
 
     def __init__(self, val=None, delay=1):
         """ Construct a new DelayedSignal.
@@ -656,7 +675,7 @@ class Constant(_Signal):
 
     # override some essentials
     def __repr__(self):
-        return "Constant(" + repr(self._val) + ")"
+        return f"Constant({repr(self._val)})"
 
     # there is support for the 'next' attribute
     @property

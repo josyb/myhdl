@@ -27,6 +27,7 @@ from copy import deepcopy
 from myhdl._Signal import _Signal
 from myhdl._Waiter import _SignalWaiter, _SignalTupleWaiter
 from myhdl._intbv import intbv
+from myhdl._bit import bit
 from myhdl._simulator import _siglist
 from myhdl._bin import bin
 
@@ -69,9 +70,9 @@ class _SliceSignal(_ShadowSignal):
 
     def __repr__(self):
         if self._right is None:
-            return repr(self._sig) + '({})'.format(self._left)
+            return repr(self._sig) + f'({self._left})'
         else:
-            return repr(self._sig) + '({}, {})'.format(self._left, self._right)
+            return repr(self._sig) + f'({self._left}, {self._right})'
 
     def _genfuncIndex(self):
         sig, index = self._sig, self._left
@@ -107,15 +108,15 @@ class _SliceSignal(_ShadowSignal):
             pass
 
         if self._right is None:
-            if hdl == 'Verilog':
-                self._name = "%s[%s]" % (self._sig._name, self._left)
+            if hdl == 'Verilog' or hdl == 'SystemVerilog':
+                self._name = f"{self._sig._name}[{self._left}]"
             else:
-                self._name = "%s(%s)" % (self._sig._name, self._left)
+                self._name = f"{self._sig._name}({self._left})"
         else:
             if hdl == 'Verilog':
-                self._name = "%s[%s-1:%s]" % (self._sig._name, self._left, self._right)
+                self._name = f"{self._sig._name}[{self._left} - 1:{self._right}]"
             else:
-                self._name = "%s(%s-1 downto %s)" % (self._sig._name, self._left, self._right)
+                self._name = f"{self._sig._name}({self._left} - 1 downto {self._right})"
         # we may have 'shadowed' as well (and further down ...)
         if self._slicesigs:
             for sl in self._slicesigs:
@@ -131,15 +132,15 @@ class _SliceSignal(_ShadowSignal):
 
     def toVerilog(self):
         if self._right is None:
-            return "assign %s = %s[%s];" % (self._name, self._sig._name, self._left)
+            return f"assign {self._name} = {self._sig._name}[{self._left}];"
         else:
-            return "assign %s = %s[%s-1:%s];" % (self._name, self._sig._name, self._left, self._right)
+            return f"assign {self._name} = {self._sig._name}[{self._left} - 1:{self._right}];"
 
     def toVHDL(self):
         if self._right is None:
-            return "%s <= %s(%s);" % (self._name, self._sig._name, self._left)
+            return f"assign {self._name} = {self._sig._name}({self._left});"
         else:
-            return "%s <= %s(%s-1 downto %s);" % (self._name, self._sig._name, self._left, self._right)
+            return f"assign {self._name} = {self._sig._name}({self._left} - 1 downto {self._right});"
 
 
 class ConcatSignal(_ShadowSignal):
@@ -154,25 +155,23 @@ class ConcatSignal(_ShadowSignal):
         nrbits = 0
         val = 0
         for a in args:
-            if isinstance(a, intbv):
+            if isinstance(a, (bit, intbv)):
                 w = a._nrbits
                 v = a._val
             elif isinstance(a, _Signal):
                 sigargs.append(a)
                 w = a._nrbits
-                if isinstance(a._val, intbv):
-                    v = a._val._val
-                else:
-                    v = a._val
+                v = a._val._val  # both intbv or bit
             elif isinstance(a, bool):
                 w = 1
                 v = a
             elif isinstance(a, str):
+                # allow underscores in binary string
+                a = a.replace('_', '')
                 w = len(a)
                 v = int(a, 2)
             else:
-                raise TypeError("ConcatSignal: inappropriate argument type: %s"
-                                % type(a))
+                raise TypeError(f"ConcatSignal: inappropriate argument type: {type(a)}")
             nrbits += w
             val = val << w | v & (1 << w) - 1
         self._initval = val
@@ -190,7 +189,7 @@ class ConcatSignal(_ShadowSignal):
         while 1:
             hi = nrbits
             for a in args:
-                if isinstance(a, bool):
+                if isinstance(a, (bool, bit)):
                     w = 1
                 else:
                     w = len(a)
@@ -198,9 +197,10 @@ class ConcatSignal(_ShadowSignal):
                 # note: 'a in sigargs' is equivalence check, not identity
                 if isinstance(a, _Signal):
                     if isinstance(a._val, intbv):
-                        newval[hi:lo] = a[w:]
+                        newval[hi:lo] = a[w:]  # force unsigned!
                     else:
-                        newval[hi:lo] = a
+                        # bit!
+                        newval[lo] = a
                 hi = lo
             set_next(self, newval)
             yield sigargs
@@ -220,7 +220,7 @@ class ConcatSignal(_ShadowSignal):
         ini = intbv(self._initval)[self._nrbits:]
         hi = self._nrbits
         for a in self._args:
-            if isinstance(a, bool):
+            if isinstance(a, (bool, bit)):
                 w = 1
             else:
                 w = len(a)
@@ -241,13 +241,9 @@ class ConcatSignal(_ShadowSignal):
                 from myhdl import ToVHDLWarning
 
                 if w == 1:
-                    warnings.warn(
-                        "%s: %s[%s]" % (_error.UndrivenSignal, self._name, lo),
-                        category=ToVHDLWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {self._name}[{lo}]", category=ToVHDLWarning)
                 else:
-                    warnings.warn(
-                        "%s: %s[%s:%s]" % (_error.UndrivenSignal, self._name, hi, lo),
-                        category=ToVHDLWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {self._name}[{hi}:{lo}]", category=ToVHDLWarning)
 
             if w == 1:
                 if isinstance(a, _Signal) and a._name is not None:
@@ -258,20 +254,22 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool:  # isinstance(a._type , bool): <- doesn't work
-                        lines.append("%s(%s) <= %s;" % (self._name, lo, a._name))
+                    if a._type is bit:  # isinstance(a._type , bool): <- doesn't work
+                        lines.append(f"{self._name}({lo}) <= {a._name};")
                     else:
-                        lines.append("%s(%s) <= %s(0);" % (self._name, lo, a._name))
+                        lines.append(f"{self._name}({lo}) <= {a._name}(0);")
+
                 else:
-                    lines.append("%s(%s) <= '%s';" % (self._name, lo, bin(ini[lo])))
+                    # ToDo replace binary strings
+                    lines.append(f"{self._name}({lo}) <= '{bin(ini[lo])}';")
             else:
                 if isinstance(a, _Signal) and a._name is not None:
                     # Check that a._name is not None as None should not be
                     # written into the converted code
-                    lines.append("%s(%s-1 downto %s) <= %s;" % (self._name, hi, lo, a._name))
+                    lines.append(f"{self._name}({hi} - 1 downto {lo}) <= {a._name};")
                 else:
-                    lines.append('%s(%s-1 downto %s) <= "%s";' %
-                                 (self._name, hi, lo, bin(ini[hi:lo], w)))
+                    # ToDo replace binary strings
+                    lines.append(f"{self._name}({hi} - 1 downto {lo}) <= {bin(ini[hi:lo], w)};")
             hi = lo
         return '    ' + "\n    ".join(lines) + '\n'
 
@@ -301,13 +299,9 @@ class ConcatSignal(_ShadowSignal):
                 from myhdl import ToVerilogWarning
 
                 if w == 1:
-                    warnings.warn(
-                        "%s: %s[%s]" % (_error.UndrivenSignal, self._name, lo),
-                        category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {self._name}[{lo}]", category=ToVerilogWarning)
                 else:
-                    warnings.warn(
-                        "%s: %s[%s:%s]" % (_error.UndrivenSignal, self._name, hi, lo),
-                        category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {self._name}[{hi}:{lo}]", category=ToVerilogWarning)
 
             if w == 1:
                 if isinstance(a, _Signal) and a._name is not None:
@@ -318,20 +312,19 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool:
-                        lines.append("assign %s[%s] = %s;" % (self._name, lo, a._name))
+                    if a._type == bit:
+                        lines.append(f"assign {self._name}[{lo}] = {a._name};")
                     else:
-                        lines.append("assign %s[%s] = %s[0];" % (self._name, lo, a._name))
+                        lines.append(f"assign {self._name}[{lo}] = {a._name}[0];")
                 else:
-                    lines.append("assign %s[%s] = 'b%s;" % (self._name, lo, bin(ini[lo])))
+                    lines.append(f"assign {self._name}[{lo}] = 'b{bin(ini[lo])};")
             else:
                 if isinstance(a, _Signal) and a._name is not None:
                     # Check that a._name is not None as None should not be
                     # written into the converted code
-                    lines.append("assign %s[%s-1:%s] = %s;" % (self._name, hi, lo, a._name))
+                    lines.append(f"assign {self._name}[{hi} - 1:{lo}] = {a._name};")
                 else:
-                    lines.append("assign %s[%s-1:%s] = 'b%s;" %
-                                 (self._name, hi, lo, bin(ini[hi:lo], w)))
+                    lines.append(f"assign {self._name}[{hi} - 1:{lo}] = 'b{bin(ini[hi:lo], w)};")
             hi = lo
         return "\n".join(lines)
 
@@ -396,14 +389,14 @@ class _TristateSignal(_ShadowSignal):
         lines = []
         for d in self._drivers:
             if d._driven:
-                lines.append("assign %s = %s;" % (self._name, d._name))
+                lines.append("assign {} = {};" % (self._name, d._name))
         return "\n".join(lines)
 
     def toVHDL(self):
         lines = []
         for d in self._drivers:
             if d._driven:
-                lines.append("%s <= %s;" % (self._name, d._name))
+                lines.append("{} <= {};" % (self._name, d._name))
         return "\n".join(lines)
 
 

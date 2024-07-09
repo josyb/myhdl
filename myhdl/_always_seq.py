@@ -25,6 +25,7 @@ from myhdl._util import _isGenFunc
 from myhdl._Signal import _Signal, _WaiterList, _isListOfSigs
 from myhdl._always import _Always, _get_sigdict
 from myhdl._instance import _getCallInfo
+from myhdl._bit import bit
 
 # evacuate this later
 AlwaysSeqError = AlwaysError
@@ -50,8 +51,8 @@ class ResetSignal(_Signal):
         This is to be used in conjunction with the always_seq decorator,
         as the reset argument.
         """
-        _Signal.__init__(self, bool(val))
-        self.active = bool(active)
+        _Signal.__init__(self, bit(val))
+        self.active = bit(active)
         self.isasync = isasync
 
 

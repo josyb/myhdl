@@ -23,6 +23,7 @@
 
 """
 from myhdl._intbv import intbv
+from myhdl._bit import bit
 from myhdl._Signal import _Signal
 
 
@@ -31,6 +32,9 @@ def concat(base, *args):
     if isinstance(base, intbv):
         basewidth = base._nrbits
         val = base._val
+    elif isinstance(base, bit):
+        basewidth = 1
+        val = base
     elif isinstance(base, int):
         if isinstance(base, bool):
             basewidth = 1
@@ -39,22 +43,26 @@ def concat(base, *args):
         val = base
     elif isinstance(base, _Signal):
         basewidth = base._nrbits
-        if isinstance(base._val, intbv):
+        if isinstance(base._val, (bit, intbv)):
             val = base._val._val
         else:
             val = base._val
     elif isinstance(base, str):
+        # allow underscores in binary string
+        base = base.replace('_', '')
         basewidth = len(base)
         val = int(base, 2)
     else:
-        raise TypeError("concat: inappropriate first argument type: %s"
-                        % type(base))
+        raise TypeError(f"concat: inappropriate first argument type: {type(base)}")
 
     width = 0
     for i, arg in enumerate(args):
         if isinstance(arg, intbv):
             w = arg._nrbits
             v = arg._val
+        elif isinstance(arg, bit):
+            w = 1
+            v = arg
         elif isinstance(arg, _Signal):
             w = arg._nrbits
             if isinstance(arg._val, intbv):
@@ -65,13 +73,14 @@ def concat(base, *args):
             w = 1
             v = arg
         elif isinstance(arg, str):
+            # allow underscores in binary string
+            arg = arg.replace('_', '')
             w = len(arg)
             v = int(arg, 2)
         else:
-            raise TypeError("concat: inappropriate argument type: %s"
-                            % type(arg))
+            raise TypeError(f"concat: inappropriate argument type: {type(arg)}")
         if not w:
-            raise TypeError("concat: arg on pos %d should have length" % (i + 1))
+            raise TypeError(f"concat: arg on pos {i +1} should have a defined length")
         width += w
         val = val << w | v & (1 << w) - 1
 

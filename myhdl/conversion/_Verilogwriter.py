@@ -31,6 +31,7 @@ from myhdl._extractHierarchy import (_isMem, _getMemInfo, _UserVerilogCode)
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
+from myhdl._bit import bit
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
 from myhdl._simulator import now
@@ -301,7 +302,7 @@ class VerilogWriter(object):
 
         print(file=self.file)
         for s in constwires:
-            if s._type in (bool, intbv):
+            if s._type in (bit, intbv):
                 c = int(s.val)
             else:
                 raise ToVerilogError(f"Unexpected type for constant signal: {s._name}")
@@ -387,7 +388,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
     def writeDeclaration(self, obj, name, direction):
         if direction:
             direction = direction + ' '
-        if type(obj) is bool:
+        if type(obj) is bit:
             self.write("{}{}".format(direction, name))
         elif isinstance(obj, int):
             if direction == "input ":
@@ -708,14 +709,14 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
-        elif isinstance(node.value, bool):
+        elif isinstance(node.value, (bit, bool)):
             self.write(nameconstant_map[node.obj])
         elif isinstance(node.value, int):
             # Num
             if self.context == _context.PRINT:
                 self.write('"{}"' % node.value)
             else:
-                if hasattr(node, 'dst') and isinstance(node.dst._val, bool):
+                if hasattr(node, 'dst') and isinstance(node.dst._val, (bit, bool)):
                     self.write(nameconstant_map[bool(node.obj)])
                 else:
                     self.write(self.IntRepr(node.value))
@@ -1025,7 +1026,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             s = n
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
-            if isinstance(obj, bool):
+            if isinstance(obj, (bit, bool)):
                 s = "1'b{}".format(int(obj))
             elif isinstance(obj, int):
                 s = self.IntRepr(obj)
@@ -1081,7 +1082,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     self.write('$write(')
                     self.visit(a)
                     self.write(');')
-                elif (s.conv is str) and isinstance(obj, bool):
+                elif (s.conv is str) and isinstance(obj, (bit, bool)):
                     self.write('if (')
                     self.visit(a)
                     self.write(')')
@@ -1408,7 +1409,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         else:
             assert isinstance(reg, intbv)
             tipe = intbv
-        if tipe is bool:
+        if tipe is bool or tipe is bit:
             v = '1' if init else '0'
         elif tipe is intbv:
             init = int(init)  # int representation
@@ -1545,7 +1546,7 @@ def _writeTestBench(f, intf, trace=False):
 
 
 def _getRangeString(s):
-    if s._type is bool:
+    if s._type is bool or s._type is bit:
         return ''
     elif s._nrbits is not None:
         nrbits = s._nrbits

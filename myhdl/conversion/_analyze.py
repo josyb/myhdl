@@ -37,7 +37,6 @@ import pprint
 pp = pprint.PrettyPrinter(indent=4)
 
 import myhdl
-from myhdl import *
 from myhdl import ConversionError
 from myhdl._always_comb import _AlwaysComb
 from myhdl._always_seq import _AlwaysSeq
@@ -46,11 +45,18 @@ from myhdl.conversion._misc import (_error, _access, _kind,
                                     _ConversionMixin, _Label, _genUniqueSuffix,
                                     _get_argnames)
 from myhdl._extractHierarchy import _isMem, _getMemInfo, _UserCode
-from myhdl._Signal import _Signal, _WaiterList
+from myhdl._Signal import _Signal, _WaiterList, Constant
 from myhdl._ShadowSignal import _ShadowSignal, _SliceSignal, _TristateDriver
 from myhdl._util import _isTupleOfInts
 from myhdl._util import _makeAST
 from myhdl._resolverefs import _AttrRefTransformer
+from myhdl._intbv import intbv
+from myhdl._modbv import modbv
+from myhdl._bit import bit
+from myhdl._enum import EnumItemType, EnumType
+from myhdl._concat import concat
+from myhdl._delay import delay
+from myhdl._misc import downrange
 
 myhdlObjects = myhdl.__dict__.values()
 builtinObjects = builtins.__dict__.values()
@@ -640,19 +646,24 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.visit(kw)
             self.access = _access.INPUT
             argsAreInputs = True
-            if type(f) is type and issubclass(f, intbv):
+            if type(f) is type and issubclass(f, (intbv, bit)):
                 node.obj = self.getVal(node)
+
+            elif f is bool:
+                node.obj = bool()
+
+            elif f is int:
+                node.obj = int(-1)
+
             elif f is concat:
                 node.obj = self.getVal(node)
+
             elif f is len:
                 self.access = _access.UNKNOWN
                 node.obj = int(0)  # XXX
-            elif f is bool:
-                node.obj = bool()
-            elif f is int:
-                node.obj = int(-1)
     # elif f in (posedge , negedge):
     # #             node.obj = _EdgeDetector()
+
             elif f is ord:
                 node.obj = int(-1)
                 if isinstance(node.args[0], ast.Constant) and \
@@ -662,8 +673,10 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 else:
                     self.raiseError(node, _error.NotSupported,
                                     "ord: expect string argument with length 1")
+
             elif f is delay:
                 node.obj = delay(0)
+
             elif f == intbv.signed:
                 obj = node.func.value.obj
                 if len(obj):
@@ -671,10 +684,13 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                     node.obj = intbv(-1, min=-M, max=M)
                 else:
                     node.obj = intbv(-1)
+
             elif f in myhdlObjects:
                 pass
+
             elif f in builtinObjects:
                 pass
+
             elif type(f) is FunctionType:
                 argsAreInputs = False
                 tree = _makeAST(f)
@@ -711,11 +727,14 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                         self.access = _access.INPUT
                     if n in tree.inputs:
                         self.visit(arg)
+
             elif type(f) is MethodType:
                 self.raiseError(node, _error.NotSupported, "method call: '%s'" % f.__name__)
+
             else:
                 debug_info = [e for e in ast.iter_fields(node.func)]
                 raise AssertionError("Unexpected callable %s" % str(debug_info))
+
             if argsAreInputs:
                 for arg in node.args:
                     self.visit(arg)
@@ -945,7 +964,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 # print "not a signal: %s" % n
                 pass
             else:
-                if sig._type is bool:
+                if sig._type is bool or sig._type is bit:
                     node.edge = sig.posedge
             if self.access == _access.INPUT:
                 self.tree.inputs.add(n)
@@ -1105,7 +1124,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         elif isinstance(node.value.obj, _Rom):
             node.obj = int(-1)
         elif isinstance(node.value.obj, intbv):
-            node.obj = bool()
+            node.obj = bit()
         else:
             node.obj = bool()  # XXX default
 

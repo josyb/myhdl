@@ -21,6 +21,7 @@
 import builtins
 
 from myhdl._bin import bin
+from myhdl._bit import bit
 
 
 class intbv(object):
@@ -53,8 +54,11 @@ class intbv(object):
             self._min = val._min
             self._max = val._max
             _nrbits = val._nrbits
+        # elif isinstance(val, bit):
+        #     _nrbits = 1
+        #     self._val = val._val
         else:
-            raise TypeError(f"intbv constructor arg {val} should be int, intbv or string")
+            raise TypeError(f"intbv constructor arg {repr(val)} should be int, intbv or string")
         self._nrbits = _nrbits
         self._handleBounds()
 
@@ -180,7 +184,7 @@ class intbv(object):
 
         else:
             i = int(key)
-            res = bool((self._val >> i) & 0x1)
+            res = bit((self._val >> i) & 0x1)
             return res
 
     def __setitem__(self, key, val):

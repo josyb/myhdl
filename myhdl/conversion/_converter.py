@@ -49,6 +49,7 @@ from myhdl._extractHierarchy import  _userCodeMap
 from myhdl._getHierarchy import _getHierarchy
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
+from myhdl._bit import bit
 from myhdl._Signal import Constant, _Signal, _WaiterList, posedge, negedge, Constant
 from myhdl._simulator import now
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _Ram, _Rom)

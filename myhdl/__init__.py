@@ -146,6 +146,7 @@ from ._bin import bin
 from ._concat import concat
 from ._intbv import intbv
 from ._modbv import modbv
+from ._bit import bit
 from ._join import join
 from ._Signal import posedge, negedge, Signal, SignalType, Constant
 from ._ShadowSignal import ConcatSignal
@@ -167,6 +168,7 @@ from ._openport import OpenPort
 from ._tristate import Tristate
 
 __all__ = ["bin",
+           "bit",
            "concat",
            "intbv",
            "modbv",

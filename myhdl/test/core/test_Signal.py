@@ -26,7 +26,7 @@ from random import randrange
 
 import pytest
 
-from myhdl import Signal, intbv
+from myhdl import Signal, intbv, bit
 from myhdl._simulator import _siglist
 
 random.seed(1)  # random, but deterministic
@@ -44,15 +44,15 @@ class TestSig:
         self.nexts += [ [4, 5, 6], (4, 5, 5), {3:3, 4:4}, (1, (0, 1), [2, 3])  ]
         self.vals += [bool(0), bool(1), bool(0), bool(1), bool(0), bool(1)]
         self.nexts += [bool(0), bool(1), bool(1), bool(0), 1      , 0      ]
-        self.sigs = [Signal(i) for i in self.vals]
+        self.sigs = [Signal(v) for v in self.vals]
 
         self.incompatibleVals = [ [3, 4], (1, 2), 3 , intbv(0), [1]      ]
         self.incompatibleNexts = [ 4     , 3     , "3", (0)     , intbv(1) ]
-        self.incompatibleSigs = [Signal(i) for i in self.incompatibleVals]
+        self.incompatibleSigs = [Signal(v) for v in self.incompatibleVals]
 
-        self.eventWaiters = [object() for i in range(3)]
-        self.posedgeWaiters = [object() for i in range(5)]
-        self.negedgeWaiters = [object() for i in range(7)]
+        self.eventWaiters = [object() for __ in range(3)]
+        self.posedgeWaiters = [object() for __ in range(5)]
+        self.negedgeWaiters = [object() for __ in range(7)]
 
     def testValAttrReadOnly(self):
         """ val attribute should not be writable"""
@@ -101,17 +101,23 @@ class TestSig:
     def testNextType(self):
         """ sig.next = n should fail on access if type(n) incompatible """
         i = 0
-        for s in (self.sigs + self.incompatibleSigs):
-            for n in (self.vals + self.incompatibleVals):
+        sigs = self.sigs + self.incompatibleSigs
+        vals = self.vals + self.incompatibleVals
+        print(len(sigs), sigs)
+        print(len(vals), vals)
+        for j, s in enumerate(sigs):
+            for k, n in enumerate(vals):
                 assert isinstance(s.val, s._type)
-                if isinstance(s.val, (int, intbv)):
-                    t = (int, intbv)
+                if isinstance(s.val, (bit, int, intbv)):
+                    t = (bit, int, intbv)
                 else:
                     t = s._type
                 if not isinstance(n, t):
+                    # print(f"{repr(s):20}, {s._type}, {repr(s.val):20}; {type(n)} - {repr(n):20}, {t}")
                     i += 1
                     with pytest.raises((TypeError, ValueError)):
-                        oldval = s.val
+                        # oldval = s.val
+                        print(f" {j}:{k} -> {repr(s)}.next = {repr(n)} # {s._type} <> {type(n)}")
                         s.next = n
 
         assert i >= len(self.incompatibleSigs), "Nothing tested %s" % i
@@ -474,9 +480,9 @@ class TestSignalIntBvIndexing:
                 res = sbv[i]
                 resi = sbvi[i]
                 assert res == ref
-                assert type(res) == bool
+                assert type(res) == bit
                 assert resi == ref ^ 1
-                assert type(resi) == bool
+                assert type(resi) == bit
 
     def testGetSlice(self):
         self.seqsSetup()
