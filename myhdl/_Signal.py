@@ -351,9 +351,9 @@ class _Signal(object):
 
     def _printVcdBit(self):
         if self._val is None:
-            print(f"z{self._code}" % self._code, file=sim._tf)
+            print(f"z{self._code}", file=sim._tf)
         else:
-            print(f"{self._val}{self._code}" % (self._val, self._code), file=sim._tf)
+            print(f"{self._val}{self._code}", file=sim._tf)
 
     def _printVcdVec(self):
         if self._val is None:
@@ -675,7 +675,10 @@ class Constant(_Signal):
 
     # override some essentials
     def __repr__(self):
-        return f"Constant({repr(self._val)})"
+        if self._name:
+            return f"{self._name} = Constant({repr(self._val)})"
+        else:
+            return f"Constant({repr(self._val)})"
 
     # there is support for the 'next' attribute
     @property

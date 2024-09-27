@@ -359,11 +359,16 @@ def _writeSigDecls(f, intf, siglist, memlist):
         if not m._used:
             continue
         # infer attributes for the case of named signals in a list
-        for i, s in enumerate(m.mem):
+        for s in m.mem:
             if not m._driven and s._driven:
                 m._driven = s._driven
+                # once suffices
+                break
             if not m._read and s._read:
                 m._read = s._read
+                # once suffices
+                break
+
         if not m._driven and not m._read:
             continue
         r = _getRangeString(m.elObj)

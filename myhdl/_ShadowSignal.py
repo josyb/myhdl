@@ -138,9 +138,9 @@ class _SliceSignal(_ShadowSignal):
 
     def toVHDL(self):
         if self._right is None:
-            return f"assign {self._name} = {self._sig._name}({self._left});"
+            return f"{self._name} <= {self._sig._name}({self._left});"
         else:
-            return f"assign {self._name} = {self._sig._name}({self._left} - 1 downto {self._right});"
+            return f"{self._name} <= {self._sig._name}({self._left} - 1 downto {self._right});"
 
 
 class ConcatSignal(_ShadowSignal):
@@ -389,14 +389,14 @@ class _TristateSignal(_ShadowSignal):
         lines = []
         for d in self._drivers:
             if d._driven:
-                lines.append("assign {} = {};" % (self._name, d._name))
+                lines.append(f"assign {self._name} = {d._name};")
         return "\n".join(lines)
 
     def toVHDL(self):
         lines = []
         for d in self._drivers:
             if d._driven:
-                lines.append("{} <= {};" % (self._name, d._name))
+                lines.append(f"{self._name} <= {d._name};")
         return "\n".join(lines)
 
 
