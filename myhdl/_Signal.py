@@ -33,7 +33,6 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
-from myhdl._bit import bit
 from myhdl._bin import bin
 
 # from myhdl._enum import EnumItemType
@@ -147,34 +146,13 @@ class _Signal(object):
         self._numeric = True
         self._printVcd = self._printVcdStr
         if isinstance(val, bool):
-            # we will replace this under the covers by a bit() object
-            # replace!
-            # print(f'Signal: replacing bool by bit({val})')
-            self._init = bit(val)
-            self._val = bit(val)
-            self._next = bit(val)
-            self._type = bit
-            self._setNextVal = self._setNextBit
-            self._printVcd = self._printVcdBit
-            self._nrbits = 1
-        elif isinstance(val, bit):
-            self._type = bit
-            self._setNextVal = self._setNextBit
+            self._type = bool
+            self._setNextVal = self._setNextBool
             self._printVcd = self._printVcdBit
             self._nrbits = 1
         elif isinstance(val, int):
-            # if val in [0, 1]:
-            #     # print(f'Signal: replacing int 0 | 1 by bit({val})')
-            #     self._init = bit(val)
-            #     self._val = bit(val)
-            #     self._next = bit(val)
-            #     self._type = bit
-            #     self._setNextVal = self._setNextBit
-            #     self._printVcd = self._printVcdBit
-            #     self._nrbits = 1
-            # else:
-                self._type = int
-                self._setNextVal = self._setNextInt
+            self._type = (int,)
+            self._setNextVal = self._setNextInt
         elif isinstance(val, intbv):
             self._type = intbv
             self._min = val._min
@@ -308,16 +286,17 @@ class _Signal(object):
         self._used = True
 
     # set next methods
-    def _setNextBit(self, val):
-        # only accept boolean values
-        if not val in [0, 1, True, False]:
-            raise ValueError(f"Expected boolean value, got {repr(val)} ({type(val)})")
+    def _setNextBool(self, val):
+        if isinstance(val, intbv):
+            val = val._val
+        if not val in (0, 1):
+            raise ValueError("Expected boolean value, got %s (%s)" % (repr(val), type(val)))
         self._next = val
 
     def _setNextInt(self, val):
         if isinstance(val, intbv):
             val = val._val
-        elif not isinstance(val, (int, intbv, bit)):
+        elif not isinstance(val, (int, intbv)):
             raise TypeError(f"Expected int or intbv, got {type(val)}")
         self._next = val
 
@@ -353,7 +332,7 @@ class _Signal(object):
         if self._val is None:
             print(f"z{self._code}", file=sim._tf)
         else:
-            print(f"{self._val}{self._code}", file=sim._tf)
+            print(f"{self._val:d}{self._code}", file=sim._tf)
 
     def _printVcdVec(self):
         if self._val is None:

@@ -34,7 +34,7 @@ from types import GeneratorType
 from icecream import ic
 ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
-ic.disable()
+# ic.disable()
 
 from astpretty import pformat as astdump
 import pprint
@@ -49,7 +49,6 @@ from myhdl._extractHierarchy import  _userCodeMap
 from myhdl._getHierarchy import _getHierarchy
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
-from myhdl._bit import bit
 from myhdl._Signal import Constant, _Signal, _WaiterList, posedge, negedge, Constant
 from myhdl._simulator import now
 from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _Ram, _Rom)
@@ -70,6 +69,7 @@ def _checkArgs(arglist, usercode):
 
 
 def _flatten(hdl , *args):
+    ic(pp.pformat(args))
     arglist = []
     for arg in args:
         if isinstance(arg, _Block):
@@ -78,6 +78,7 @@ def _flatten(hdl , *args):
                 continue
             else:
                 arg = arg.subs
+
         if id(arg) in _userCodeMap['verilog']:
             arglist.append(_userCodeMap['verilog'][id(arg)])
         elif isinstance(arg, (list, tuple, set)):
@@ -85,6 +86,7 @@ def _flatten(hdl , *args):
                 arglist.extend(_flatten(hdl, item))
         else:
             arglist.append(arg)
+
     return arglist
 
 
@@ -140,6 +142,10 @@ class Converter(object):
         finally:
             _converting = 0
 
+        ic(h.top,  pp.pformat(h.top.subs))
+        # there should only be one block obj in a top level file
+        ic( pp.pformat(vars(h.top.subs[0])))
+        ic(pp.pformat(h.hierarchy[:]))
         # start the output file
         self.writer.openfile(self.name, self.directory)
 
@@ -147,6 +153,8 @@ class Converter(object):
         _genUniqueSuffix.reset()
 
         arglist = _flatten(self.writer.hdl, h.top)
+        ic(pp.pformat(arglist))
+
         _checkArgs(arglist, self.writer.usercode)
         genlist = _analyzeGens(arglist, h.absnames)
         siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
@@ -546,7 +554,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         ic(self.__class__.__name__, pp.pformat(vars(node)))
 
     def visit_Compare(self, node):
-        ic.enable()
+        # ic.enable()
         # ic.indent()
         ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         node.signed = False
@@ -566,7 +574,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
         #     right.sig = sig_signed(right.sig.size + 1)
         # node.sigOri = copy(node.sig)
         # ic.dedent()
-        ic.disable()
+        # ic.disable()
 
     def visit_Constant(self, node):
         # ic.indent()

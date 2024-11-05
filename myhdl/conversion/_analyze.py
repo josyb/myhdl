@@ -52,7 +52,6 @@ from myhdl._util import _makeAST
 from myhdl._resolverefs import _AttrRefTransformer
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
-from myhdl._bit import bit
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._concat import concat
 from myhdl._delay import delay
@@ -646,7 +645,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.visit(kw)
             self.access = _access.INPUT
             argsAreInputs = True
-            if type(f) is type and issubclass(f, (intbv, bit)):
+            if type(f) is type and issubclass(f, (intbv,)):
                 node.obj = self.getVal(node)
 
             elif f is bool:
@@ -742,10 +741,10 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Compare(self, node):
         # ic.indent()
-        ic.enable()
+        # ic.enable()
         ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
         assert len(node.ops) == 1, 'Cannot compare more than two values, split into two comparisons'
-        # node.obj = bool()
+        node.obj = bool()
         for n in [node.left] + node.comparators:
             self.visit(n)
         op, arg = node.ops[0], node.comparators[0]  # we expect a single comparison
@@ -757,7 +756,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             val = arg.obj
             if isinstance(val, bool):
                 val = int(val)  # cast bool to int first
-            if isinstance(val, (EnumItemType, int)):
+            elif isinstance(val, (EnumItemType, int)):
                 node.case = (node.left, val)
             # check whether it can be part of an edge check
             n = node.left.id
@@ -770,7 +769,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                     elif v == 1:
                         node.edge = sig.posedge
         # ic.dedent()
-        ic.disable()
+        # ic.disable()
 
     def visit_Constant(self, node):
         # ic.indent()
@@ -964,7 +963,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 # print "not a signal: %s" % n
                 pass
             else:
-                if sig._type is bool or sig._type is bit:
+                if sig._type is bool:
                     node.edge = sig.posedge
             if self.access == _access.INPUT:
                 self.tree.inputs.add(n)
@@ -1124,7 +1123,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         elif isinstance(node.value.obj, _Rom):
             node.obj = int(-1)
         elif isinstance(node.value.obj, intbv):
-            node.obj = bit()
+            node.obj = bool()
         else:
             node.obj = bool()  # XXX default
 

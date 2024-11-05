@@ -5,7 +5,6 @@ Created on 19 okt. 2023
 '''
 
 from myhdl._Signal import _Signal
-from myhdl._bit import bit
 
 
 class OpenPort(_Signal):
@@ -22,7 +21,7 @@ class OpenPort(_Signal):
         ''' :
             OpenPort() has no arguments
         '''
-        super(OpenPort, self).__init__(bit(0))
+        super(OpenPort, self).__init__(bool(0))
         self.__name = None
         self._read = True
 
@@ -57,7 +56,7 @@ class OpenPort(_Signal):
     def val(self):
         ''' an OpenPort object should not be read
             but it may feed another 'Open' object?
-            returning 0 satisfies both bit() and intbv() 
+            returning 0 satisfies both bool() and intbv() 
         '''
         return 0
 

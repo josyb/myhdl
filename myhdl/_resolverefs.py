@@ -63,10 +63,13 @@ class _AttrRefTransformer(ast.NodeTransformer):
                 return node
 
         attrobj = getattr(obj, node.attr)
-
         orig_name = node.value.id + '.' + node.attr
         if orig_name not in self.name_map:
-            base_name = node.value.id + '_' + node.attr
+            if node.value.id == 'self':
+                # discard 'self_' - less cluttered names
+                base_name = node.attr
+            else:
+                base_name = node.value.id + '_' + node.attr
             self.name_map[orig_name] = _suffixer(base_name, self.data.symdict)
         new_name = self.name_map[orig_name]
         self.data.symdict[new_name] = attrobj

@@ -279,7 +279,7 @@ class VerilogWriter(object):
                             [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
                         initial_assignments = (
                             'initial begin\n' + val_assignments + '\nend')
-                print(f"{k} {p}{r}{m.name} [0:{m.depth} - 1];", file=self.file)
+                print(f"    {k} {p}{r}{m.name} [0:{m.depth} - 1];", file=self.file)
             else:
                 # remember for SystemVerilog, later
                 # # can assume it is a localparam array

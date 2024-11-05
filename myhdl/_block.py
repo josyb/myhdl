@@ -131,9 +131,10 @@ class _bound_function_wrapper(object):
 
     def __call__(self, *args, **kwargs):
 
-        name = (
-            self.name_prefix + '_' + self.bound_func.__name__ +
-            str(self.calls))
+        if self.bound_func.__name__ is None:
+            name = self.name_prefix  + str(self.calls)
+        else:
+            name = self.name_prefix + '_' + self.bound_func.__name__ + str(self.calls)
 
         self.calls += 1
 
@@ -185,7 +186,6 @@ class block(object):
         return function_wrapper
 
     def __call__(self, *args, **kwargs):
-
         name = self.func.__name__ + str(self.calls)
         self.calls += 1
 
@@ -319,7 +319,6 @@ class _Block(object):
                 testbench should be created. Defaults to True.
             timescale(Optional[str]): Verilog only. Defaults to '1ns/10ps'
         """
-        # print(f'_Block.convert({hdl}, {kwargs})')
         from myhdl.conversion._converter import Converter
         self._clear()
         # converter = myhdl.conversion._converter._Converter(hdl, **kwargs)
