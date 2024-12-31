@@ -17,62 +17,30 @@
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-""" Run the unit tests for Signal """
-import random
-
-from myhdl import instance, instances
-
-random.seed(1)  # random, but deterministic
+""" Run cosimulation unit tests. """
 
 
-def A(n):
+import sys
 
-    @instance
-    def comb():
-        yield None
+sys.path.append("../../test")
+#sys.path.append("../../../example/manual")
 
-    return comb
+import test_const_1
 
+modules = (test_const_1 )
 
-def B(n):
+import unittest
 
-    @instance
-    def comb():
-        yield None
+tl = unittest.defaultTestLoader
+def suite():
+    alltests = unittest.TestSuite()
+    alltests.addTest(tl.loadTestsFromModule(test_const_1))
+    return alltests
 
-    return comb
-
-
-def C(n):
-    A_1 = A(1)
-    A_2 = A(2)
-    B_1 = B(1)
-    return A_1, A_2, B_1
+def main():
+    unittest.main(defaultTest='suite',
+                  testRunner=unittest.TextTestRunner(verbosity=2))
 
 
-g = 3
-
-
-class TestInstances:
-
-    def testInstances(self):
-
-        @instance
-        def D_1():
-            yield None
-
-        d = 1
-
-        A_1 = A(1)
-        a = [1, 2]
-        B_1 = B(1)
-        b = "string"
-        C_1 = C(1)
-        c = {}
-
-        i = instances()
-        # can't just construct an expected list;
-        # that would become part of the instances also!
-        assert len(i) == 4
-        for e in (D_1, A_1, B_1, C_1):
-            assert e in i
+if __name__ == '__main__':
+    main()

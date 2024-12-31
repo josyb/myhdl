@@ -20,10 +20,10 @@ localinstall:
 	python setup.py install --home=${HOME}
 
 docs:
-	tox -e docs html
+	tox -e docs -- html
 
 livedocs:
-	tox -e docs livehtml
+	tox -e docs -- livehtml
 
 dist:
 	rm -rf MANIFEST 

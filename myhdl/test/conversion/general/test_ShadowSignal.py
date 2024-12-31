@@ -12,6 +12,7 @@ def bench_SliceSignal():
 
     @instance
     def check():
+        ''' Running bench_SliceSignal '''
         for i in range(N):
             s.next = i
             yield delay(10)

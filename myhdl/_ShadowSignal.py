@@ -400,6 +400,9 @@ class _TristateSignal(_ShadowSignal):
                 lines.append(f"{self._name} <= {d._name};")
         return "\n".join(lines)
 
+    def __repr__(self):
+        return "_TristateSignal(" + repr(self._val) + ")"
+
 
 class _TristateDriver(_Signal):
 
@@ -422,3 +425,6 @@ class _TristateDriver(_Signal):
             self._next = self._sig._orival
             self._setNextVal(val)
         _siglist.append(self)
+
+    def __repr__(self):
+        return "_TristateDriver(" + repr(self._val) + ")"

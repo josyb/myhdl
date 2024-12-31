@@ -39,30 +39,24 @@ class _Hierarchy(object):
         top_inst = hierarchy[0]
         obj, subs = top_inst.obj, top_inst.subs
         names[id(obj)] = name
-        absnames[id(obj)] = name
+        absnames[id(obj)] = None # this avoids starting every process label with the name of the entity
         for inst in hierarchy:
             obj, subs = inst.obj, inst.subs
             inst.name = names[id(obj)]
             tn = absnames[id(obj)]
             for sn, so in subs:
-                # names[id(so)] = sn
-                # absnames[id(so)] = "%s_%s" % (tn, sn)
+                names[id(so)] = sn
+                # if sn is None:
+                #     absnames[id(so)] = "%s" % (tn,)
+                # else:
+                #     absnames[id(so)] = "%s_%s" % (tn, sn)
                 if sn is None:
-                    names[id(so)] = sn
-                    absnames[id(so)] = "%s" % (sn)
+                    absnames[id(so)] = tn
                 else:
-                    # remove 'rtl[0-9]+_'
-                    if re.search(r'rtl', sn, re.RegexFlag.I):
-                        csn, _, _ = sn.partition('_rtl')
+                    if tn is not None:
+                        absnames[id(so)] = '_'.join((tn, sn))
                     else:
-                        csn = sn
-                    names[id(so)] = csn
-                    if inst.level > 1 and tn != 'None':
-                        absnames[id(so)] = "%s_%s" % (tn, csn)
-                    else:
-                        absnames[id(so)] = "%s" % (csn)
-        # print (names)
-        # print(absnames)
+                        absnames[id(so)] = sn
 
 
 def _getHierarchy(name, modinst):
