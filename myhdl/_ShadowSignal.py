@@ -112,7 +112,7 @@ class _SliceSignal(_ShadowSignal):
             else:
                 self._name = f"{self._sig._name}({self._left})"
         else:
-            if hdl == 'Verilog':
+            if hdl == 'Verilog' or hdl == 'SystemVerilog':
                 self._name = f"{self._sig._name}[{self._left} - 1:{self._right}]"
             else:
                 self._name = f"{self._sig._name}({self._left} - 1 downto {self._right})"
@@ -255,7 +255,7 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool:  # isinstance(a._type , bool): <- doesn't work
+                    if a._type == bool: # isinstance(a._type , bool): <- doesn't work
                         lines.append(f"{self._name}({lo}) <= {a._name};")
                     else:
                         lines.append(f"{self._name}({lo}) <= {a._name}(0);")

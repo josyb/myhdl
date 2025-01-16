@@ -24,6 +24,13 @@ import sys
 import inspect
 import string
 
+from icecream import ic
+ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
+                   prefix='')
+# ic.disable()
+import pprint
+pp = pprint.PrettyPrinter(indent=4, width=120)
+
 # from myhdl import ExtractHierarchyError, ToVerilogError, ToVHDLError
 from myhdl import ToVerilogError, ToVHDLError
 # from myhdl._Signal import _Signal, _isListOfSigs
@@ -89,8 +96,8 @@ def _isMem(mem):
     return id(mem) in _memInfoMap
 
 
-_userCodeMap = {'verilog': {},
-                'vhdl': {}
+_userCodeMap = {'Verilog': {},
+                'VHDL': {}
                 }
 
 
@@ -104,20 +111,22 @@ class _UserCode(object):
         self.func = func
         self.funcname = funcname
         self.sourceline = sourceline
+        ic(pp.pformat(namespace))
 
     def __str__(self):
         try:
             code = self._interpolate()
         except:
-            type, value, tb = sys.exc_info()
+            exctype, value, __ = sys.exc_info()
             info = "in file %s, function %s starting on line %s:\n    " % \
                    (self.sourcefile, self.funcname, self.sourceline)
-            msg = "%s: %s" % (type, value)
+            msg = "%s: %s" % (exctype, value)
             self.raiseError(msg, info)
         code = "\n%s\n" % code
         return code
 
     def _scrub_namespace(self):
+        ic(pp.pformat(self.namespace))
         for nm, obj in self.namespace.items():
             if _isMem(obj):
                 memi = _getMemInfo(obj)
@@ -157,7 +166,7 @@ class _UserVhdlCodeDepr(_UserVhdlCode, _UserCodeDepr):
 class _UserVerilogInstance(_UserVerilogCode):
 
     def __str__(self):
-        args = inspect.getargspec(self.func)[0]
+        args = inspect.getfullargspec(self.func)[0]
         s = "%s %s(" % (self.funcname, self.code)
         sep = ''
         for arg in args:
@@ -173,7 +182,7 @@ class _UserVerilogInstance(_UserVerilogCode):
 class _UserVhdlInstance(_UserVhdlCode):
 
     def __str__(self):
-        args = inspect.getargspec(self.func)[0]
+        args = inspect.getfullargspec(self.func)[0]
         s = "%s: entity work.%s(MyHDL)\n" % (self.code, self.funcname)
         s += "    port map ("
         sep = ''
@@ -186,38 +195,37 @@ class _UserVhdlInstance(_UserVhdlCode):
         s += "\n    );\n\n"
         return s
 
-
-def _addUserCode(specs, arg, funcname, func, frame):
-    classMap = {
-        '__verilog__': _UserVerilogCodeDepr,
-        '__vhdl__': _UserVhdlCodeDepr,
-        'verilog_code': _UserVerilogCode,
-        'vhdl_code': _UserVhdlCode,
-        'verilog_instance': _UserVerilogInstance,
-        'vhdl_instance': _UserVhdlInstance,
-
-    }
-    namespace = frame.f_globals.copy()
-    namespace.update(frame.f_locals)
-    sourcefile = inspect.getsourcefile(frame)
-    sourceline = inspect.getsourcelines(frame)[1]
-    for hdl in _userCodeMap:
-        oldspec = "__%s__" % hdl
-        codespec = "%s_code" % hdl
-        instancespec = "%s_instance" % hdl
-        spec = None
-        # XXX add warning logic
-        if instancespec in specs:
-            spec = instancespec
-        elif codespec in specs:
-            spec = codespec
-        elif oldspec in specs:
-            spec = oldspec
-        if spec:
-            assert id(arg) not in _userCodeMap[hdl]
-            code = specs[spec]
-            _userCodeMap[hdl][id(arg)] = classMap[spec](
-                code, namespace, funcname, func, sourcefile, sourceline)
+# def _addUserCode(specs, arg, funcname, func, frame):
+#     classMap = {
+#         '__verilog__': _UserVerilogCodeDepr,
+#         '__vhdl__': _UserVhdlCodeDepr,
+#         'verilog_code': _UserVerilogCode,
+#         'vhdl_code': _UserVhdlCode,
+#         'verilog_instance': _UserVerilogInstance,
+#         'vhdl_instance': _UserVhdlInstance,
+#
+#     }
+#     namespace = frame.f_globals.copy()
+#     namespace.update(frame.f_locals)
+#     sourcefile = inspect.getsourcefile(frame)
+#     sourceline = inspect.getsourcelines(frame)[1]
+#     for hdl in _userCodeMap:
+#         oldspec = "__%s__" % hdl
+#         codespec = "%s_code" % hdl
+#         instancespec = "%s_instance" % hdl
+#         spec = None
+#         # XXX add warning logic
+#         if instancespec in specs:
+#             spec = instancespec
+#         elif codespec in specs:
+#             spec = codespec
+#         elif oldspec in specs:
+#             spec = oldspec
+#         if spec:
+#             assert id(arg) not in _userCodeMap[hdl]
+#             code = specs[spec]
+#             _userCodeMap[hdl][id(arg)] = classMap[spec](
+#                 code, namespace, funcname, func, sourcefile, sourceline)
 
 # class _CallFuncVisitor(object):
 #

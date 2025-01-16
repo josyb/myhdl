@@ -452,7 +452,7 @@ if __name__ == '__main__':
         # dfc = simplecounter2(42, A, B, C, Q)
         dfc = subtracting(A, EE, SS, TT8, TT9)
         dfc.convert(hdl='Verilog')
-        dfc.convert(hdl='VHDL')
+        # dfc.convert(hdl='VHDL')
 
         # WIDTH_D = 8
         #

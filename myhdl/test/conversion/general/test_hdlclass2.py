@@ -28,7 +28,7 @@ class Counter(HdlClass):
         self.IsMax = IsMax if IsMax is not None else Signal(bool(0))
         self.WRAP_AROUND = WRAP_AROUND
 
-    @block(skipname=True)
+    @block
     def hdl(self):
         if isinstance(self.Q, OpenPort):
             count = Signal(intbv(0, 0, self.RANGE))
@@ -76,7 +76,7 @@ class Tone(HdlClass):
         self.Key = Key
         self.Wave = Wave if Wave is not None else Signal(bool())
 
-    @block(skipname=True)
+    @block
     def hdl(self):
         divider = Counter(self.DIVIDER, self.Clk, self.Reset, Constant(bool(0)), Constant(bool(1)),
                           Q=OpenPort(), WRAP_AROUND=True)
@@ -98,13 +98,13 @@ if __name__ == '__main__':
 
     class KakaFonie(HdlClass):
 
-        def __init__(self, Clk, Reset, Keys, Noise):
+        def __init__(self, Clk, Reset, Keys, Noise=None):
             self.Clk = Clk
             self.Reset = Reset
             self.Keys = Keys
             self.Noise = Noise if Noise is not None else Signal(bool(0))
 
-        @block(skipname=True)
+        @block
         def hdl(self):
             FREQUENCIES = [261.626, 277.183, 293.665, 311.127, 329.628, 349.228, 369.994, 391.995, 415.305, 440.0, 466.167, 493.883]
 
@@ -126,13 +126,14 @@ if __name__ == '__main__':
 
             return self.hdlinstances()
 
+    # def convert():
     # try converting
     Clk = Signal(bool(0))
     Reset = ResetSignal(0, 1, False)
     Keys = Signal(intbv(0)[12:])
     Noise = Signal(bool(0))
 
-    if 1:
+    if 0:
         ''' looks like we have to live with writing a wrapper '''
 
         # a local written-out wrapper works fine
@@ -145,17 +146,18 @@ if __name__ == '__main__':
             return dfchdl
 
         dfc = wrapper(Clk, Reset, Keys, Noise)
-        dfc.convert(hdl='VHDL', name='KakaFonie')
+        # dfc.convert(hdl='VHDL', name='KakaFonie')
         dfc.convert(hdl='Verilog', name='KakaFonie')
     # these fail in one way or another
-    # else:
-    #     from _hdlclass import wrapper, convert
-    #     if 1:
-    #         # this raises an IndexError in _analyze.py
-    #         # beacuse the '*args' in wrapper disappear into nowhere?
-    #         convert(wrapper(XYMotors, PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive))
-    #     else:
-    #         # this produces an 'empty' entity
-    #         hc = XYMotors(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
-    #         hc.convert(hdl='VHDL', name='XYMotors')
+    else:
+        # from _hdlclass import wrapper, convert
+        # if 1:
+        #     # this raises an IndexError in _analyze.py
+        #     # beacuse the '*args' in wrapper disappear into nowhere?
+        #     convert(wrapper(XYMotors, PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive))
+        # else:
+            # this produces an 'empty' entity
+        hc = KakaFonie(Clk, Reset, Keys)
+        hc.convert(hdl='Verilog', name='KakaFonie', no_testbench=True)
 
+    # convert()

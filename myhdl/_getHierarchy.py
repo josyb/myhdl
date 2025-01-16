@@ -28,11 +28,11 @@ from myhdl._block import _Block
 
 class _Hierarchy(object):
 
-    def __init__(self, name, modinst):
+    def __init__(self, name, modinst, descend):
         self.top = modinst
         self.hierarchy = hierarchy = []
         self.absnames = absnames = {}
-        _getHierarchyHelper(1, modinst, hierarchy)
+        _getHierarchyHelper(1, modinst, hierarchy, descend)
         # compatibility with _extractHierarchy
         # walk the hierarchy to define relative and absolute names
         names = {}
@@ -59,15 +59,16 @@ class _Hierarchy(object):
                         absnames[id(so)] = sn
 
 
-def _getHierarchy(name, modinst):
-    h = _Hierarchy(name, modinst)
+def _getHierarchy(name, modinst, descend=True):
+    h = _Hierarchy(name, modinst, descend)
     return h
 
 
-def _getHierarchyHelper(level, modinst, hierarchy):
+def _getHierarchyHelper(level, modinst, hierarchy, descend):
     subs = [(s.name, s) for s in modinst.subs]
     inst = _Instance(level, modinst, subs, modinst.sigdict, modinst.memdict)
     hierarchy.append(inst)
-    for inst in modinst.subs:
-        if isinstance(inst, _Block):
-            _getHierarchyHelper(level + 1, inst, hierarchy)
+    if descend:
+        for inst in modinst.subs:
+            if isinstance(inst, _Block):
+                _getHierarchyHelper(level + 1, inst, hierarchy, descend)

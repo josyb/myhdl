@@ -9,7 +9,7 @@ import inspect
 
 from abc import ABC, abstractmethod
 
-from myhdl import block
+# from myhdl import block
 from myhdl._misc import _isGenSeq
 from myhdl._Signal import _Signal
 
@@ -24,7 +24,7 @@ class HdlClass(ABC):
         pass
 
     @abstractmethod
-    @block(skipname=True)
+    # @block
     def hdl(self, *args, **kwargs):
         ''' 
             placeholder for user written hdl 
@@ -33,7 +33,7 @@ class HdlClass(ABC):
         '''
         pass
 
-    @block(skipname=True)
+    # @block(skipname=True)
     def hdlinstances(self):
         ''' return the hdl() of the instantiated building blocks '''
         # it needs a 'block decorator', because we we will call on the subsequent .hdl() methods ...
@@ -41,6 +41,7 @@ class HdlClass(ABC):
         # THIS doesn't look that great - the Simulator will show an intermediate block (this one)
         # as 'None', and that really doesn't look nice
         # BUT we have handled that in _tracesignals.py
+        # the `None` however will appear in the converter's hierarchy elaboration
 
         frame = inspect.currentframe()
         loi = []

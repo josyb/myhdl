@@ -24,7 +24,7 @@ import pytest
 
 from random import randrange
 
-from myhdl import intbv, modbv, bit
+from myhdl import intbv, modbv
 
 random.seed(3)
 maxint = sys.maxsize
@@ -98,8 +98,8 @@ class TestModBvSlice:
                 chk = ((i >> n) & 1)
                 res = ti[n]
                 resv = cti[n]
-                assert type(res) == bit
-                assert type(resv) == bit
+                assert type(res) == bool
+                assert type(resv) == bool
                 assert res == chk
                 assert resv == chk ^ 1
 

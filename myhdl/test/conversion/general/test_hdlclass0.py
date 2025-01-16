@@ -7,6 +7,7 @@ Created on 21 dec. 2024
 from myhdl import HdlClass, block, Signal, always_comb
 
 
+# @block
 class Minimal(HdlClass):
     ''' a minimal class design to exercise/debug the conversion flow '''
 
@@ -14,25 +15,26 @@ class Minimal(HdlClass):
         self.Sigin = Sigin
         self.SigOut = SigOut if SigOut is not None else Sigin.duplicate()
 
-    @block(skipname=True)
+    @block
     def hdl(self):
 
         @always_comb
         def comb():
             self.SigOut.next = ~self.Sigin
 
-        return self.hdlinstances()
+        # return self.hdlinstances()
+        return comb
 
 
 if __name__ == '__main__':
-    if 0:
+    if 1:
         Sigin = Signal(bool(0))
         SigOut = Signal(bool(0))
 
         # dfc = Minimal(Sigin, SigOut)
         dfc = Minimal(Sigin)
         dfc.convert(hdl='Verilog', name='Minimal')
-        dfc.convert(hdl='VHDL', name='Minimal')
+        # dfc.convert(hdl='VHDL', name='Minimal')
 
     else:
 
@@ -41,7 +43,7 @@ if __name__ == '__main__':
             SigOut = Signal(bool(0))
 
             dfc = Minimal(Sigin)
-            dfc.convert(hdl='VHDL', name='Minimal')
-            dfc.convert(hdl='Verilog', name='Minimal')
+            # dfc.convert(hdl='VHDL', name='Minimal')
+            # dfc.convert(hdl='Verilog', name='Minimal')
 
         convert()

@@ -28,12 +28,9 @@ class Counter(HdlClass):
         self.IsMax = IsMax if IsMax is not None else Signal(bool(0))
         self.WRAP_AROUND = WRAP_AROUND
 
-    @block(skipname=True)
+    @block
     def hdl(self):
-        if isinstance(self.Q, OpenPort):
-            count = Signal(intbv(0, 0, self.RANGE))
-        else:
-            count = self.Q
+        count = Signal(intbv(0, 0, self.RANGE))
 
         if self.WRAP_AROUND:
 
@@ -62,6 +59,7 @@ class Counter(HdlClass):
         @always_comb
         def mkismax():
             self.IsMax.next = (count == self.RANGE - 1)
+            self.Q.next = count
 
         return self.hdlinstances()
 
@@ -79,6 +77,7 @@ class PwmCounter(HdlClass):
     def hdl(self):
         counter = Counter(self.RANGE, self.Clk, self.Reset, SClr=Constant(bool(0)), CntEn=Constant(bool(1)), IsMax=OpenPort(), WRAP_AROUND=True)
 
+        # pwm = pwmf(self.Clk, self.Reset, self.PwmValue, counter.Q, self.PwmOut)
         @always_seq(self.Clk.posedge, reset=self.Reset)
         def pwm():
             if counter.Q >= self.PwmValue:
@@ -87,6 +86,18 @@ class PwmCounter(HdlClass):
                 self.PwmOut.next = 1
 
         return self.hdlinstances()
+
+# @block
+# def pwmf(Clk, Reset, PwmValue, CounterValue, PwmOut):
+#
+#     @always_seq(Clk.posedge, reset=Reset)
+#     def pwm():
+#         if CounterValue >= PwmValue:
+#             PwmOut.next = 0
+#         else:
+#             PwmOut.next = 1
+#
+#     return pwm
 
 
 if __name__ == '__main__':
@@ -107,7 +118,7 @@ if __name__ == '__main__':
             self.YSpeed = YSpeed
             self.YDrive = YDrive
 
-        @block(skipname=True)
+        @block
         def hdl(self):
             xmotor = PwmCounter(self.PWMCOUNT, self.Clk, self.Reset, self.XSpeed, self.XDrive)
             ymotor = PwmCounter(self.PWMCOUNT, self.Clk, self.Reset, self.YSpeed, self.YDrive)
@@ -191,7 +202,7 @@ if __name__ == '__main__':
                 return dfchdl
 
             dfc = wrapper(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
-            dfc.convert(hdl='VHDL', name='XYMotors')
+            # dfc.convert(hdl='VHDL', name='XYMotors')
             dfc.convert(hdl='Verilog', name='XYMotors')
 
         else:
@@ -208,12 +219,13 @@ if __name__ == '__main__':
                     print(key, value)
                 print()
                 print(f'{dfc.sigdict=}')
-                dfc.convert(hdl='VHDL', name='XYMotors')
+                # dfc.convert(hdl='VHDL', name='XYMotors')
+                dfc.convert(hdl='Verilog', name='XYMotors', no_testbench=True)
             else:
                 # doing direct conversion from the class instance itself
                 # this is quite necessary for hierarchical conversion
                 dfc = XYMotors(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
-                dfc.convert(hdl='VHDL', name='XYMotors')
-                dfc.convert(hdl='Verilog', name='XYMotors')
+                # dfc.convert(hdl='VHDL', name='XYMotors')
+                dfc.convert(hdl='Verilog', name='XYMotors', no_testbench=True)
 
     convert()

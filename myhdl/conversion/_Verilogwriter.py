@@ -31,10 +31,10 @@ from myhdl._extractHierarchy import (_isMem, _getMemInfo, _UserVerilogCode)
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
-from myhdl._bit import bit
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
 from myhdl._simulator import now
+from myhdl._openport import OpenPort
 from myhdl.conversion._analyze import (_Ram, _Rom)
 from myhdl.conversion._misc import (_error, _makeDoc, getutcdatetime, _kind,
                                     _context, _ConversionMixin,
@@ -48,7 +48,8 @@ class VerilogWriter(object):
                  "radix",
                  "header",
                  "no_myhdl_header",
-                 "testbench",
+                 # "testbench",
+                 "hierarchical",
                  "portmap",
                  "trace",
                  "initial_values",
@@ -69,7 +70,7 @@ class VerilogWriter(object):
                  )
 
     def __init__(self, **kwargs):
-        self.hdl = 'verilog'
+        self.hdl = 'Verilog'
         self.comment = '// '
         self.timescale = "1ns/10ps"
         self.standard = '2005'
@@ -77,13 +78,15 @@ class VerilogWriter(object):
         self.radix = ''
         self.header = ''
         self.no_myhdl_header = False
-        self.testbench = True
+        # self.testbench = True
+        self.hierarchical = False
         self.trace = False
         self.initial_values = False
         self.usercode = _UserVerilogCode
         self.ind = ''
         for key, value in kwargs.items():
-            ic("{0} = {1}".format(key, value))
+            # ic("{0} = {1}".format(key, value))
+            # if key in ['trace', 'initial_values', 'testbench']:
             if key in ['trace', 'initial_values']:
                 setattr(self, key, value)
 
@@ -117,6 +120,8 @@ class VerilogWriter(object):
         print(file=self.file)
 
     def writeModuleHeader(self, intf):
+        ic(intf.name)
+        self.writeFileHeader()
         doc = _makeDoc(inspect.getdoc(intf), self.comment)
         print(doc, file=self.file)
         print("module {} (".format(intf.name), file=self.file)
@@ -125,31 +130,61 @@ class VerilogWriter(object):
             # ANSI-style module declaration
             for portname in intf.argnames:
                 s = intf.argdict[portname]
+                ic(f'writeModuleHeader: {portname=} -> {repr(s)} {s._driver=}')
                 if s._name is None:
                     raise ToVerilogError(_error.ShadowingSignal, portname)
                 if s._inList:
                     raise ToVerilogError(_error.PortInList, portname)
+                if isinstance(s, OpenPort):
+                    continue
                 s._name = portname
                 r = _getRangeString(s)
                 p = _getSignString(s)
-                if s._driven:
+
+                # TODO: re-visit this code
+                if self.hierarchical:
+                    # find out whether we need to declare an output
+                    # possibly this may be a 'tautology' :)
+                    sigdriven = s._driven
+                    if s._driver is None:
+                        sigdriven = False
+                    else:
+                        if s._driver == 'driven':
+                            # nobody has claimed to be the driver (yet?)
+                            # this is always the case for the top level
+                            pass
+                        # elif intf.name in s._driver:
+                            # s._driver is built with prefixes
+                            # if our intf.name is somewhere in this string we are
+                            # on a 'straight hierachy line'
+                            # this may be a bit simple as when using 'really' short names
+                            # for modules, e.g. 'ab' they may be present inside another name
+                            # so we restrict it to either start or end, or is fenced by underscores if somewhere in the middle
+                        elif s._driver.startswith(intf.name) or s._driver.endswith(intf.name) or f'_{intf.name}_' in s._driver:
+                            pass
+                        else:
+                            # no positive match
+                            sigdriven = False
+                else:
+                    sigdriven = s._driven in ['reg', 'wire']
+
+                if sigdriven:
                     if isinstance(s, _TristateSignal):
                         d = 'inout'
                     else:
                         d = 'output'
+
                     if s._driven == 'reg':
                         pass
                     else:
                         pass
 
-                    print('    {} {} {} {} {},'.format(d, s.driven, p, r, portname), file=b)
+                    print(f'    {d} {s._driven} {p} {r} {portname},', file=b)
 
                 else:
-                    print('    input {} {} {},'.format(p, r, portname), file=b)
+                    print(f'    input {p} {r} {portname},', file=b)
                     if not s._read:
-                        warnings.warn("{}: {}".format(_error.UnusedPort, portname),
-                                      category=ToVerilogWarning
-                                      )
+                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
 
             print(b.getvalue()[:-2], file=self.file)
             b.close()
@@ -191,7 +226,49 @@ class VerilogWriter(object):
                     print("input {}{}{};".format(p, r, portname), file=self.file)
             print(file=self.file)
 
+    def hierarchicalinstance(self, sub):
+        ic(f'hierarchicalinstance: {sub=}')
+        ic(f'hierarchicalinstance: {vars(sub)=}')
+        ic(f'hierarchicalinstance: {sub.argnames=}')
+        ic(f'hierarchicalinstance: {sub.sigdict=}')
+        # # args = inspect.getfullargspec(sub.func)[0]
+        # # ic(f'userInstance: {sub.args=}')
+        # # ic(f'userInstance: {sub.kwargs=}')
+        # args = []
+        # for a in sub.args:
+        #     if isinstance(a, _Signal):
+        #         args.append(a)
+        # for __, a in sub.kwargs.items():
+        #     if isinstance(a, _Signal):
+        #         args.append(a)
+        #
+
+        # # ic(f'userInstance: {sub.func.__name__=}')
+        s = f"    {sub.name} {sub.name}_inst(" # % (sub.func.__name__, sub.name)
+        # ic(f'userInstance: {s=}')
+        #
+        args = []
+        for i, arg in enumerate(sub.argnames):
+            signame = f'{sub.sigdict[i]}'
+            if signame.startswith('-- OpenPort'):
+                # args.append(f"\n        .{arg}( )")
+                pass
+            else:
+                args.append(f"\n        .{arg}({signame})")
+        #
+        # sep = ''
+        # for arg in sub.argnames:
+        #     # if arg in sub.namespace and isinstance(sub.namespace[arg], _Signal):
+        #     # signame = self.namespace[arg]._name
+        #     s += sep
+        #     sep = ','
+        #     s += f"\n    .{arg}({arg._name})"
+        # s += "\n);\n\n"
+        return "".join((s, ",".join(args), "\n        );\n\n"))
+        # return f'userInstance: {sub.hname} {sub.name}: {sub.argnames=} {sub.sigdict=}\n'
+
     def writeDecls(self, intf, siglist, memlist):
+        ic(intf, siglist, memlist)
         # _writeSigDecls(self.file, intf, siglist, memlist)
         # def _writeSigDecls(f, intf, siglist, memlist):
         constwires = []
@@ -199,18 +276,21 @@ class VerilogWriter(object):
             if not s._used:
                 continue
 
-            if s._name in intf.argnames:
-                continue
-
             if s._name.startswith('-- OpenPort'):
                 # do not write a signal declaration
+                continue
+                # signame = s._name[12:]
+            else:
+                signame = s._name
+
+            if signame in intf.argnames:
                 continue
 
             r = _getRangeString(s)
             p = _getSignString(s)
             if s._driven:
                 if not s._read and not isinstance(s, _TristateDriver):
-                    warnings.warn(f"{_error.UnreadSignal}: {s._name}", category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToVerilogWarning)
                 k = 'wire'
                 if s._driven == 'reg':
                     k = 'reg'
@@ -218,27 +298,28 @@ class VerilogWriter(object):
                 # don't initial value "wire", inital assignment to a wire
                 # equates to a continuous assignment [reference]
                 if not self.initial_values or k == 'wire':
-                    print(f"    {k} {p}{r}{s._name};", file=self.file)
+                    print(f"    {k} {p}{r}{signame};", file=self.file)
                 else:
                     if isinstance(s._init, EnumItemType):
-                        print(f"    {k} {p}{r}{s._name} = {s._init._toVerilog()};", file=self.file)
+                        print(f"    {k} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
                     else:
-                        print(f"    {k} {p}{r}{s._name} = {_intRepr(s._init)};", file=self.file)
+                        print(f"    {k} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
             elif s._read:
                 if isinstance(s, Constant):
                     c = int(s.val)
                     c_len = s._nrbits
                     c_str = f"{c}"
-                    print(f"    localparam {r}{s} = {c_len}'d{c_str};", file=self.file)
+                    print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
                 else:
                     # the original exception
-                    # raise ToVerilogError(_error.UndrivenSignal, s._name)
+                    # raise ToVerilogError(_error.UndrivenSignal, signame)
                     # changed to a warning and a continuous assignment to a wire
-                    warnings.warn(f"{_error.UndrivenSignal}: {s._name}", category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToVerilogWarning)
                     constwires.append(s)
-                    print(f"    wire {r}{s._name};", file=self.file)
+                    print(f"    wire {r}{signame};", file=self.file)
         # print(file=self.file)
         for m in memlist:
+            ic(m, m.name, m._used)
             if not m._used:
                 continue
             # infer attributes for the case of named signals in a list
@@ -302,7 +383,7 @@ class VerilogWriter(object):
 
         print(file=self.file)
         for s in constwires:
-            if s._type in (bit, intbv):
+            if s._type in (bool, intbv):
                 c = int(s.val)
             else:
                 raise ToVerilogError(f"Unexpected type for constant signal: {s._name}")
@@ -320,13 +401,44 @@ class VerilogWriter(object):
     def writeModuleFooter(self):
         print("\nendmodule", file=self.file)
 
-    def writeTestBench(self, intf):
-        print(f'{self.testbench}: testbench tb_{self.filename} to:  {self.directory} ')
-        if self.testbench:
-            tbpath = os.path.join(self.directory, "tb_" + self.filename)
-            tbfile = open(tbpath, 'w')
-            _writeTestBench(tbfile, intf, self.trace)
-            tbfile.close()
+    def _writeTestBench(self, f, intf, trace=False):
+        print(f'{f=} {intf=}')
+
+        print(f"module tb_{intf.name};", file=f)
+        print(file=f)
+        fr = StringIO()
+        to = StringIO()
+        pm = StringIO()
+        for portname in intf.argnames:
+            s = intf.argdict[portname]
+            r = _getRangeString(s)
+            if s._driven:
+                print(f"wire {r}{portname};", file=f)
+                print(f"        {portname},", file=to)
+            else:
+                print(f"reg {r}{portname};", file=f)
+                print(f"        {portname},", file=fr)
+            print(f"    {portname},", file=pm)
+        print(file=f)
+        print("initial begin", file=f)
+        if trace:
+            print(f'    $dumpfile("{intf.name}.vcd");', file=f)
+            print('    $dumpvars(0, dut);', file=f)
+        if fr.getvalue():
+            print("    $from_myhdl(", file=f)
+            print(fr.getvalue()[:-2], file=f)
+            print("    );", file=f)
+        if to.getvalue():
+            print("    $to_myhdl(", file=f)
+            print(to.getvalue()[:-2], file=f)
+            print("    );", file=f)
+        print("end", file=f)
+        print(file=f)
+        print(f"{intf.name} dut(", file=f)
+        print(pm.getvalue()[:-2], file=f)
+        print(");", file=f)
+        print(file=f)
+        print("endmodule", file=f)
 
     def emitline(self):
         pass
@@ -341,7 +453,7 @@ class VerilogWriter(object):
         self.radix = ''
         self.header = ""
         self.no_myhdl_header = False
-        self.testbench = True
+        # self.testbench = True
         self.trace = False
 
 
@@ -388,7 +500,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
     def writeDeclaration(self, obj, name, direction):
         if direction:
             direction = direction + ' '
-        if type(obj) is bit:
+        if type(obj) is bool:
             self.write("{}{}".format(direction, name))
         elif isinstance(obj, int):
             if direction == "input ":
@@ -431,11 +543,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.indent()
 
     def writeSensitivityList(self, senslist):
-        ic(self.__class__.__name__, senslist)
+        # ic(self.__class__.__name__, senslist)
         sep = ', '
         if self.writer.standard == '1995':
             sep = ' or '
         self.write("@(")
+        ic(pp.pformat(senslist))
         for e in senslist[:-1]:
             self.write(e._toVerilog())
             self.write(sep)
@@ -443,7 +556,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
 
     def visit_BinOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if isinstance(node.op, ast.Mod) and self.context == _context.PRINT:
             self.visit(node.left)
             self.write(", ")
@@ -477,7 +590,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                                 "negative intbv with operator {}".format(op))
 
     def visit_BoolOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("(")
         self.visit(node.values[0])
         for n in node.values[1:]:
@@ -486,13 +599,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
 
     def visit_UnaryOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("({}".format(opmap[type(node.op)]))
         self.visit(node.operand)
         self.write(")")
 
     def visit_Attribute(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if isinstance(node.ctx, ast.Store):
             self.setAttr(node)
         else:
@@ -535,7 +648,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(e._toVerilog())
 
     def visit_Assert(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("if (")
         self.visit(node.test)
         self.write(" !== 1) begin")
@@ -549,7 +662,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("end")
 
     def visit_Assign(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         # shortcut for expansion of ROM in case statement
         if isinstance(node.value, ast.Subscript) and \
                       not isinstance(node.value.slice, ast.Slice) and \
@@ -599,7 +712,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.writer.emitline()
 
     def visit_AugAssign(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         # XXX apparently no signed context required for augmented assigns
         self.visit(node.target)
         self.write(" = ")
@@ -610,12 +723,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visit_Break(self, node,):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("disable {};".format(self.labelStack[-2]))
         self.writer.emitline()
 
     def visit_Call(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.context = None
         fn = node.func
         # assert isinstance(fn, astNode.Name)
@@ -655,7 +768,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         elif f in (intbv, modbv):
             self.visit(node.args[0])
             return
-        elif f == intbv.signed:  # note equality comparison
+        elif f == intbv.signed: # note equality comparison
             # comes from a getattr
             opening, closing = '', ''
             if not fn.value.signed:
@@ -693,7 +806,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             v.visit(node.tree)
 
     def visit_Compare(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.context = None
         if node.signed:
             self.context = _context.SIGNED
@@ -705,18 +818,18 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.context = None
 
     def visit_Constant(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
-        elif isinstance(node.value, (bit, bool)):
+        elif isinstance(node.value, bool):
             self.write(nameconstant_map[node.obj])
         elif isinstance(node.value, int):
             # Num
             if self.context == _context.PRINT:
                 self.write('"{}"' % node.value)
             else:
-                if hasattr(node, 'dst') and isinstance(node.dst._val, (bit, bool)):
+                if hasattr(node, 'dst') and isinstance(node.dst._val, bool):
                     self.write(nameconstant_map[bool(node.obj)])
                 else:
                     self.write(self.IntRepr(node.value))
@@ -731,11 +844,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(s)
 
     def visit_Continue(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("disable {};".format(self.labelStack[-1]))
 
     def visit_Expr(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         expr = node.value
         # docstrings on unofficial places
         if isinstance(expr, ast.Str):
@@ -755,7 +868,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(';')
 
     def visit_IfExp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.test)
         self.write(' ? ')
         self.visit(node.body)
@@ -763,7 +876,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.orelse)
 
     def visit_For(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.labelStack.append(node.breakLabel)
         self.labelStack.append(node.loopLabel)
         var = node.target.id
@@ -781,7 +894,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 start, stop, step = args[0], args[1], None
             else:
                 start, stop, step = args
-        else:  # downrange
+        else: # downrange
             cmp = '>='
             op = '-'
             oneoff = '-1'
@@ -829,7 +942,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         raise AssertionError("To be implemented in subclass")
 
     def visit_If(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if node.ignore:
             return
         if node.isCase:
@@ -838,7 +951,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.mapToIf(node)
 
     def visit_Match(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("case (")
         self.visit(node.subject)
         self.write(")")
@@ -852,7 +965,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("endcase")
 
     def visit_match_case(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         pattern = node.pattern
         self.visit(pattern)
 
@@ -867,7 +980,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("end")
 
     def visit_MatchValue(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         item = node.value
         obj = self.getObj(item)
 
@@ -895,14 +1008,14 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(pattern)
 
     def visit_MatchAs(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if node.name is None and  node.pattern is None:
             self.write("default")
         else:
             raise AssertionError("Unknown name {} or pattern {}".format(node.name, node.pattern))
 
     def visit_MatchOr(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         for i, pattern in enumerate(node.patterns):
             self.visit(pattern)
             if not i == len(node.patterns) - 1:
@@ -950,7 +1063,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def mapToIf(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         first = True
         for test, suite in node.tests:
             if first:
@@ -990,11 +1103,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visitKeyword(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.visit(node.expr)
 
     def visit_Module(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         for stmt in node.body:
             self.visit(stmt)
 
@@ -1009,11 +1122,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.getName(node)
 
     def setName(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write(node.id)
 
     def getName(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         n = node.id
         addSignBit = False
         isMixedExpr = (not node.signed) and (self.context == _context.SIGNED)
@@ -1026,11 +1139,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             s = n
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
-            if isinstance(obj, (bit, bool)):
+            if isinstance(obj, bool):
                 s = "1'b{}".format(int(obj))
             elif isinstance(obj, int):
                 s = self.IntRepr(obj)
-            elif isinstance(obj, tuple):  # Python3.9+ ast.Index replacement serves a tuple
+            elif isinstance(obj, tuple): # Python3.9+ ast.Index replacement serves a tuple
                 s = n
             elif isinstance(obj, _Signal):
                 addSignBit = isMixedExpr
@@ -1060,11 +1173,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("})")
 
     def visit_Pass(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("// pass")
 
     def visit_Print(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         argnr = 0
         for s in node.format:
             if isinstance(s, str):
@@ -1082,7 +1195,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                     self.write('$write(')
                     self.visit(a)
                     self.write(');')
-                elif (s.conv is str) and isinstance(obj, (bit, bool)):
+                elif (s.conv is str) and isinstance(obj, bool):
                     self.write('if (')
                     self.visit(a)
                     self.write(')')
@@ -1115,11 +1228,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write('$write("\\n");')
 
     def visit_Raise(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         self.write("$finish;")
 
     def visit_Return(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         self.write("disable {};".format(self.returnLabel))
 
     def visit_Subscript(self, node):
@@ -1129,7 +1242,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.accessIndex(node)
 
     def accessSlice(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         if isinstance(node.value, ast.Call) and \
            node.value.func.obj in (intbv, modbv) and \
            _isConstant(node.value.args[0], self.tree.symdict):
@@ -1173,7 +1286,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("})")
 
     def accessIndex(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         addSignBit = isinstance(node.ctx, ast.Load) and \
             (not node.signed) and \
             (self.context == _context.SIGNED)
@@ -1183,7 +1296,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
         self.write("[")
         # assert len(node.subs) == 1
-        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
+        if sys.version_info >= (3, 9, 0): # Python 3.9+: no ast.Index wrapper
             self.visit(node.slice)
         else:
             self.visit(node.slice.value)
@@ -1193,9 +1306,9 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_stmt(self, body):
         # 'body' is a list of statements
-        ic(self.__class__.__name__, body, pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, body, pp.pformat(vars(self)))
         for stmt in body:
-            ic(self.__class__.__name__, astdump(stmt, show_offsets=False), pp.pformat(vars(stmt)))
+            # ic(self.__class__.__name__, astdump(stmt, show_offsets=False), pp.pformat(vars(stmt)))
             self.writeline()
             self.visit(stmt)
             # ugly hack to detect an orphan "task" call
@@ -1203,7 +1316,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(';')
 
     def visit_Tuple(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         assert self.context != None
         sep = ", "
         tpl = node.elts
@@ -1213,7 +1326,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(elt)
 
     def visit_While(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         self.labelStack.append(node.breakLabel)
         self.labelStack.append(node.loopLabel)
         if node.breakLabel.isActive:
@@ -1236,7 +1349,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack.pop()
 
     def visit_Yield(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         yieldObj = self.getObj(node.value)
         assert node.senslist
         senslist = node.senslist
@@ -1258,7 +1371,7 @@ class _ConvertAlwaysVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.writeDoc(node)
         w = node.body[-1]
         y = w.body[0]
@@ -1284,7 +1397,7 @@ class _ConvertInitialVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.writeDoc(node)
         self.write("initial begin: {}".format(self.tree.name))
         self.indent()
@@ -1306,7 +1419,7 @@ class _ConvertAlwaysCombVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1324,7 +1437,7 @@ class _ConvertSimpleAlwaysCombVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_Attribute(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         if isinstance(node.ctx, ast.Store):
             # try intercepting '-- OpenPort' signals
             if isinstance(node.value, ast.Name):
@@ -1338,7 +1451,7 @@ class _ConvertSimpleAlwaysCombVisitor(_ConvertVisitor):
             self.getAttr(node)
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.writeDoc(node)
         self.visit_stmt(node.body)
         self.writeline(2)
@@ -1351,7 +1464,7 @@ class _ConvertAlwaysDecoVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1369,7 +1482,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self.tree)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self.tree)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1409,7 +1522,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         else:
             assert isinstance(reg, intbv)
             tipe = intbv
-        if tipe is bool or tipe is bit:
+        if tipe is bool:
             v = '1' if init else '0'
         elif tipe is intbv:
             init = int(init)  # int representation
@@ -1438,7 +1551,7 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
             self.writeDeclaration(obj, name, "input")
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("function ")
         self.writeOutputDeclaration()
         self.indent()
@@ -1457,7 +1570,7 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
         self.writeline(2)
 
     def visit_Return(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("{} = ".format(self.tree.name))
         self.visit(node.value)
         self.write(";")
@@ -1482,7 +1595,7 @@ class _ConvertTaskVisitor(_ConvertVisitor):
             self.writeDeclaration(obj, name, direction)
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
         self.write("task {};".format(self.tree.name))
         self.indent()
         self.writeInterfaceDeclarations()
@@ -1507,46 +1620,8 @@ myhdl_header = """\
 """
 
 
-def _writeTestBench(f, intf, trace=False):
-    print(f"module tb_{intf.name};", file=f)
-    print(file=f)
-    fr = StringIO()
-    to = StringIO()
-    pm = StringIO()
-    for portname in intf.argnames:
-        s = intf.argdict[portname]
-        r = _getRangeString(s)
-        if s._driven:
-            print(f"wire {r}{portname};", file=f)
-            print(f"        {portname},", file=to)
-        else:
-            print(f"reg {r}{portname};", file=f)
-            print(f"        {portname},", file=fr)
-        print(f"    {portname},", file=pm)
-    print(file=f)
-    print("initial begin", file=f)
-    if trace:
-        print(f'    $dumpfile("{intf.name}.vcd");', file=f)
-        print('    $dumpvars(0, dut);', file=f)
-    if fr.getvalue():
-        print("    $from_myhdl(", file=f)
-        print(fr.getvalue()[:-2], file=f)
-        print("    );", file=f)
-    if to.getvalue():
-        print("    $to_myhdl(", file=f)
-        print(to.getvalue()[:-2], file=f)
-        print("    );", file=f)
-    print("end", file=f)
-    print(file=f)
-    print(f"{intf.name} dut(", file=f)
-    print(pm.getvalue()[:-2], file=f)
-    print(");", file=f)
-    print(file=f)
-    print("endmodule", file=f)
-
-
 def _getRangeString(s):
-    if s._type is bool or s._type is bit:
+    if s._type is bool:
         return ''
     elif s._nrbits is not None:
         nrbits = s._nrbits
@@ -1566,20 +1641,23 @@ def _intRepr(n, radix=''):
     # write size for large integers (beyond 32 bits signed)
     # with some safety margin
     # XXX signed indication 's' ???
-    p = abs(n)
-    size = ''
-    num = str(p).rstrip('L')
-    if radix == "hex" or p >= 2 ** 30:
-        radix = "'h"
-        num = hex(p)[2:].rstrip('L')
-    if p >= 2 ** 30:
-        size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
-#            if not radix:
-#                radix = "'d"
-    r = "{}{}{}".format(size, radix, num)
-    if n < 0:  # add brackets and sign on negative numbers
-        r = "(-{})".format(r)
-    return r
+    if isinstance(n, EnumItemType):
+        return n._toVerilog()
+    else:
+        p = abs(n)
+        size = ''
+        num = str(p).rstrip('L')
+        if radix == "hex" or p >= 2 ** 30:
+            radix = "'h"
+            num = hex(p)[2:].rstrip('L')
+        if p >= 2 ** 30:
+            size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
+    #            if not radix:
+    #                radix = "'d"
+        r = "{}{}{}".format(size, radix, num)
+        if n < 0: # add brackets and sign on negative numbers
+            r = "(-{})".format(r)
+        return r
 
 
 opmap = {

@@ -51,7 +51,9 @@ def _flatten(*args):
     arglist = []
     for arg in args:
         if isinstance(arg, _Block):
+            # replace ...
             arg = arg.subs
+
         if isinstance(arg, (list, tuple, set)):
             for item in arg:
                 arglist.extend(_flatten(item))

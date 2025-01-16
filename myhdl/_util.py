@@ -37,6 +37,7 @@ def _printExcInfo():
         msg += ": %s" % value
         print(msg, file=sys.stderr)
 
+
 _isGenFunc = inspect.isgeneratorfunction
 
 
@@ -56,6 +57,24 @@ def _isTupleOfInts(obj):
         return False
     for e in obj:
         if not isinstance(e, int):
+            return False
+    return True
+
+
+def _isTupleOfFloats(obj):
+    if not isinstance(obj, tuple):
+        return False
+    for e in obj:
+        if not isinstance(e, float):
+            return False
+    return True
+
+
+def _isTupleOfBitArray(obj):
+    if not isinstance(obj, tuple):
+        return False
+    for e in obj:
+        if not isinstance(e, bitarray):
             return False
     return True
 

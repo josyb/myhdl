@@ -466,7 +466,7 @@ class VhdlWriter(object):
         self.dedent()
         self.file.write(f"\nend architecture {self.architecture};\n")
 
-    def writeTestBench(self, intf):
+    def _writeTestBench(self, f, intf, trace=False):
         pass
 
     def writeDoc(self, node):
@@ -978,7 +978,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(node.args[0])
             # ic.dedent()
             return
-        elif f == intbv.signed:  # note equality comparison
+        elif f == intbv.signed: # note equality comparison
             # comes from a getattr
             opening, closing = '', ''
             if not fn.value.signed:
@@ -1174,7 +1174,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 start, stop, step = args[0], args[1], None
             else:
                 start, stop, step = args
-        else:  # downrange
+        else: # downrange
             op = 'downto'
             if len(args) == 1:
                 start, stop, step = args[0], None, None
@@ -2129,6 +2129,7 @@ class _ConvertTaskVisitor(_ConvertVisitor):
         # ic.dedent()
 
 # def _writeTestBench(f, intf, trace=False):
+#     pass
 #     print("module tb_{};".format(intf.name), file=f)
 #     print(file=f)
 #     fr = StringIO()

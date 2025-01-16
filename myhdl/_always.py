@@ -20,6 +20,9 @@
 """ Module with the always function. """
 from types import FunctionType
 
+from icecream import ic
+ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True)
+
 from myhdl import AlwaysError
 from myhdl._util import _isGenFunc
 from myhdl._delay import delay
@@ -32,6 +35,8 @@ from myhdl._instance import _Instantiator, _getCallInfo
 
 class _error:
     pass
+
+
 _error.DecArgType = "decorator argument should be a Signal, edge, or delay"
 _error.ArgType = "decorated object should be a classic (non-generator) function"
 _error.NrOfArgs = "decorated function should not have arguments"
@@ -49,6 +54,7 @@ def _get_sigdict(sigs, symdict):
     """
 
     sigdict = {}
+    ic(sigs)
     for n, v in symdict.items():
         for s in sigs:
             if s is v:
@@ -64,6 +70,7 @@ def always(*args):
             arg._read = True
             arg._used = True
             sigargs.append(arg)
+
         elif isinstance(arg, _WaiterList):
             arg.sig._read = True
             arg.sig._used = True
@@ -71,6 +78,7 @@ def always(*args):
         elif not isinstance(arg, delay):
             raise AlwaysError(_error.DecArgType)
     sigdict = _get_sigdict(sigargs, callinfo.symdict)
+    ic(args, sigdict)
 
     def _always_decorator(func):
         if not isinstance(func, FunctionType):
@@ -80,12 +88,16 @@ def always(*args):
         if func.__code__.co_argcount > 0:
             raise AlwaysError(_error.NrOfArgs)
         return _Always(func, args, callinfo=callinfo, sigdict=sigdict)
+
     return _always_decorator
 
 
 class _Always(_Instantiator):
 
     def __init__(self, func, senslist, callinfo, sigdict=None):
+        ic(func, callinfo, sigdict)
+        # for ss in senslist:
+        #     print(f'{repr(ss)=}')
         self.func = func
         self.senslist = tuple(senslist)
         super(_Always, self).__init__(self.genfunc, callinfo=callinfo)

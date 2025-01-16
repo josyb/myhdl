@@ -686,5 +686,6 @@ def init_reset_tb():
 
 
 if __name__ == "__main__":
-    test_signed_list()
-
+    # test_unsigned_list()
+    # test_signed_list()
+    test_memory_convert()

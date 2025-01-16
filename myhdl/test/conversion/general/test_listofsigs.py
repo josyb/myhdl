@@ -385,3 +385,7 @@ def test_listAsPort():
     else:
         assert False
 
+
+if __name__ == '__main__':
+
+    assert conversion.verify(intbv2list()) == 0

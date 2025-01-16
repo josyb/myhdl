@@ -88,8 +88,8 @@ def _flatten(*args):
                 continue
             else:
                 arg = arg.subs
-        if id(arg) in _userCodeMap['vhdl']:
-            arglist.append(_userCodeMap['vhdl'][id(arg)])
+        if id(arg) in _userCodeMap['VHDL']:
+            arglist.append(_userCodeMap['VHDL'][id(arg)])
         elif isinstance(arg, (list, tuple, set)):
             for item in arg:
                 arglist.extend(_flatten(item))
@@ -2409,7 +2409,7 @@ class _AnnotateTypesVisitor(ast.NodeVisitor, _ConversionMixin):
             self.inferShiftType(node)
         elif isinstance(node.op, (ast.BitAnd, ast.BitOr, ast.BitXor)):
             self.inferBitOpType(node)
-        elif isinstance(node.op, ast.Mod) and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):  # format string
+        elif isinstance(node.op, ast.Mod) and isinstance(node.left, ast.Constant) and isinstance(node.left.value, str): # format string
             pass
         else:
             self.inferBinOpType(node)

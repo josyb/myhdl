@@ -28,6 +28,13 @@ negedge -- callable to model a falling edge on a signal in a yield statement
 """
 from copy import copy, deepcopy
 
+from icecream import ic
+ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
+                   prefix='')
+# ic.disable()
+import pprint
+pp = pprint.PrettyPrinter(indent=4, width=120)
+
 from myhdl import _simulator as sim
 from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
@@ -46,6 +53,8 @@ def _isListOfSigs(obj):
         for e in obj:
             if not isinstance(e, _Signal):
                 return False
+
+        ic(obj)
         return True
     else:
         return False
@@ -123,10 +132,9 @@ class _Signal(object):
     __slots__ = ('_next', '_val', '_min', '_max', '_type', '_init',
                  '_eventWaiters', '_posedgeWaiters', '_negedgeWaiters',
                  '_code', '_tracing', '_nrbits', '_checkVal',
-                 '_setNextVal', '_copyVal2Next', '_printVcd',
-                 '_driven', '_read', '_name', '_used', '_inList',
-                 '_waiter', 'toVHDL', 'toVerilog', '_slicesigs',
-                 '_numeric'
+                 '_setNextVal', '_printVcd', '_driven', '_driver',
+                 '_read', '_name', '_used', '_inList', '_waiter',
+                 'toVHDL', 'toVerilog', '_slicesigs',
                  )
 
     def __init__(self, val=None):
@@ -139,11 +147,12 @@ class _Signal(object):
         self._val = deepcopy(val)
         self._next = deepcopy(val)
         self._min = self._max = None
-        self._name = self._driven = None
+        self._name = None
+        self._driven = None
+        self._driver = None
         self._read = self._used = False
         self._inList = False
         self._nrbits = 0
-        self._numeric = True
         self._printVcd = self._printVcdStr
         if isinstance(val, bool):
             self._type = bool
@@ -188,29 +197,28 @@ class _Signal(object):
         self._name = self._driven = None
         self._read = False  # dont clear self._used
         self._inList = False
-        self._numeric = True
         for s in self._slicesigs:
             s._clear()
 
     def _update(self):
-        val, next = self._val, self._next
-        if val != next:
+        val, nextval = self._val, self._next
+        if val != nextval:
             waiters = self._eventWaiters[:]
             del self._eventWaiters[:]
-            if not val and next:
+            if not val and nextval:
                 waiters.extend(self._posedgeWaiters[:])
                 del self._posedgeWaiters[:]
-            elif not next and val:
+            elif not nextval and val:
                 waiters.extend(self._negedgeWaiters[:])
                 del self._negedgeWaiters[:]
-            if next is None:
+            if nextval is None:
                 self._val = None
             elif isinstance(val, intbv):
-                self._val._val = next._val
+                self._val._val = nextval._val
             elif isinstance(val, (int, EnumItemType)):
-                self._val = next
+                self._val = nextval
             else:
-                self._val = deepcopy(next)
+                self._val = deepcopy(nextval)
             if self._tracing:
                 self._printVcd()
             return waiters
@@ -364,8 +372,7 @@ class _Signal(object):
     @property
     def nbits(self):
         return self._nrbits
-        
-        
+
     # indexing and slicing methods
 
     def __getitem__(self, key):
@@ -618,18 +625,18 @@ class _DelayedSignal(_Signal):
         _schedule((t, _SignalWrap(self, self._next, self._timeStamp)))
         return []
 
-    def _apply(self, next, timeStamp):
+    def _apply(self, nextval, timeStamp):
         val = self._val
-        if timeStamp == self._timeStamp and val != next:
+        if timeStamp == self._timeStamp and val != nextval:
             waiters = self._eventWaiters[:]
             del self._eventWaiters[:]
-            if not val and next:
+            if not val and nextval:
                 waiters.extend(self._posedgeWaiters[:])
                 del self._posedgeWaiters[:]
-            elif not next and val:
+            elif not nextval and val:
                 waiters.extend(self._negedgeWaiters[:])
                 del self._negedgeWaiters[:]
-            self._val = copy(next)
+            self._val = copy(nextval)
             if self._tracing:
                 self._printVcd()
             return waiters
@@ -648,13 +655,13 @@ class _DelayedSignal(_Signal):
 
 class _SignalWrap(object):
 
-    def __init__(self, sig, next, timeStamp):
+    def __init__(self, sig, nextval, timeStamp):
         self.sig = sig
-        self.next = next
+        self.nextval = nextval
         self.timeStamp = timeStamp
 
     def apply(self):
-        return self.sig._apply(self.next, self.timeStamp)
+        return self.sig._apply(self.nextval, self.timeStamp)
 
 
 class Constant(_Signal):

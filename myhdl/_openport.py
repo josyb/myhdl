@@ -43,14 +43,16 @@ class OpenPort(_Signal):
         ''' discard any 'new' value '''
         pass
 
-    # override the Signal.driven property
-    @property
-    def driven(self):
-        pass
-
-    @driven.setter
-    def driven(self, val):
-        pass
+    # do not override, we need the driven property in hierarchical code
+    # where we (will) resolve this in the appropriate (S)V* way
+    # # override the Signal.driven property
+    # @property
+    # def driven(self):
+    #     pass
+    #
+    # @driven.setter
+    # def driven(self, val):
+    #     pass
 
     @property
     def val(self):

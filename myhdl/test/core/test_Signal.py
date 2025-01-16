@@ -26,7 +26,7 @@ from random import randrange
 
 import pytest
 
-from myhdl import Signal, intbv, bit
+from myhdl import Signal, intbv
 from myhdl._simulator import _siglist
 
 random.seed(1)  # random, but deterministic
@@ -108,8 +108,8 @@ class TestSig:
         for j, s in enumerate(sigs):
             for k, n in enumerate(vals):
                 assert isinstance(s.val, s._type)
-                if isinstance(s.val, (bit, int, intbv)):
-                    t = (bit, int, intbv)
+                if isinstance(s.val, (bool, int, intbv)):
+                    t = (bool, int, intbv)
                 else:
                     t = s._type
                 if not isinstance(n, t):
@@ -480,9 +480,9 @@ class TestSignalIntBvIndexing:
                 res = sbv[i]
                 resi = sbvi[i]
                 assert res == ref
-                assert type(res) == bit
+                assert type(res) == bool
                 assert resi == ref ^ 1
-                assert type(resi) == bit
+                assert type(resi) == bool
 
     def testGetSlice(self):
         self.seqsSetup()
@@ -519,7 +519,7 @@ class TestSignalIntBvIndexing:
 class TestSignalNrBits:
 
     def testBool(self):
-        if type(bool) is not type:  # bool not a type in 2.2
+        if type(bool) is not type: # bool not a type in 2.2
             return
         s = Signal(bool())
         assert s._nrbits == 1
@@ -553,7 +553,7 @@ class TestSignalNrBits:
 class TestSignalBoolBounds:
 
     def testSignalBoolBounds(self):
-        if type(bool) is not type:  # bool not a type in 2.2
+        if type(bool) is not type: # bool not a type in 2.2
             return
         s = Signal(bool())
         s.next = 1

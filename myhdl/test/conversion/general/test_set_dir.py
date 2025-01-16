@@ -57,7 +57,7 @@ def test_toVerilog_set_dir():
 
     try:
         dfc = simple_dir_model(din, dout, clock)
-        dfc.convert('Verilog', directory=tmp_dir, testbench=False)
+        dfc.convert('Verilog', directory=tmp_dir, no_testbench=True)
 
         assert os.path.exists(os.path.join(tmp_dir, 'simple_dir_model.v'))
 

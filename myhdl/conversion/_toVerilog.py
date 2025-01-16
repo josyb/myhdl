@@ -69,8 +69,8 @@ def _flatten(*args):
                 continue
             else:
                 arg = arg.subs
-        if id(arg) in _userCodeMap['verilog']:
-            arglist.append(_userCodeMap['verilog'][id(arg)])
+        if id(arg) in _userCodeMap['Verilog']:
+            arglist.append(_userCodeMap['Verilog'][id(arg)])
         elif isinstance(arg, (list, tuple, set)):
             for item in arg:
                 arglist.extend(_flatten(item))
@@ -522,7 +522,7 @@ def _intRepr(n, radix=''):
     #            if not radix:
     #                radix = "'d"
         r = "%s%s%s" % (size, radix, num)
-        if n < 0:  # add brackets and sign on negative numbers
+        if n < 0: # add brackets and sign on negative numbers
             r = "(-%s)" % r
         return r
 
