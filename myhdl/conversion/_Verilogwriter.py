@@ -389,7 +389,7 @@ class VerilogWriter(object):
                 raise ToVerilogError(f"Unexpected type for constant signal: {s._name}")
             c_len = s._nrbits
             c_str = f"{c}"
-            print(f"assign {s._name} = {c_len}'d{c_str};", file=self.file)
+            print(f"    assign {s._name} = {c_len}'d{c_str};", file=self.file)
         # print(file=self.file)
 
         # shadow signal assignments

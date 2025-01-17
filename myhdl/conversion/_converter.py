@@ -201,9 +201,9 @@ class Converter(object):
 
                     _annotateTypes(self.hdl, genlist)
 
-                    # infer interface after signals have been analyzed
-                    bb.blocksubs._inferInterface()
-                    ic(bb.blocksubs.argnames)
+                    # # infer interface after signals have been analyzed
+                    # bb.blocksubs._inferInterface()
+                    # ic(bb.blocksubs.argnames)
                     res = self._convert(bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist)
                     ic(f'{res=}')
                     # build the 'placeholder' information for this block
@@ -239,7 +239,7 @@ class Converter(object):
                 ic(m.name)
 
             # walk the 'block' hierarchy - for now to help in debugging the hierarchical processs :)
-            ha = []
+            # ha = []
             # reportsubs(h.top, hdl=self.hdl, hierarchy=ha) # give it an empty list as a placeholder
             # ic(f'{ha}')
             # for i, lev in enumerate(ha):
@@ -248,15 +248,15 @@ class Converter(object):
             #         ic(f'  {sub.instancename}: {sub.blocksubs.subs=}')
             #         # ic(f'    {sub.blocksubs.sigdict=}')
 
-            # finally
-            # infer interface after signals have been analyzed
-            func._inferInterface()
             self._convert(self.name, h, func, siglist, memlist, genlist)
 
             return h.top
 
     def _convert(self, name, h, func, siglist, memlist, genlist):
 
+        # finally
+        # infer interface after signals have been analyzed
+        func._inferInterface()
         intf = func
         intf.name = name
         ic(func, vars(func))

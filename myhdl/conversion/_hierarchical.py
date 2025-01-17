@@ -50,9 +50,9 @@ LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' ,
 
 
 def _checkArgs(arglist):
-    # ic(f'_checkArgs: {arglist=}')
+    ic(pp.pformat(arglist))
     for arg in arglist:
-        ic(arg)
+        ic(repr(arg))
         if not isinstance(arg, (GeneratorType, _Instantiator, _UserCode)):
             raise ConversionError(_error.ArgType, arg)
 
