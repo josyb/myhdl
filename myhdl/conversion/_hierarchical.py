@@ -50,9 +50,9 @@ LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' ,
 
 
 def _checkArgs(arglist):
-    ic(pp.pformat(arglist))
+    # ic(pp.pformat(arglist))
     for arg in arglist:
-        ic(repr(arg))
+        # ic(repr(arg))
         if not isinstance(arg, (GeneratorType, _Instantiator, _UserCode)):
             raise ConversionError(_error.ArgType, arg)
 
@@ -87,7 +87,8 @@ def _flattenhierarchy(hdl, *args):
     return arglist
 
 
-def reportsubs(subs, hdl, level=0, name_prefixes=[], hierarchy=[]):
+def collectsubs(subs, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
+    # ic(subs, name_prefixes, pp.pformat(hierarchy))
     if isinstance(subs, _Block):
         # ic(f'{level:2} {level*"  "}{subs.name} : {name_prefixes=} -> _Block {subs.subs=}')
         # ic(f'{len(hierarchy)=} {level=}')
@@ -95,25 +96,34 @@ def reportsubs(subs, hdl, level=0, name_prefixes=[], hierarchy=[]):
             # start the first or new level
             hierarchy.append([])
 
-        if subs.endhierarchy:
-            # walk down
-            gens = _flattenhierarchy(hdl, subs.subs)
+        if maxdepth == -1:
+            if subs.endhierarchy:
+                # walk down
+                gens = _flattenhierarchy(hdl, subs.subs)
+            else:
+                # only local generators
+                gens = [ss for ss in subs.subs if not isinstance(ss, _Block)]
         else:
-            # only local generators
-            gens = [ss for ss in subs.subs if not isinstance(ss, _Block)]
+            # > 0!
+            if level == maxdepth:
+                # walk down
+                gens = _flattenhierarchy(hdl, subs.subs)
+            else:
+                # only local generators
+                gens = [ss for ss in subs.subs if not isinstance(ss, _Block)]
 
-        # snaity check
+        # sanity check
         _checkArgs(gens)
         # now append
         hierarchy[level].append(LevelInfo(subs.name, '_'.join(name_prefixes) if level > 0 else subs.name, subs, gens))
 
-        if not subs.endhierarchy:
-            reportsubs(subs.subs, hdl, level, name_prefixes, hierarchy)
+        if not subs.endhierarchy and level != maxdepth:
+            collectsubs(subs.subs, hdl, level, maxdepth, name_prefixes, hierarchy)
 
     elif isinstance(subs, (list, tuple, set)):
         for sub in subs:
             name_prefixes.append(sub.name)
-            reportsubs(sub, hdl, level + 1, name_prefixes, hierarchy)
+            collectsubs(sub, hdl, level + 1, maxdepth, name_prefixes, hierarchy)
             name_prefixes.pop(-1)
 
     else:

@@ -1444,6 +1444,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         self.name = node.name
         if isboundmethod(self.func):
             if isinstance(self.func.__self__, HdlClass):
+                ic(self.func)
                 # must find names ...
                 for arg in self.args:
                     # be selective

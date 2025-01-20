@@ -22,18 +22,22 @@ class OpenPort(_Signal):
             OpenPort() has no arguments
         '''
         super(OpenPort, self).__init__(bool(0))
-        self.__name = None
-        self._read = True
+        # self.__name = None
+        # self._read = True
 
-    @property
-    def _name(self):
-        ''' rely on toVerilog to replace the VHDL comment operator '--' with '//' '''
-        return '-- OpenPort ' + self.__name if self.__name else None
+    # @property
+    # def _name(self):
+    #     ''' rely on toVerilog to replace the VHDL comment operator '--' with '//' '''
+    #     return '-- OpenPort ' + self.__name if self.__name else None
 
-    @_name.setter
-    def _name(self, name):
-        self.__name = name
+    # @_name.setter
+    # def _name(self, name):
+    #     self.__name = name
 
+    def duplicate(self):
+        return OpenPort()
+
+    # an OpenPort definitely can not be changed ...
     @property
     def next(self):
         pass

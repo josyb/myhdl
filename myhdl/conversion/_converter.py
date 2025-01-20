@@ -39,7 +39,7 @@ pp = pprint.PrettyPrinter(indent=4, width=120)
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
-from myhdl.conversion._hierarchical import reportsubs, _HierarchicalInstance, getargnames, _flattenhierarchy, _checkArgs
+from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, getargnames, _flattenhierarchy, _checkArgs
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
 from myhdl.conversion._annotate import _annotateTypes
 from myhdl.conversion._VHDLwriter import VhdlWriter
@@ -61,7 +61,7 @@ class Converter(object):
         self.hierarchical = False
         self.trace = False
         for key, value in kwargs.items():
-            # print(f"{key} = {value}")
+            print(f"{key} = {value}")
             if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace']:
                 setattr(self, key, value)
                 # # drop it?
@@ -79,7 +79,6 @@ class Converter(object):
             raise ConversionError(_error.UnkownConvertor, hdl)
 
     def __call__(self, func, *args, **kwargs):
-        # ic('we\'re in business?', self.writer)
 
         global _converting
         if _converting:
@@ -92,7 +91,6 @@ class Converter(object):
 
         from myhdl import _traceSignals
         if _traceSignals._tracing:
-            # ic('Help, we\'re tracing Signals?')
             raise ConversionError("Cannot use Converter while tracing signals")
 
         # _converting = 1
@@ -114,17 +112,11 @@ class Converter(object):
         _genUniqueSuffix.reset()
 
         if self.hierarchical:
-            ic("Going hierarchical!")
+            # ic("Going hierarchical!")
 
             ha = []
-            reportsubs(h.top, hdl=self.hdl, hierarchy=ha) # give it an empty list as a placeholder
-            ic(f'{ha}')
-            for i, lev in enumerate(ha):
-                ic(f'level {i}: {lev}')
-                for sub in lev:
-                    ic(f'  {sub.instancename}: {sub.blocksubs.subs=}')
-                    # ic(f'    {sub.blocksubs.sigdict=}')
-            ic('\n')
+            collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha) # give it an empty list as a placeholder
+            ic(pp.pformat(ha))
 
             # now start converting 'bottoms up'
             # we need an empty directory where we place all output
@@ -140,15 +132,20 @@ class Converter(object):
                             os.unlink(entry.path)
 
             modules = {}
-            # start at the lowest level
-            for ll in range(len(ha) - 1, -1, -1):
+
+            startlevel = len(ha) - 1
+            for ll in range(startlevel, -1, -1):
+                ic(ll, pp.pformat(ha[ll]))
                 for bb in ha[ll]:
                     ic('======================================')
-                    ic(f'trying: {bb}')
+                    ic(bb)
                     # we normally only need one level of hierarchy
                     # unless we choose to flatten a certian part of the code
                     ic(bb.blocksubs.endhierarchy)
-                    bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy)
+                    if ll == startlevel:
+                        bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=True)
+                    else:
+                        bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy)
                     ic(pp.pformat(bbh))
                     ic(pp.pformat(bbh.top))
                     ic(pp.pformat(bbh.hierarchy))
@@ -180,8 +177,6 @@ class Converter(object):
                             if s._driver == 'driven':
                                 s._driver = bb.instancename
                         else:
-                            # level 0 (the top level) is special
-                            # as this doesn't have any prefix
                             if s._driver is not None:
                                 s._driver = 'driven'
                         ic(f'{s._driver}')
@@ -201,10 +196,7 @@ class Converter(object):
 
                     _annotateTypes(self.hdl, genlist)
 
-                    # # infer interface after signals have been analyzed
-                    # bb.blocksubs._inferInterface()
-                    # ic(bb.blocksubs.argnames)
-                    res = self._convert(bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist)
+                    res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist)
                     ic(f'{res=}')
                     # build the 'placeholder' information for this block
                     # as it may be called upon by the next higher code level
@@ -238,21 +230,11 @@ class Converter(object):
             for m in memlist:
                 ic(m.name)
 
-            # walk the 'block' hierarchy - for now to help in debugging the hierarchical processs :)
-            # ha = []
-            # reportsubs(h.top, hdl=self.hdl, hierarchy=ha) # give it an empty list as a placeholder
-            # ic(f'{ha}')
-            # for i, lev in enumerate(ha):
-            #     ic(f'level {i}: {lev}')
-            #     for sub in lev:
-            #         ic(f'  {sub.instancename}: {sub.blocksubs.subs=}')
-            #         # ic(f'    {sub.blocksubs.sigdict=}')
-
-            self._convert(self.name, h, func, siglist, memlist, genlist)
+            self._convert(0, self.name, h, func, siglist, memlist, genlist)
 
             return h.top
 
-    def _convert(self, name, h, func, siglist, memlist, genlist):
+    def _convert(self, level, name, h, func, siglist, memlist, genlist):
 
         # finally
         # infer interface after signals have been analyzed
@@ -260,6 +242,7 @@ class Converter(object):
         intf = func
         intf.name = name
         ic(func, vars(func))
+
         # start the output file, only when the analysis/annotation process passes
         self.writer.openfile(name, self.directory)
 
@@ -276,16 +259,17 @@ class Converter(object):
         # almost done
         self.writer.writeModuleFooter()
 
-        # build portmap for cosimulation (but only for toplevel?)
-        portmap = {}
-        for n, s in intf.argdict.items():
-            if hasattr(s, 'driver'):
-                # tristate signal !!
-                # confusing with _driver in hierachical
-                portmap[n] = s.driver()
-            else:
-                portmap[n] = s
-        self.writer.portmap = portmap
+        if level == 0:
+            # build portmap for cosimulation (but only for toplevel)
+            portmap = {}
+            for n, s in intf.argdict.items():
+                if hasattr(s, 'driver'):
+                    # tristate signal !!
+                    # confusing with _driver in hierachical
+                    portmap[n] = s.driver()
+                else:
+                    portmap[n] = s
+            self.writer.portmap = portmap
 
         self.writer.close()
 

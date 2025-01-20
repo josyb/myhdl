@@ -33,6 +33,7 @@ from myhdl._intbv import intbv
 from myhdl._modbv import modbv
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
+from myhdl._parameter import  Parameter
 from myhdl._simulator import now
 from myhdl._openport import OpenPort
 from myhdl.conversion._analyze import (_Ram, _Rom)
@@ -85,9 +86,7 @@ class VerilogWriter(object):
         self.usercode = _UserVerilogCode
         self.ind = ''
         for key, value in kwargs.items():
-            # ic("{0} = {1}".format(key, value))
-            # if key in ['trace', 'initial_values', 'testbench']:
-            if key in ['trace', 'initial_values']:
+            if key in ['trace', 'initial_values', 'hierarchical']:
                 setattr(self, key, value)
 
         self.ConvertAlwaysVisitor = _ConvertAlwaysVisitor
@@ -124,19 +123,40 @@ class VerilogWriter(object):
         self.writeFileHeader()
         doc = _makeDoc(inspect.getdoc(intf), self.comment)
         print(doc, file=self.file)
-        print("module {} (".format(intf.name), file=self.file)
         b = StringIO()
+
+        # first separate the Parameters
+        parameters = []
+        for portname in intf.argnames:
+            s = intf.argdict[portname]
+            if isinstance(s, Parameter):
+                # insert a Verilog parameter
+                parameters.append(f"{portname} = {s.value}")
+
+        if len(parameters):
+            # inser a parameter section
+            print(f"module {intf.name} ", file=self.file)
+            print("    #( parameter", file=self.file)
+            print('       ' + '        ,\n'.join(parameters), file=self.file)
+            print("    ) (", file=self.file)
+        else:
+            print(f"module {intf.name} (", file=self.file)
+
         if self.standard >= '2005':
             # ANSI-style module declaration
+            ic(self.hierarchical)
             for portname in intf.argnames:
                 s = intf.argdict[portname]
-                ic(f'writeModuleHeader: {portname=} -> {repr(s)} {s._driver=}')
+                ic(f'writeModuleHeader: {portname=} -> {repr(s)} {s._driven}, {s._driver=}')
                 if s._name is None:
                     raise ToVerilogError(_error.ShadowingSignal, portname)
+
                 if s._inList:
                     raise ToVerilogError(_error.PortInList, portname)
-                if isinstance(s, OpenPort):
+
+                if isinstance(s, (OpenPort, Parameter)):
                     continue
+
                 s._name = portname
                 r = _getRangeString(s)
                 p = _getSignString(s)
@@ -230,7 +250,7 @@ class VerilogWriter(object):
         ic(f'hierarchicalinstance: {sub=}')
         ic(f'hierarchicalinstance: {vars(sub)=}')
         ic(f'hierarchicalinstance: {sub.argnames=}')
-        ic(f'hierarchicalinstance: {sub.sigdict=}')
+        ic(pp.pformat(sub.sigdict))
         # # args = inspect.getfullargspec(sub.func)[0]
         # # ic(f'userInstance: {sub.args=}')
         # # ic(f'userInstance: {sub.kwargs=}')
@@ -244,14 +264,38 @@ class VerilogWriter(object):
         #
 
         # # ic(f'userInstance: {sub.func.__name__=}')
-        s = f"    {sub.name} {sub.name}_inst(" # % (sub.func.__name__, sub.name)
         # ic(f'userInstance: {s=}')
         #
         args = []
+        # first look for parameters
+        parameters = []
+        for i, arg in enumerate(sub.argnames):
+            arg = sub.sigdict[i]
+            if isinstance(arg, Parameter):
+                ic(repr(arg), vars(arg))
+                if arg.parent is None:
+                    parameters.append(f'.{arg}({arg.val})')
+                else:
+                    ppar = arg.parent
+                    while ppar.parent is not None:
+                        ppar = ppar.parent
+                    parameters.append(f'.{arg}({ppar})')
+
+        if len(parameters):
+            ic(pp.pformat(parameters))
+            s1 = f"    {sub.name} #("
+            s2 = f") {sub.name}_inst(" # % (sub.func.__name__, sub.name)
+            s = ''.join((s1, ','.join(parameters), s2))
+        else:
+            s = f"    {sub.name} {sub.name}_inst(" # % (sub.func.__name__, sub.name)
+
         for i, arg in enumerate(sub.argnames):
             signame = f'{sub.sigdict[i]}'
-            if signame.startswith('-- OpenPort'):
+            # if signame.startswith('-- OpenPort'):
+            if isinstance(sub.sigdict[i], OpenPort):
                 # args.append(f"\n        .{arg}( )")
+                pass
+            elif isinstance(sub.sigdict[i], Parameter):
                 pass
             else:
                 args.append(f"\n        .{arg}({signame})")
@@ -276,7 +320,8 @@ class VerilogWriter(object):
             if not s._used:
                 continue
 
-            if s._name.startswith('-- OpenPort'):
+            # if s._name.startswith('-- OpenPort'):
+            if isinstance(s, OpenPort):
                 # do not write a signal declaration
                 continue
                 # signame = s._name[12:]
@@ -309,7 +354,10 @@ class VerilogWriter(object):
                     c = int(s.val)
                     c_len = s._nrbits
                     c_str = f"{c}"
-                    print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                    if isinstance(s.val, bool):
+                        print(f"    localparam {r}{s} = {c_len}'b{c_str};", file=self.file)
+                    else:
+                        print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
                 else:
                     # the original exception
                     # raise ToVerilogError(_error.UndrivenSignal, signame)
@@ -698,7 +746,19 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
         else:
             # default behavior
-            # there should only be a single target
+            # there should/will only be a single target
+            target = node.targets[0]
+            if isinstance(target, ast.Attribute):
+                if isinstance(target.value, ast.Name):
+                    obj = self.tree.symdict[target.value.id]
+                    ic(target.value.id, repr(obj))
+                    if isinstance(obj, OpenPort):
+                        # skip early?
+                        # erase the last '\n'
+                        # this doesn't seem to work?
+                        # self.buf.seek(-1, os.SEEK_END)
+                        return
+
             self.visit(node.targets[0])
             if isinstance(node.targets[0], ast.Attribute) and isinstance(node.value, ast.Constant):
                 node.value.dst = node.targets[0].obj
@@ -1308,7 +1368,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         # 'body' is a list of statements
         # ic(self.__class__.__name__, body, pp.pformat(vars(self)))
         for stmt in body:
-            # ic(self.__class__.__name__, astdump(stmt, show_offsets=False), pp.pformat(vars(stmt)))
+            ic(self.__class__.__name__, astdump(stmt, show_offsets=False), pp.pformat(vars(stmt)))
             self.writeline()
             self.visit(stmt)
             # ugly hack to detect an orphan "task" call
@@ -1442,7 +1502,10 @@ class _ConvertSimpleAlwaysCombVisitor(_ConvertVisitor):
             # try intercepting '-- OpenPort' signals
             if isinstance(node.value, ast.Name):
                 obj = self.tree.symdict[node.value.id]
-                if obj._name.startswith('-- OpenPort'):
+                # if obj._name.startswith('-- OpenPort'):
+                if isinstance(obj, OpenPort):
+                    # it would be better if we discard the complete statement
+                    # but as we are writing the output hastily ...
                     self.write('// ')
 
             self.write("assign ")
@@ -1494,8 +1557,12 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             self.write("if ({} == {}) begin".format(reset, int(reset.active)))
             self.indent()
             for s in sigregs:
-                self.writeline()
-                self.write("{} <= {};".format(s, self._convertInitVal(s, s._init)))
+                if isinstance(s, OpenPort):
+                    # skip
+                    pass
+                else:
+                    self.writeline()
+                    self.write("{} <= {};".format(s, self._convertInitVal(s, s._init)))
             for v in varregs:
                 n, reg, init = v
                 self.writeline()

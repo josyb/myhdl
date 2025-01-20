@@ -298,7 +298,7 @@ class _Signal(object):
         if isinstance(val, intbv):
             val = val._val
         if not val in (0, 1):
-            raise ValueError("Expected boolean value, got %s (%s)" % (repr(val), type(val)))
+            raise ValueError("%s: Expected boolean value, got %s (%s)" % (repr(self), repr(val), type(val)))
         self._next = val
 
     def _setNextInt(self, val):

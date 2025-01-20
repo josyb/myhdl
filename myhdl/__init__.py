@@ -151,6 +151,7 @@ from ._intbv import intbv
 from ._modbv import modbv
 from ._join import join
 from ._Signal import posedge, negedge, Signal, SignalType, Constant
+from ._parameter import  Parameter
 from ._ShadowSignal import ConcatSignal
 from ._ShadowSignal import TristateSignal
 from ._simulator import now
@@ -181,6 +182,7 @@ __all__ = ["bin",
            "Signal",
            "SignalType",
            "Constant",
+           "Parameter",
            "ConcatSignal",
            "TristateSignal",
            "now",

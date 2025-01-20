@@ -54,7 +54,7 @@ def _get_sigdict(sigs, symdict):
     """
 
     sigdict = {}
-    ic(sigs)
+    # ic(sigs)
     for n, v in symdict.items():
         for s in sigs:
             if s is v:
@@ -95,7 +95,7 @@ def always(*args):
 class _Always(_Instantiator):
 
     def __init__(self, func, senslist, callinfo, sigdict=None):
-        ic(func, callinfo, sigdict)
+        # ic(func, callinfo, sigdict)
         # for ss in senslist:
         #     print(f'{repr(ss)=}')
         self.func = func

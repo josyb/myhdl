@@ -39,7 +39,7 @@ from myhdl._extractHierarchy import (_makeMemInfo,
                                      _UserVerilogInstance, _UserVhdlInstance)
 from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._misc import isboundmethod
-from myhdl._hdlclass import HdlClass
+# from myhdl._hdlclass import HdlClass
 
 from weakref import WeakValueDictionary
 
@@ -264,11 +264,11 @@ class _Block(object):
         self.subs = _flatten(func(*args, **kwargs))
         self._verifySubs()
         self._updateNamespaces()
-        ic(pp.pformat(self.symdict), self.sigdict, self.memdict)
+        # ic(pp.pformat(self.symdict), self.sigdict, self.memdict)
         self.verilog_code = self.vhdl_code = None
         self.sim = None
         if hasattr(deco, 'verilog_code'):
-            ic(pp.pformat(self.symdict))
+            # ic(pp.pformat(self.symdict))
             self.verilog_code = _UserVerilogCode(deco.verilog_code, self.symdict, func.__name__,
                                                  func, srcfile, srcline)
         elif hasattr(deco, 'verilog_instance'):
@@ -281,7 +281,7 @@ class _Block(object):
             self.vhdl_code = _UserVhdlInstance(deco.vhdl_instance, self.symdict, func.__name__,
                                                func, srcfile, srcline)
         self._config_sim = {'trace': False}
-        ic(pp.pformat(self.symdict))
+        # ic(pp.pformat(self.symdict))
 
     def _verifySubs(self):
         for inst in self.subs:
@@ -311,7 +311,7 @@ class _Block(object):
         # sigdict and losdict from Instantiator objects may contain new
         # references. Therefore, update the symdict with them.
         # To be revisited.
-        ic(pp.pformat(usedlosdict))
+        # ic(pp.pformat(usedlosdict))
         self.symdict.update(usedsigdict)
         self.symdict.update(usedlosdict)
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
@@ -320,13 +320,13 @@ class _Block(object):
                 self.sigdict[n] = v
                 if n in usedsigdict:
                     v._markUsed()
-                ic(n, pp.pformat(v))
+                # ic(n, pp.pformat(v))
             if _isListOfSigs(v):
                 m = _makeMemInfo(v)
                 self.memdict[n] = m
                 if n in usedlosdict:
                     m._used = True
-                ic(n, pp.pformat(m))
+                # ic(n, pp.pformat(m))
 
     def _inferInterface(self):
         from myhdl.conversion._analyze import _analyzeTopFunc
@@ -350,7 +350,7 @@ class _Block(object):
             if hasattr(self, 'isHdlClass'):
                 # if present it will be `True`, even if it is `False` :)
                 # An HdlClass object's hdl() method does not take any args nor kwargs
-                # all ports/signals (must) have resolved in the `__iniy__()` call
+                # all ports/signals (must) have resolved in the `__init__()` call
                 self.func()
             else:
                 self.func(*self.args, **self.kwargs)
@@ -376,13 +376,20 @@ class _Block(object):
             hdl (str): Target HDL; one of 
                 ['Verilog', 'VHDL', 'SystemVerilog'] must be specified
 
-            path (Optional[str]): Destination folder. Defaults to current
+            direrctory (Optional[str]): Destination folder. Defaults to current
                 working dir.
 
             name (Optional[str]): Module and output file name. Defaults to
                 `self.mod.__name__`
 
-
+            hierarchical (Optional[bool|int]): Generate hierachical modules/entities
+                False | 0 : flattened design (default)
+                int: -1: complete hierchical conversion
+                    >= 1: flatten from this level on
+                    Note: specifying an `@block(endhierarchy=True)` will override this setting and the branch
+                    will be flattened depending which comes first: a depth of 1 will override an
+                    endhierarchy setting at level 3 as this will override a depth setting of 4
+                    
             trace(Optional[bool]): Verilog only. Whether the testbench should
                 dump all signal waveforms. Defaults to False.
 

@@ -9,7 +9,7 @@ import inspect
 
 from abc import ABC, abstractmethod
 
-# from myhdl import block
+from myhdl import block
 from myhdl._misc import _isGenSeq
 from myhdl._Signal import _Signal
 
@@ -24,16 +24,19 @@ class HdlClass(ABC):
         pass
 
     @abstractmethod
-    # @block
+    @block
     def hdl(self, *args, **kwargs):
         ''' 
             placeholder for user written hdl 
             
-            do not forget the `@block(skipname=True)` to skip adding '_hdl' in the name chain ...
+            do not forget the `@block` to skip adding '_hdl' in the name chain ...
+            Note that even if you set skipname=True as the block argument eventually
+            a name will be given to that block; either by yourself or in the better case
+            by the hdlinstances() method below
         '''
         pass
 
-    # @block(skipname=True)
+    @block(skipname=True)
     def hdlinstances(self):
         ''' return the hdl() of the instantiated building blocks '''
         # it needs a 'block decorator', because we we will call on the subsequent .hdl() methods ...
