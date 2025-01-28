@@ -22,7 +22,6 @@
 """
 # import compiler
 # from compiler import ast as astNode
-from astpretty import pformat as astdump
 
 from types import FunctionType, MethodType
 import sys
@@ -35,6 +34,11 @@ try:
     from icecream import ic
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+try:
+    from astpretty import pformat as astdump
+except ImportError:
+    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 import myhdl
 from myhdl import ConversionError

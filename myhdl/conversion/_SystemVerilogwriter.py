@@ -14,12 +14,15 @@ import string
 from io import StringIO
 import warnings
 
-from astpretty import pformat as astdump
-
 try:
     from icecream import ic
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+try:
+    from astpretty import pformat as astdump
+except ImportError:
+    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
 from myhdl import __version__ as myhdlversion
