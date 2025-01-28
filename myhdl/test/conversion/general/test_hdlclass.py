@@ -186,7 +186,7 @@ if __name__ == '__main__':
         # doing direct conversion from the class instance itself
         # this is quite necessary for hierarchical conversion
         dfc = XYMotors(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
-        for level in [0]:
+        for level in [-1]:
             dfc.name = f'xymotors_h{level}'.replace('-', 'm')
             dfc.convert(hdl='Verilog', name=f'xymotors_h{level}'.replace('-', 'm'), hierarchical=level, no_testbench=True)
 

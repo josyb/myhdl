@@ -128,6 +128,7 @@ class VerilogWriter(object):
         parameters = []
         for portname in intf.argnames:
             s = intf.argdict[portname]
+            ic(s._info)
             if isinstance(s, Parameter):
                 # insert a Verilog parameter
                 parameters.append(f"{portname} = {s.value}")
@@ -160,31 +161,31 @@ class VerilogWriter(object):
                 p = _getSignString(s)
 
                 # TODO: re-visit this code
-                if self.hierarchical:
-                    # find out whether we need to declare an output
-                    # possibly this may be a 'tautology' :)
-                    sigdriven = s._driven
-                    if s._driver is None:
-                        sigdriven = False
-                    else:
-                        if s._driver == 'driven':
-                            # nobody has claimed to be the driver (yet?)
-                            # this is always the case for the top level
-                            pass
-                        # elif intf.name in s._driver:
-                            # s._driver is built with prefixes
-                            # if our intf.name is somewhere in this string we are
-                            # on a 'straight hierachy line'
-                            # this may be a bit simple as when using 'really' short names
-                            # for modules, e.g. 'ab' they may be present inside another name
-                            # so we restrict it to either start or end, or is fenced by underscores if somewhere in the middle
-                        elif s._driver.startswith(intf.name) or s._driver.endswith(intf.name) or f'_{intf.name}_' in s._driver:
-                            pass
-                        else:
-                            # no positive match
-                            sigdriven = False
-                else:
-                    sigdriven = s._driven in ['reg', 'wire']
+                # if self.hierarchical > 1 or self.hierarchical == -1:
+                #     # find out whether we need to declare an output
+                #     # possibly this may be a 'tautology' :)
+                #     sigdriven = s._driven
+                #     if s._driver is None:
+                #         sigdriven = False
+                #     else:
+                #         if s._driver == 'driven':
+                #             # nobody has claimed to be the driver (yet?)
+                #             # this is always the case for the top level
+                #             pass
+                #         # elif intf.name in s._driver:
+                #             # s._driver is built with prefixes
+                #             # if our intf.name is somewhere in this string we are
+                #             # on a 'straight hierachy line'
+                #             # this may be a bit simple as when using 'really' short names
+                #             # for modules, e.g. 'ab' they may be present inside another name
+                #             # so we restrict it to either start or end, or is fenced by underscores if somewhere in the middle
+                #         elif s._driver.startswith(intf.name) or s._driver.endswith(intf.name) or f'_{intf.name}_' in s._driver:
+                #             pass
+                #         else:
+                #             # no positive match
+                #             sigdriven = False
+                # else:
+                sigdriven = s._driven in ['reg', 'wire']
 
                 if sigdriven:
                     if isinstance(s, _TristateSignal):
