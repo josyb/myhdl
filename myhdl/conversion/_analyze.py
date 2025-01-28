@@ -16,7 +16,6 @@
 #  You should have received a copy of the GNU Lesser General Public
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-from _misc import updatesymdict
 
 """ MyHDL conversion analysis module.
 
@@ -53,7 +52,7 @@ from myhdl._modbv import modbv
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._concat import concat
 from myhdl._delay import delay
-from myhdl._misc import downrange, isboundmethod, getsymdict
+from myhdl._misc import downrange, isboundmethod, getsymdict, updatesymdict
 
 from myhdl._hdlclass import HdlClass
 from myhdl.conversion._misc import (_error, _access, _kind,
