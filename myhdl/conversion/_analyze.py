@@ -16,12 +16,15 @@
 #  You should have received a copy of the GNU Lesser General Public
 #  License along with this library; if not, write to the Free Software
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+from _misc import updatesymdict
 
 """ MyHDL conversion analysis module.
 
 """
 # import compiler
 # from compiler import ast as astNode
+from astpretty import pformat as astdump
+
 from types import FunctionType, MethodType
 import sys
 import re
@@ -29,11 +32,10 @@ import ast
 import builtins
 from itertools import chain
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True)
-from astpretty import pformat as astdump
-import pprint
-pp = pprint.PrettyPrinter(indent=4)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 import myhdl
 from myhdl import ConversionError
@@ -51,7 +53,7 @@ from myhdl._modbv import modbv
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._concat import concat
 from myhdl._delay import delay
-from myhdl._misc import downrange, isboundmethod
+from myhdl._misc import downrange, isboundmethod, getsymdict
 
 from myhdl._hdlclass import HdlClass
 from myhdl.conversion._misc import (_error, _access, _kind,
@@ -91,12 +93,12 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         name = inst.name
         sigdict = inst.sigdict
         memdict = inst.memdict
-        ic(level, name, sigdict, memdict)
+        # ic(level, name, sigdict, memdict)
         namedict = dict(chain(sigdict.items(), memdict.items()))
         delta = curlevel - level
         curlevel = level
         assert(delta >= -1)
-        if delta > -1: # same or higher level
+        if delta > -1:  # same or higher level
             prefixes = prefixes[:curlevel - 1]
         # skip processing and prefixing in context without signals
         # if not (sigdict or memdict):
@@ -104,7 +106,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
-            ic(f'  _analyzeSigs: {n=}, {s=} ({s._name})')
+            # ic(n, s, s._name)
             if s._name is not None:
                 continue
             if isinstance(s, _SliceSignal):
@@ -116,6 +118,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 if not s._nrbits:
                     raise ConversionError(_error.UndefinedBitWidth, s._name)
             # slice signals
+            # ic(s._slicesigs)
             for sl in s._slicesigs:
                 sl._setName(hdl)
             siglist.append(s)
@@ -126,12 +129,12 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 continue
             m.name = _makeName(n, prefixes, namedict)
             memlist.append(m)
-            ic(m.name)
+            # ic(m.name)
 
     # handle the case where a named signal appears in a list also by giving
     # priority to the list and marking the signals as unused
     for m in memlist:
-        ic(m, m._used, m.name)
+        # ic(m, m._used, m.name)
         if not m._used:
             continue
         for i, s in enumerate(m.mem):
@@ -150,24 +153,27 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
             if s._nrbits != m.elObj._nrbits:
                 raise ConversionError(_error.InconsistentBitWidth, s._name)
 
+    # ic(siglist, memlist)
     return siglist, memlist
 
 
 def _analyzeGens(top, absnames):
     # ic.indent()
-    ic(pp.pformat(top))
-    ic(pp.pformat(absnames))
+    # ic(top, absnames)
     genlist = []
     for g in top:
         if isinstance(g, _UserCode):
             tree = g
+
         elif isinstance(g, _HierarchicalInstance):
             tree = g
+
         elif isinstance(g, (_AlwaysComb, _AlwaysSeq, _Always)):
             f = g.func
             tree = g.ast
-            # ic(pp.pformat(vars(tree)))
-            tree.symdict = f.__globals__.copy()
+            # ic((vars(tree)))
+            # tree.symdict = f.__globals__.copy()
+            tree.symdict = getsymdict(f.__globals__)
             tree.callstack = []
             # handle free variables
             tree.nonlocaldict = {}
@@ -191,11 +197,14 @@ def _analyzeGens(top, absnames):
             else:
                 v = _AnalyzeAlwaysDecoVisitor(tree, g.senslist)
             v.visit(tree)
-        else: # @instance
+
+        else:  # @instance
             f = g.gen.gi_frame
             tree = g.ast
-            tree.symdict = f.f_globals.copy()
-            tree.symdict.update(f.f_locals)
+            # tree.symdict = f.f_globals.copy()
+            # tree.symdict.update(f.f_locals)
+            tree.symdict = getsymdict(f.f_globals)
+            updatesymdict(tree.symdict, f.f_locals)
             tree.nonlocaldict = {}
             tree.callstack = []
             # tree.name = absnames.get(id(g), str(_Label("BLOCK"))).upper()
@@ -206,8 +215,10 @@ def _analyzeGens(top, absnames):
             v.visit(tree)
             v = _AnalyzeBlockVisitor(tree)
             v.visit(tree)
+
         genlist.append(tree)
     # # ic.dedent()
+    # ic(genlist)
     return genlist
 
 
@@ -330,7 +341,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         if node:
             if len(node) == 1 and \
                     isinstance(node[0], ast.If) and \
-                    node[0].body[0].col_offset == co: # ugly hack to detect separate else clause
+                    node[0].body[0].col_offset == co:  # ugly hack to detect separate else clause
                 elifnode = node[0]
                 tests.append((elifnode.test, elifnode.body))
                 self.flattenIf(elifnode.orelse, tests, else_, co)
@@ -493,7 +504,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Attribute(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         if isinstance(node.ctx, ast.Store):
             self.setAttr(node)
         else:
@@ -518,7 +529,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
         node.obj = node.value.obj
         # self.access = _access.INPUT
-        # ic(repr(node.obj), pp.pformat(vars(self.tree)))
+        # ic(repr(node.obj), (vars(self.tree)))
 
     def getAttr(self, node):
         # ic(astdump(node, show_offsets=False))
@@ -554,7 +565,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 suf = _genUniqueSuffix.next()
                 obj._setName(n + suf)
 
-        if node.obj is None: # attribute lookup failed
+        if node.obj is None:  # attribute lookup failed
             self.raiseError(node, _error.UnsupportedAttribute, node.attr)
 
     def visit_Assign(self, node):
@@ -683,7 +694,8 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             tree = _makeAST(f)
             fname = f.__name__
             tree.name = _Label(fname)
-            tree.symdict = f.__globals__.copy()
+            # tree.symdict = f.__globals__.copy()
+            tree.symdict = getsymdict(f.__globals__)
             tree.nonlocaldict = {}
             if fname in self.tree.callstack:
                 self.raiseError(node, _error.NotSupported, "Recursive call")
@@ -726,7 +738,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
     def visit_Compare(self, node):
         # ic.indent()
         # ic.enable()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         assert len(node.ops) == 1, 'Cannot compare more than two values, split into two comparisons'
         node.obj = bool()
         for n in [node.left] + node.comparators:
@@ -757,7 +769,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Constant(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
 
         node.obj = None  # safeguarding?
         # ToDo check for tuples?
@@ -903,11 +915,11 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # ic.dedent()
 
     def setName(self, node):
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         # XXX INOUT access in Store context, unlike with compiler
         # XXX check whether ast context is correct
         n = node.id
-        if self.access == _access.INOUT: # augmented assign
+        if self.access == _access.INOUT:  # augmented assign
             if n in self.tree.sigdict:
                 sig = self.tree.sigdict[n]
                 if isinstance(sig, _Signal):
@@ -928,7 +940,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.refStack.add(n)
 
     def getName(self, node):
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         n = node.id
         node.obj = None
         if n not in self.refStack:
@@ -962,7 +974,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 # pass
         if n in self.tree.vardict:
             obj = self.tree.vardict[n]
-            if self.access == _access.INOUT: # probably dead code
+            if self.access == _access.INOUT:  # probably dead code
                 # upgrade bool to int for augmented assignments
                 if isinstance(obj, bool):
                     obj = int(-1)
@@ -1001,7 +1013,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Print(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         self.tree.hasPrint = True
         f = []
         nr = 0
@@ -1062,16 +1074,16 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Subscript(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         if isinstance(node.slice, ast.Slice):
             self.accessSlice(node)
         else:
             self.accessIndex(node)
-        # ic(pp.pformat(vars(node)))
+        # ic((vars(node)))
         # ic.dedent()
 
     def accessSlice(self, node):
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         self.visit(node.value)
         node.obj = self.getObj(node.value)
         self.access = _access.INPUT
@@ -1091,7 +1103,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.obj = node.obj[leftind:rightind]
 
     def accessIndex(self, node):
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         self.visit(node.value)
         self.access = _access.INPUT
         self.visit(node.slice)
@@ -1196,8 +1208,9 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
     def visit_Module(self, node):
         # ic.indent()
         # ic(astdump(node, show_offsets=False))
-        ic(self)
+        # ic(self, self.tree.sigdict)
         self.generic_visit(node)
+        # ic(self.tree.outputs, self.tree.inputs)
         for n in self.tree.outputs:
             s = self.tree.sigdict[n]
             if s._driven:
@@ -1224,10 +1237,10 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
 class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
 
     def __init__(self, tree, senslist):
-        # ic(pp.pformat(vars(tree)))
+        # ic((vars(tree)))
         _AnalyzeBlockVisitor.__init__(self, tree)
         self.tree.senslist = senslist
-        # ic(pp.pformat(vars(tree)))
+        # ic((vars(tree)))
 
     def visit_FunctionDef(self, node):
         # ic.indent()
@@ -1257,10 +1270,10 @@ class _AnalyzeAlwaysCombVisitor(_AnalyzeBlockVisitor):
 
     def visit_Module(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         _AnalyzeBlockVisitor.visit_Module(self, node)
         # ic(astdump(node, show_offsets=False))
-        # ic(pp.pformat(vars(node)))
+        # ic((vars(node)))
         if self.tree.kind == _kind.SIMPLE_ALWAYS_COMB:
             for n in self.tree.outputs:
                 s = self.tree.sigdict[n]
@@ -1416,7 +1429,6 @@ def _analyzeTopFunc(func, *args, **kwargs):
 
     # create ports for any signal in the top instance if it was buried in an
     # object passed as in argument
-
     # now expand the interface objects
     for name, obj in objs:
         if hasattr(obj, '__dict__'):
@@ -1444,10 +1456,11 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         self.name = node.name
         if isboundmethod(self.func):
             if isinstance(self.func.__self__, HdlClass):
-                ic(self.func)
+                # ic(self.func)
                 # must find names ...
                 for arg in self.args:
                     # be selective
+                    # TODO: interfaces?
                     if isinstance(arg, _Signal):
                         self.argnames.append(arg._name)
                     elif _isListOfSigs(arg):

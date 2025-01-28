@@ -28,6 +28,11 @@ import inspect
 from tokenize import generate_tokens, untokenize, INDENT
 from io import StringIO
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 
 def _printExcInfo():
     kind, value = sys.exc_info()[:2]
@@ -42,6 +47,7 @@ _isGenFunc = inspect.isgeneratorfunction
 
 
 def _flatten(*args):
+    # ic(args)
     arglist = []
     for arg in args:
         if isinstance(arg, (list, tuple, set)):

@@ -20,7 +20,11 @@
 """ myhdl _getHierarchy module.
 
 """
-import re
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl._extractHierarchy import _Instance
 from myhdl._block import _Block
@@ -39,7 +43,7 @@ class _Hierarchy(object):
         top_inst = hierarchy[0]
         obj, subs = top_inst.obj, top_inst.subs
         names[id(obj)] = name
-        absnames[id(obj)] = None # this avoids starting every process label with the name of the entity
+        absnames[id(obj)] = None  # this avoids starting every process label with the name of the entity
         for inst in hierarchy:
             obj, subs = inst.obj, inst.subs
             inst.name = names[id(obj)]
@@ -60,6 +64,7 @@ class _Hierarchy(object):
 
 
 def _getHierarchy(name, modinst, descend=True):
+    ic(descend)
     h = _Hierarchy(name, modinst, descend)
     return h
 

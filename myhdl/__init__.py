@@ -91,6 +91,10 @@ class InstanceError(Error):
     pass
 
 
+class HdlClassInstanceError(Error):
+    pass
+
+
 class BlockError(Error):
     pass
 
@@ -167,7 +171,7 @@ from ._block import block
 from ._enum import enum, EnumType, EnumItemType
 from ._traceSignals import traceSignals
 from ._openport import OpenPort
-from ._hdlclass import HdlClass# , hdlinstances
+from ._hdlclass import HdlClass  # , hdlinstances
 
 from myhdl import conversion
 from ._tristate import Tristate

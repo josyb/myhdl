@@ -21,6 +21,11 @@
 import inspect
 from types import FunctionType
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl import InstanceError
 from myhdl._util import _isGenFunc, _makeAST
 from myhdl._Waiter import _inferWaiter
@@ -30,6 +35,8 @@ from myhdl._visitors import _SigNameVisitor
 
 class _error:
     pass
+
+
 _error.NrOfArgs = "decorated generator function should not have arguments"
 _error.ArgType = "decorated object should be a generator function"
 
@@ -54,11 +61,17 @@ def _getCallInfo():
     3: the caller of the block function, e.g. the BlockInstance.
     """
     from myhdl import _block
-    funcrec = inspect.stack()[2]
+    from myhdl._misc import getsymdict, updatesymdict
+
+    stack = inspect.stack()
+    # ic(stack)
+    funcrec = stack[2]
     name = funcrec[3]
     frame = funcrec[0]
-    symdict = dict(frame.f_globals)
-    symdict.update(frame.f_locals)
+    # symdict = dict(frame.f_globals)
+    # symdict.update(frame.f_locals
+    symdict = getsymdict(frame.f_globals)
+    updatesymdict(symdict, frame.f_locals)
     modctxt = False
     callerrec = inspect.stack()[3]
     f_locals = callerrec[0].f_locals

@@ -28,12 +28,10 @@ negedge -- callable to model a falling edge on a signal in a yield statement
 """
 from copy import copy, deepcopy
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
-                   prefix='')
-# ic.disable()
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import _simulator as sim
 from myhdl._simulator import _futureEvents
@@ -54,7 +52,6 @@ def _isListOfSigs(obj):
             if not isinstance(e, _Signal):
                 return False
 
-        ic(obj)
         return True
     else:
         return False
@@ -187,6 +184,11 @@ class _Signal(object):
         self._slicesigs = []
         self._tracing = 0
         _signals.append(self)
+
+    @property
+    def _info(self):
+        ''' as we have `slots` we need some way to inspect what we have '''
+        return f'{repr(self)} used {self._used,} driven {self._driven}, driver {self._driver}, read {self._read} '
 
     def _clear(self):
         del self._eventWaiters[:]

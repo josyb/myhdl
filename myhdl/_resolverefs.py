@@ -2,6 +2,11 @@ import ast
 import itertools
 from types import FunctionType
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl._util import _flatten
 from myhdl._enum import EnumType
 from myhdl._Signal import SignalType
@@ -65,13 +70,16 @@ class _AttrRefTransformer(ast.NodeTransformer):
         attrobj = getattr(obj, node.attr)
         orig_name = node.value.id + '.' + node.attr
         if orig_name not in self.name_map:
+            # ic(orig_name, (self.name_map))
             if node.value.id == 'self':
                 # discard 'self_' - less cluttered names
                 base_name = node.attr
             else:
                 base_name = node.value.id + '_' + node.attr
             self.name_map[orig_name] = _suffixer(base_name, self.data.symdict)
+            # self.name_map[orig_name] = base_name
         new_name = self.name_map[orig_name]
+        # ic(orig_name, new_name, (self.name_map))
         self.data.symdict[new_name] = attrobj
         self.data.objlist.append(new_name)
 

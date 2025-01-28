@@ -29,17 +29,23 @@ import inspect
 
 from io import StringIO
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
+try:
+    from icecream import ic
+    ''' 
+        this is the only place where we configure icecream
+        all other modules refrain!
+    '''
+    ic.configureOutput(outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
-# ic.disable()
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+    # ic.disable()
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
+from myhdl._Signal import _Signal
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
-from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, getargnames, _flattenhierarchy, _checkArgs
+from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
 from myhdl.conversion._annotate import _annotateTypes
 from myhdl.conversion._VHDLwriter import VhdlWriter
@@ -61,8 +67,8 @@ class Converter(object):
         self.hierarchical = False
         self.trace = False
         for key, value in kwargs.items():
-            print(f"{key} = {value}")
-            if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace']:
+            # ic(key, value)
+            if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace', 'sourcepath']:
                 setattr(self, key, value)
                 # # drop it?
                 # del kwargs[key]
@@ -97,7 +103,7 @@ class Converter(object):
         if self.name is None:
             self.name = func.func.__name__
 
-        ic(f'Converter: call(): {self.name}')
+        ic(self.name)
 
         try:
             h = _getHierarchy(self.name, func)
@@ -112,11 +118,10 @@ class Converter(object):
         _genUniqueSuffix.reset()
 
         if self.hierarchical:
-            # ic("Going hierarchical!")
+            ic("Going hierarchical!")
 
             ha = []
-            collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha) # give it an empty list as a placeholder
-            ic(pp.pformat(ha))
+            collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha)  # give it an empty list as a placeholder
 
             # now start converting 'bottoms up'
             # we need an empty directory where we place all output
@@ -134,101 +139,103 @@ class Converter(object):
             modules = {}
 
             startlevel = len(ha) - 1
+            ic((ha))
             for ll in range(startlevel, -1, -1):
-                ic(ll, pp.pformat(ha[ll]))
+                ic(ll, (ha[ll]))
                 for bb in ha[ll]:
-                    ic('======================================')
-                    ic(bb)
+                    ic('======================================', bb)
                     # we normally only need one level of hierarchy
-                    # unless we choose to flatten a certian part of the code
-                    ic(bb.blocksubs.endhierarchy)
-                    if ll == startlevel:
-                        bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=True)
-                    else:
-                        bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy)
-                    ic(pp.pformat(bbh))
-                    ic(pp.pformat(bbh.top))
-                    ic(pp.pformat(bbh.hierarchy))
-                    ic(pp.pformat(bb.gens))
-                    genlist = _analyzeGens(bb.gens, bbh.absnames)
-                    ic(pp.pformat(genlist))
+                    # unless we choose to flatten a part of the code
+                    # ic(vars(bb.blocksubs))
+                    for ssub in bb.blocksubs.subs:
+                        ic(ssub, vars(ssub))
+                    if bb.blocksubs.hdlclass is not None:
+                        ic(bb.blocksubs.hdlclass)
+                    #     # if present it is a **backlink** to the instantiated HdlClass
+                    #     ports = []
+                    #     # bb.blocksubs.hdlclass.__dict__ is made by the __init__ call on class instantiation
+                    #     for name, sig in bb.blocksubs.hdlclass.__dict__.items():
+                    #         # TODO: look out for interfaces (and structures, lists etc in the future)
+                    #         if isinstance(sig, _Signal):
+                    #             if sig._name is None:
+                    #                 sig._name = name
+                    #             ports.append(sig)
+                    #     ic(ports)
+                    #     bb.blocksubs.args = tuple(ports)
 
-                    ic(bb.blocksubs)
-                    ic(len(bb.blocksubs.subs), bb.blocksubs.subs)
-                    ic(bb.blocksubs.args)
-                    ic(bb.blocksubs.kwargs)
-                    ic(bb.blocksubs.sigdict)
-                    for i, sub in enumerate(bb.blocksubs.subs):
+                    ic(bb.instancename, bb.blocksubs, bb.blocksubs.endhierarchy)
+                    bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy or (ll == startlevel))
+                    ic(bbh, bbh.top, bbh.hierarchy, bb.gens)
+
+                    genlist = _analyzeGens(bb.gens, bbh.absnames)
+                    ic(genlist, bb.blocksubs, len(bb.blocksubs.subs), bb.blocksubs.subs,
+                       bb.blocksubs.args, bb.blocksubs.kwargs, bb.blocksubs.sigdict)
+                    for sub in bb.blocksubs.subs:
                         if sub.name in modules:
                             ic(f'{ll} found {sub.name} in generated {modules=}')
-                            ic(f'{vars(sub)=}')
+                            # ic(vars(sub))
                             # add the found generated module to the list
                             genlist.insert(0, modules[sub.name])
 
-                    ic(pp.pformat(genlist))
+                    ic((genlist))
 
                     # _analyzeSigs will skip signals that have been treated at a lower level
                     # invalidating the name will force a re-evaluation
-                    ic(pp.pformat(bb.blocksubs.sigdict))
+                    # also, some of the subblocks will use input-only signal from a higher level
+                    # which has been generated/treated by another module and also have the _driven attribute set
+                    # in which case this signal gets flagged as an output
+                    # so whave to reset the ._driven for these specific signals only
+                    ic((bb.blocksubs.sigdict))
                     for __, s in bb.blocksubs.sigdict.items():
+                        ic(s._name, repr(s), s._used, s._driven, s._driver, s._read)
                         s._name = None
-                        ic(f'{s._driver=}')
                         if ll:
                             if s._driver == 'driven':
                                 s._driver = bb.instancename
                         else:
                             if s._driver is not None:
                                 s._driver = 'driven'
-                        ic(f'{s._driver}')
 
-                    # some of the subblocks will use input-only signal from a higher level
-                    # which has been generated/treated by another module and also have the _driven attribute set
-                    # in which case this signal gets flagged as an output
-                    # so whave to reset the ._driven for these specific signals only
-                    argnames = getargnames(bb.blocksubs)
-                    ic(argnames)
+                    # argnames = getargnames(bb.blocksubs)
+                    # ic(argnames)
 
                     siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
-                    ic(pp.pformat(siglist))
-                    ic(pp.pformat(memlist))
-                    for item in siglist:
-                        ic(f'  {id(item)} {repr(item)} {item._driven=} {item._read=}')
+                    info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
+                    ic(info)
 
                     _annotateTypes(self.hdl, genlist)
 
                     res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist)
-                    ic(f'{res=}')
                     # build the 'placeholder' information for this block
                     # as it may be called upon by the next higher code level
                     # save the converted block information
                     sl = []
+                    # ic(vars(res))
                     for argname in res.argnames:
-                        s = res.sigdict[argname]
+                        s = res.argdict[argname]
                         sl.append(s)
+                    if hasattr(bb.blocksubs, 'hdlclass'):
+                        # must add local signals
+                        pass
+
+                    ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
                     modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl)
+
+                    ### clean-up properly ###
+                    # self._cleanup(siglist, memlist)
+
+            ic(modules)
 
         else:
             ic('We flatten the design')
 
             arglist = _flattenhierarchy(self.hdl, h.top)
-            ic(arglist)
             _checkArgs(arglist)
-            ic(pp.pformat(arglist))
-
             genlist = _analyzeGens(arglist, h.absnames)
-            ic(pp.pformat(genlist))
-
             siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
-            ic(siglist, memlist)
-            for m in memlist:
-                ic(m.name)
-            ic(h, h.top, h.hierarchy, pp.pformat(siglist), memlist)
-            for m in memlist:
-                ic(m.name)
+            ic(h, h.top, h.hierarchy)
             # generic annotate for 'all' target HDLs
             _annotateTypes(self.hdl, genlist)
-            for m in memlist:
-                ic(m.name)
 
             self._convert(0, self.name, h, func, siglist, memlist, genlist)
 
@@ -236,12 +243,28 @@ class Converter(object):
 
     def _convert(self, level, name, h, func, siglist, memlist, genlist):
 
+        ic(name, h, func, siglist, memlist, genlist)
         # finally
+        if func.hdlclass is not None:
+            ic(func.hdlclass)
+            # if present it is a **backlink** tot the instantiated HdlClass
+            ports = []
+            # func.hdlclass.__dict__ is made by the __init__ call on class instantiation
+            ic(func.hdlclass.__dict__)
+            for n, s in func.hdlclass.__dict__.items():
+                # ic(n, s)
+                # TODO: look out for interfaces (and structures, lists etc in the future)
+                if isinstance(s, _Signal):
+                    # if s._name is None:
+                    s._name = n
+                    ports.append(s)
+            ic(ports)
+            func.args = tuple(ports)
+
         # infer interface after signals have been analyzed
         func._inferInterface()
         intf = func
         intf.name = name
-        ic(func, vars(func))
 
         # start the output file, only when the analysis/annotation process passes
         self.writer.openfile(name, self.directory)
@@ -251,7 +274,7 @@ class Converter(object):
 
         # all this gets delegated to the respective writer
         self.writer.writePackages(self.directory)
-        self.writer.writeModuleHeader(intf)
+        self.writer.writeModuleHeader(intf, func.filename)
         self.writer.writeDecls(intf, siglist, memlist)
 
         self._convertGens(genlist)
@@ -326,7 +349,7 @@ class Converter(object):
                 Visitor = self.writer.ConvertAlwaysDecoVisitor
             elif tree.kind == _kind.ALWAYS_SEQ:
                 Visitor = self.writer.ConvertAlwaysSeqVisitor
-            else: # ALWAYS_COMB
+            else:  # ALWAYS_COMB
                 Visitor = self.writer.ConvertAlwaysCombVisitor
             v = Visitor(tree, blockBuf, funcBuf, self.writer)
             v.visit(tree)

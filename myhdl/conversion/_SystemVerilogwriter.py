@@ -16,11 +16,10 @@ import warnings
 
 from astpretty import pformat as astdump
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True)
-
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
 from myhdl import __version__ as myhdlversion
@@ -413,7 +412,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
 
     def visit_BinOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if isinstance(node.op, ast.Mod) and self.context == _context.PRINT:
             self.visit(node.left)
             self.write(", ")
@@ -447,7 +446,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                                 "negative intbv with operator {}".format(op))
 
     def visit_BoolOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("(")
         self.visit(node.values[0])
         for n in node.values[1:]:
@@ -456,13 +455,13 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(")")
 
     def visit_UnaryOp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("({}".format(opmap[type(node.op)]))
         self.visit(node.operand)
         self.write(")")
 
     def visit_Attribute(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if isinstance(node.ctx, ast.Store):
             self.setAttr(node)
         else:
@@ -505,7 +504,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(e._toVerilog())
 
     def visit_Assert(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("if (")
         self.visit(node.test)
         self.write(" !== 1) begin")
@@ -519,7 +518,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("end")
 
     def visit_Assign(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         # shortcut for expansion of ROM in case statement
         if isinstance(node.value, ast.Subscript) and \
                       not isinstance(node.value.slice, ast.Slice) and \
@@ -569,7 +568,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.writer.emitline()
 
     def visit_AugAssign(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         # XXX apparently no signed context required for augmented assigns
         self.visit(node.target)
         self.write(" = ")
@@ -580,12 +579,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visit_Break(self, node,):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("disable {};".format(self.labelStack[-2]))
         self.writer.emitline()
 
     def visit_Call(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.context = None
         fn = node.func
         # assert isinstance(fn, astNode.Name)
@@ -663,7 +662,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             v.visit(node.tree)
 
     def visit_Compare(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.context = None
         if node.signed:
             self.context = _context.SIGNED
@@ -675,7 +674,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.context = None
 
     def visit_Constant(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
@@ -701,11 +700,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(s)
 
     def visit_Continue(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("disable {};".format(self.labelStack[-1]))
 
     def visit_Expr(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         expr = node.value
         # docstrings on unofficial places
         if isinstance(expr, ast.Str):
@@ -725,7 +724,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(';')
 
     def visit_IfExp(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.visit(node.test)
         self.write(' ? ')
         self.visit(node.body)
@@ -733,7 +732,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.orelse)
 
     def visit_For(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.labelStack.append(node.breakLabel)
         self.labelStack.append(node.loopLabel)
         var = node.target.id
@@ -799,7 +798,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         raise AssertionError("To be implemented in subclass")
 
     def visit_If(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if node.ignore:
             return
         if node.isCase:
@@ -808,7 +807,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.mapToIf(node)
 
     def visit_Match(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("case (")
         self.visit(node.subject)
         self.write(")")
@@ -822,7 +821,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("endcase")
 
     def visit_match_case(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         pattern = node.pattern
         self.visit(pattern)
 
@@ -837,7 +836,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("end")
 
     def visit_MatchValue(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         item = node.value
         obj = self.getObj(item)
 
@@ -865,14 +864,14 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(pattern)
 
     def visit_MatchAs(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if node.name is None and  node.pattern is None:
             self.write("default")
         else:
             raise AssertionError("Unknown name {} or pattern {}".format(node.name, node.pattern))
 
     def visit_MatchOr(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         for i, pattern in enumerate(node.patterns):
             self.visit(pattern)
             if not i == len(node.patterns) - 1:
@@ -920,7 +919,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def mapToIf(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         first = True
         for test, suite in node.tests:
             if first:
@@ -960,11 +959,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visitKeyword(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.visit(node.expr)
 
     def visit_Module(self, node, *args):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         for stmt in node.body:
             self.visit(stmt)
 
@@ -979,11 +978,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.getName(node)
 
     def setName(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write(node.id)
 
     def getName(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         n = node.id
         addSignBit = False
         isMixedExpr = (not node.signed) and (self.context == _context.SIGNED)
@@ -1029,11 +1028,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("})")
 
     def visit_Pass(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("// pass")
 
     def visit_Print(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         argnr = 0
         for s in node.format:
             if isinstance(s, str):
@@ -1084,11 +1083,11 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write('$write("\\n");')
 
     def visit_Raise(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         self.write("$finish;")
 
     def visit_Return(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         self.write("disable {};".format(self.returnLabel))
 
     def visit_Subscript(self, node):
@@ -1098,7 +1097,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.accessIndex(node)
 
     def accessSlice(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         if isinstance(node.value, ast.Call) and \
            node.value.func.obj in (intbv, modbv) and \
            _isConstant(node.value.args[0], self.tree.symdict):
@@ -1142,7 +1141,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write("})")
 
     def accessIndex(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         addSignBit = isinstance(node.ctx, ast.Load) and \
             (not node.signed) and \
             (self.context == _context.SIGNED)
@@ -1162,9 +1161,9 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_stmt(self, body):
         # 'body' is a list of statements
-        ic(self.__class__.__name__, body, pp.pformat(vars(self)))
+        ic(self.__class__.__name__, body, (vars(self)))
         for stmt in body:
-            ic(self.__class__.__name__, astdump(stmt, show_offsets=False), pp.pformat(vars(stmt)))
+            ic(self.__class__.__name__, astdump(stmt, show_offsets=False), (vars(stmt)))
             self.writeline()
             self.visit(stmt)
             # ugly hack to detect an orphan "task" call
@@ -1172,7 +1171,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.write(';')
 
     def visit_Tuple(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         assert self.context != None
         sep = ", "
         tpl = node.elts
@@ -1182,7 +1181,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(elt)
 
     def visit_While(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         self.labelStack.append(node.breakLabel)
         self.labelStack.append(node.loopLabel)
         if node.breakLabel.isActive:
@@ -1205,7 +1204,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack.pop()
 
     def visit_Yield(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         yieldObj = self.getObj(node.value)
         assert node.senslist
         senslist = node.senslist
@@ -1227,7 +1226,7 @@ class _ConvertAlwaysVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.writeDoc(node)
         w = node.body[-1]
         y = w.body[0]
@@ -1253,7 +1252,7 @@ class _ConvertInitialVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.writeDoc(node)
         self.write("initial begin: {}".format(self.tree.name))
         self.indent()
@@ -1275,7 +1274,7 @@ class _ConvertAlwaysCombVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1293,7 +1292,7 @@ class _ConvertSimpleAlwaysCombVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_Attribute(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         if isinstance(node.ctx, ast.Store):
             # try intercepting '-- OpenPort' signals
             if isinstance(node.value, ast.Name):
@@ -1307,7 +1306,7 @@ class _ConvertSimpleAlwaysCombVisitor(_ConvertVisitor):
             self.getAttr(node)
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.writeDoc(node)
         self.visit_stmt(node.body)
         self.writeline(2)
@@ -1320,7 +1319,7 @@ class _ConvertAlwaysDecoVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1338,7 +1337,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)), pp.pformat(vars(self.tree)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self.tree)))
         self.writeDoc(node)
         self.writeAlwaysHeader()
         self.writeDeclarations()
@@ -1407,7 +1406,7 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
             self.writeDeclaration(obj, name, "input")
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("function ")
         self.writeOutputDeclaration()
         self.indent()
@@ -1426,7 +1425,7 @@ class _ConvertFunctionVisitor(_ConvertVisitor):
         self.writeline(2)
 
     def visit_Return(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("{} = ".format(self.tree.name))
         self.visit(node.value)
         self.write(";")
@@ -1451,7 +1450,7 @@ class _ConvertTaskVisitor(_ConvertVisitor):
             self.writeDeclaration(obj, name, direction)
 
     def visit_FunctionDef(self, node):
-        ic(self.__class__.__name__, astdump(node, show_offsets=False), pp.pformat(vars(node)))
+        ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.write("task {};".format(self.tree.name))
         self.indent()
         self.writeInterfaceDeclarations()

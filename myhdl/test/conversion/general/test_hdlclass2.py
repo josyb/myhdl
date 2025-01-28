@@ -5,10 +5,10 @@ Created on 3 dec. 2024
 '''
 
 from myhdl import (HdlClass, Signal, intbv, block, always_seq, instances, OpenPort, always_comb,
-                   Constant)
+                   Constant, Parameter)
 
 
-class Counter(HdlClass):
+class UpCounter(HdlClass):
 
     def __init__(self, RANGE, Clk, Reset, SClr, CntEn, Q=None, IsMax=None, WRAP_AROUND=False):
         '''
@@ -30,10 +30,7 @@ class Counter(HdlClass):
 
     @block
     def hdl(self):
-        if isinstance(self.Q, OpenPort):
-            count = Signal(intbv(0, 0, self.RANGE))
-        else:
-            count = self.Q.duplicate()
+        count = Signal(intbv(0, 0, self.RANGE))
 
         if self.WRAP_AROUND:
 
@@ -64,7 +61,7 @@ class Counter(HdlClass):
             self.Q.next = count
             self.IsMax.next = (count == self.RANGE - 1)
 
-        return self.hdlinstances()
+        return instances()
 
 
 class Tone(HdlClass):
@@ -78,7 +75,7 @@ class Tone(HdlClass):
 
     @block
     def hdl(self):
-        divider = Counter(self.DIVIDER, self.Clk, self.Reset, Constant(bool(0)), Constant(bool(1)),
+        divider = UpCounter(self.DIVIDER, self.Clk, self.Reset, Constant(bool(0)), Constant(bool(1)),
                           Q=OpenPort(), WRAP_AROUND=True)
 
         @always_seq(self.Clk.posedge, reset=self.Reset)
@@ -89,42 +86,44 @@ class Tone(HdlClass):
                 if divider.IsMax:
                     self.Wave.next = not self.Wave
 
-        return self.hdlinstances()
+        return instances()
+
+
+class KakaFonie(HdlClass):
+
+    def __init__(self, Clk, Reset, Keys, Noise=None):
+        self.Clk = Clk
+        self.Reset = Reset
+        self.Keys = Keys
+        self.Noise = Noise if Noise is not None else Signal(bool(0))
+
+    @block
+    def hdl(self):
+        FREQUENCIES = [261.626, 277.183, 293.665, 311.127, 329.628, 349.228, 369.994, 391.995, 415.305, 440.0, 466.167, 493.883]
+        # Note: assuming a 100 MHz system clock
+        DIVIDERS = [Constant(int(round(50e6 / f))) for f in FREQUENCIES ]
+        wavegenerator = []
+        # waves = [Signal(bool(0)) for __ in range(12)]
+        for i in range(12):
+            # DIVIDER = int(50e6 / FREQUENCIES[i])
+            # wavegenerator.append(Tone(DIVIDER, self.Clk, self.Reset, self.Keys(1), waves[i]))
+            wavegenerator.append(Tone(DIVIDERS[i], self.Clk, self.Reset, self.Keys(i)))
+
+        waves = [wavegenerator[i].Wave for i in range(12)]
+
+        @always_comb
+        def makenoise():
+            self.Noise.next = 0
+            for i in range(12):
+                if waves[i]:
+                    self.Noise.next = self.Noise | 1
+
+        return instances()
 
 
 if __name__ == '__main__':
 
     from myhdl import ResetSignal
-
-    class KakaFonie(HdlClass):
-
-        def __init__(self, Clk, Reset, Keys, Noise=None):
-            self.Clk = Clk
-            self.Reset = Reset
-            self.Keys = Keys
-            self.Noise = Noise if Noise is not None else Signal(bool(0))
-
-        @block
-        def hdl(self):
-            FREQUENCIES = [261.626, 277.183, 293.665, 311.127, 329.628, 349.228, 369.994, 391.995, 415.305, 440.0, 466.167, 493.883]
-
-            wavegenerator = []
-            # waves = [Signal(bool(0)) for __ in range(12)]
-            for i in range(12):
-                DIVIDER = int(50e6 / FREQUENCIES[i])
-                # wavegenerator.append(Tone(DIVIDER, self.Clk, self.Reset, self.Keys(1), waves[i]))
-                wavegenerator.append(Tone(DIVIDER, self.Clk, self.Reset, self.Keys(i)))
-
-            waves = [wavegenerator[i].Wave for i in range(12)]
-
-            @always_comb
-            def makenoise():
-                self.Noise.next = 0
-                for i in range(12):
-                    if waves[i]:
-                        self.Noise.next = self.Noise | 1
-
-            return self.hdlinstances()
 
     # def convert():
     # try converting
@@ -158,6 +157,6 @@ if __name__ == '__main__':
         # else:
             # this produces an 'empty' entity
         hc = KakaFonie(Clk, Reset, Keys)
-        hc.convert(hdl='Verilog', name='KakaFonie', no_testbench=True)
+        hc.convert(hdl='Verilog', name='KakaFonie', hierarchical=0, no_testbench=True)
 
     # convert()

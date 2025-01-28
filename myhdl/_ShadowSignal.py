@@ -24,6 +24,11 @@
 import warnings
 from copy import deepcopy
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl._Signal import _Signal
 from myhdl._Waiter import _SignalWaiter, _SignalTupleWaiter
 from myhdl._intbv import intbv
@@ -67,6 +72,13 @@ class _SliceSignal(_ShadowSignal):
             gen = self._genfuncSlice()
         self._waiter = _SignalWaiter(gen)
 
+    def __str__(self):
+        if self._name:
+            # this doesn't work as self._setName has never been called ..
+            return self._name
+        else:
+            return str(self._val)
+
     def __repr__(self):
         if self._right is None:
             return repr(self._sig) + f'({self._left})'
@@ -88,6 +100,7 @@ class _SliceSignal(_ShadowSignal):
             yield sig
 
     def _setName(self, hdl):
+        ic(self)
         # if we depend on a ShadowSignal ourselves
         # it would be nice if we 'resolve' the slicing chain
         # e.g. s[7:4][1:0][1] to s[5]
@@ -255,7 +268,7 @@ class ConcatSignal(_ShadowSignal):
                     # by the _analyzeSigs function). In this situation the
                     # signal should hold its init value (as handled in the
                     # else branch).
-                    if a._type == bool: # isinstance(a._type , bool): <- doesn't work
+                    if a._type == bool:  # isinstance(a._type , bool): <- doesn't work
                         lines.append(f"{self._name}({lo}) <= {a._name};")
                     else:
                         lines.append(f"{self._name}({lo}) <= {a._name}(0);")

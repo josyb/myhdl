@@ -20,8 +20,10 @@
 """ Module with the always function. """
 from types import FunctionType
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import AlwaysError
 from myhdl._util import _isGenFunc
@@ -54,11 +56,11 @@ def _get_sigdict(sigs, symdict):
     """
 
     sigdict = {}
-    # ic(sigs)
     for n, v in symdict.items():
         for s in sigs:
             if s is v:
                 sigdict[n] = s
+    # ic(sigs, symdict, sigdict)
     return sigdict
 
 
@@ -78,7 +80,7 @@ def always(*args):
         elif not isinstance(arg, delay):
             raise AlwaysError(_error.DecArgType)
     sigdict = _get_sigdict(sigargs, callinfo.symdict)
-    ic(args, sigdict)
+    # ic(args, sigdict)
 
     def _always_decorator(func):
         if not isinstance(func, FunctionType):

@@ -2,12 +2,10 @@
 
 import ast
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
-                   prefix='')
-# ic.disable()
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl._intbv import intbv
 from myhdl._Signal import _Signal, _isListOfSigs
@@ -65,7 +63,7 @@ class _SigNameVisitor(ast.NodeVisitor):
         if isinstance(s, _Signal):
             self.sigdict[n] = s
         elif _isListOfSigs(s):
-            ic(s)
+            ic(n, s)
             self.losdict[n] = s
 
     def visit_Assign(self, node):

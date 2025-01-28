@@ -66,6 +66,12 @@ class OpenPort(_Signal):
         '''
         return 0
 
+    def __repr__(self):
+        if self._name:
+            return f"{self._name} = OpenPort()"
+        else:
+            return f"OpenPort()"
+
 
 if __name__ == '__main__':
     pass

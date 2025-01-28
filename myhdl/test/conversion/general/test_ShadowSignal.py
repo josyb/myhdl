@@ -243,5 +243,6 @@ def bench_permute(conv=False):
 def test_permute():
     assert conversion.verify(bench_permute()) == 0
 
+
 # bench_permute('VHDL')
-# bench_permute('Verilog')
+bench_permute('Verilog')

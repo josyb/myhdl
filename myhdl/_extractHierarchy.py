@@ -24,12 +24,10 @@ import sys
 import inspect
 import string
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
-                   prefix='')
-# ic.disable()
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 # from myhdl import ExtractHierarchyError, ToVerilogError, ToVHDLError
 from myhdl import ToVerilogError, ToVHDLError
@@ -95,10 +93,10 @@ def _makeMemInfo(mem):
 def _isMem(mem):
     return id(mem) in _memInfoMap
 
-
-_userCodeMap = {'Verilog': {},
-                'VHDL': {}
-                }
+# TODO: check if _userCodeMap is still of any use?
+# _userCodeMap = {'Verilog': {},
+#                 'VHDL': {}
+#                 }
 
 
 class _UserCode(object):
@@ -111,7 +109,7 @@ class _UserCode(object):
         self.func = func
         self.funcname = funcname
         self.sourceline = sourceline
-        ic(pp.pformat(namespace))
+        ic((namespace))
 
     def __str__(self):
         try:
@@ -126,7 +124,7 @@ class _UserCode(object):
         return code
 
     def _scrub_namespace(self):
-        ic(pp.pformat(self.namespace))
+        ic((self.namespace))
         for nm, obj in self.namespace.items():
             if _isMem(obj):
                 memi = _getMemInfo(obj)

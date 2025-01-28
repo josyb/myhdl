@@ -18,28 +18,27 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 """ Block with the @block decorator function. """
+import os
 import inspect
 
 # from functools import wraps
 import functools
 
-from icecream import ic
-ic.configureOutput(argToStringFunction=str, outputFunction=print, includeContext=True, contextAbsPath=True,
-                   prefix='')
-# ic.disable()
-import pprint
-pp = pprint.PrettyPrinter(indent=4, width=120)
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 import myhdl
-from myhdl import BlockError, BlockInstanceError, Cosimulation
+from myhdl import BlockError, Cosimulation
 from myhdl._instance import _Instantiator
 from myhdl._util import _flatten
 from myhdl._extractHierarchy import (_makeMemInfo,
                                      _UserVerilogCode, _UserVhdlCode,
                                      _UserVerilogInstance, _UserVhdlInstance)
 from myhdl._Signal import _Signal, _isListOfSigs
-from myhdl._misc import isboundmethod
-# from myhdl._hdlclass import HdlClass
+from myhdl._misc import isboundmethod, updatesymdict, getsymdict
+from myhdl._hdlclass import HdlClass
 
 from weakref import WeakValueDictionary
 
@@ -54,13 +53,14 @@ _error.InstanceError = "%s: subblock %s should be encapsulated in a block decora
 
 class _CallInfo(object):
 
-    def __init__(self, name, modctxt, symdict):
+    def __init__(self, name, modctxt, symdict, filename):
         self.name = name
         self.modctxt = modctxt
         self.symdict = symdict
+        self.filename = filename
 
 
-def _getCallInfo():
+def _getCallInfo(hdlclass):
     """Get info on the caller of a BlockInstance.
 
     A BlockInstance should be used in a block context.
@@ -69,35 +69,54 @@ def _getCallInfo():
     0: this function
     1: block instance constructor
     2: the decorator function call
-    3: the function that defines instances
-    4: the caller of the block function, e.g. a BlockInstance.
+    if hdlcass is None:
+        3: the function that defines instances
+        4: the caller of the block function, e.g. a BlockInstance.
+    else:
+        3: ?
+        4: the function that defines instances
+        5: ? the caller of the block function, e.g. ... ?
 
     """
 
+    if hdlclass is not None:
+        FUNCREC = 4
+    else:
+        FUNCREC = 3
+
     stack = inspect.stack()
+    # ic(hdlclass, stack)
+    # for i, f in enumerate(stack):
+    #     ic(i, f[0].f_globals, f[0].f_locals)
+
     # caller may be undefined if instantiation from a Python module
     callerrec = None
-    funcrec = stack[3]
-    name = funcrec[3]
-    if len(stack) > 4:
-        callerrec = stack[4]
+    funcrec = stack[FUNCREC]
+    name = funcrec[FUNCREC]
+    if len(stack) > (FUNCREC + 1):
+        callerrec = stack[FUNCREC + 1]
     # special case for list comprehension's extra scope in PY3
     if name == '<listcomp>':
-        funcrec = stack[4]
+        funcrec = stack[FUNCREC + 2]
         if len(stack) > 5:
             callerrec = stack[5]
 
-    name = funcrec[3]
+    name = funcrec[FUNCREC]  # redo as the <listcomp> may have disturbed us
     frame = funcrec[0]
-    symdict = dict(frame.f_globals)
-    symdict.update(frame.f_locals)
+    filename = funcrec[1]
+    # symdict = dict(frame.f_globals)
+    # symdict.update(frame.f_locals)
+    symdict = getsymdict(frame.f_globals)
+    updatesymdict(symdict, frame.f_locals)
+    # ic(symdict)
     modctxt = False
     if callerrec is not None:
         f_locals = callerrec[0].f_locals
+        # ic(f_locals)
         if 'self' in f_locals:
             modctxt = isinstance(f_locals['self'], _Block)
 
-    return _CallInfo(name, modctxt, symdict)
+    return _CallInfo(name, modctxt, symdict, filename)
 
 
 # ## I don't think this is the right place for uniqueifying the name.
@@ -129,11 +148,9 @@ def _uniqueify_name(proposed_name):
 
 class _bound_function_wrapper(object):
 
-    def __init__(self, bound_func, srcfile, srcline, skipname, endhierarchy):
+    def __init__(self, bound_func, srcfile, srcline):
         self.srcfile = srcfile
         self.srcline = srcline
-        self.skipname = skipname
-        self.endhierarchy = endhierarchy
         self.bound_func = bound_func
         functools.update_wrapper(self, bound_func)
         self.calls = 0
@@ -144,75 +161,49 @@ class _bound_function_wrapper(object):
         self.name = None
 
     def __call__(self, *args, **kwargs):
-        if self.skipname:
-            name = None
-        else:
-            # name = self.name_prefix + '_' + self.bound_func.__name__ +  str(self.calls)
-            name = f'{self.name_prefix}_{self.bound_func.__name__}{self.calls}'
-            self.calls += 1
-            # See concerns above about uniqueifying
-            name = _uniqueify_name(name)
+        # name = self.name_prefix + '_' + self.bound_func.__name__ +  str(self.calls)
+        name = f'{self.name_prefix}_{self.bound_func.__name__}{self.calls}'
+        self.calls += 1
+        # See concerns above about uniqueifying
+        name = _uniqueify_name(name)
 
         return _Block(self.bound_func, self, name, self.srcfile,
-                      self.srcline, self.skipname, self.endhierarchy, *args, **kwargs)
+                      self.srcline, *args, **kwargs)
 
 
-class block_decorator(object):
-    '''
-        this code is borrowed (and slightly modified) from J. Villar's PR #328
-        https://github.com/myhdl/myhdl/pull/328
-        as this was a PR from 2020 it had some issues to be merged, especially the 
-        missing sub-version number
-    '''
-    # TODO: revisit this code and check `self.name` ...
-    skipname = False
-    ident_method = "get_instance_ident"
-    endhierarchy = False
+class block(object):
 
     def __init__(self, func):
-        # print(f'block_decorator {func.__name__=}')
         self.srcfile = inspect.getsourcefile(func)
         self.srcline = inspect.getsourcelines(func)[0]
         self.func = func
         functools.update_wrapper(self, func)
         self.calls = 0
-        self.name = func.__name__
+        self.name = None
 
         # register the block
         myhdl._simulator._blocks.append(self)
 
         self.bound_functions = WeakValueDictionary()
 
-    @classmethod
-    def set_decorator_parameters(cls, **kwargs):
-        for param_name, value in kwargs.items:
-            setattr(cls, param_name, value)
-
     def __get__(self, instance, owner):
         bound_key = (id(instance), id(owner))
 
         if bound_key not in self.bound_functions:
             bound_func = self.func.__get__(instance, owner)
-            function_wrapper = _bound_function_wrapper(bound_func, self.srcfile, self.srcline, self.skipname, self.endhierarchy)
+            function_wrapper = _bound_function_wrapper(
+                bound_func, self.srcfile, self.srcline)
             self.bound_functions[bound_key] = function_wrapper
 
             proposed_inst_name = owner.__name__ + '0'
 
-            if self.skipname:
-                function_wrapper.name_prefix = None
-            else:
-                if hasattr(instance, self.ident_method) and callable(getattr(instance, self.ident_method)):
-                    proposed_inst_name = getattr(instance, self.ident_method)()
-                else:
-                    proposed_inst_name = owner.__name__ + '0'
-                    n = 1
-                    while proposed_inst_name in _inst_name_set:
-                        proposed_inst_name = owner.__name__ + str(n)
-                        n += 1
+            n = 1
+            while proposed_inst_name in _inst_name_set:
+                proposed_inst_name = owner.__name__ + str(n)
+                n += 1
 
-                function_wrapper.name_prefix = proposed_inst_name
-                _inst_name_set.add(proposed_inst_name)
-            self.name = proposed_inst_name
+            function_wrapper.name_prefix = proposed_inst_name
+            _inst_name_set.add(proposed_inst_name)
 
         else:
             function_wrapper = self.bound_functions[bound_key]
@@ -221,54 +212,57 @@ class block_decorator(object):
         return function_wrapper
 
     def __call__(self, *args, **kwargs):
-        if self.skipname:
-            name = None
-        else:
-            name = self.func.__name__ + str(self.calls)
-            self.calls += 1
-            # See concerns above about uniqueifying
-            name = _uniqueify_name(name)
+        name = self.func.__name__ + str(self.calls)
+        self.calls += 1
+        # See concerns above about uniqueifying
+        name = _uniqueify_name(name)
 
         return _Block(self.func, self, name, self.srcfile,
-                      self.srcline, self.skipname, self.endhierarchy, *args, **kwargs)
-
-
-def block(func=None, **kwargs):
-    decorator = block_decorator
-    if func is None:
-        return type(decorator.__name__, (decorator,), kwargs)
-    else:
-        return decorator(func)
+                      self.srcline, *args, **kwargs)
 
 
 class _Block(object):
 
-    def __init__(self, func, deco, name, srcfile, srcline, skipname, endhierarchy, *args, **kwargs):
-        calls = deco.calls
+    def __init__(self, func, deco, name, srcfile, srcline, *args, **kwargs):
+        # ic(func, deco, name)
+        # calls = deco.calls
 
         self.func = func
-        self.args = args
-        self.kwargs = kwargs
+        self.hdlclass = None
+        if isboundmethod(func):
+            if isinstance(func.__self__, HdlClass):
+                self.hdlclass = func.__self__  # make a backlink to the class
+                self.args = tuple([v for v in vars(func.__self__).values()])
+                self.kwargs = {}
+            else:
+                # some other classe see test\conversion\general\test_method.py
+                self.args = args
+                self.kwargs = kwargs
+        else:
+            self.args = args
+            self.kwargs = kwargs
+
+        # ic(self.args, self.kwargs)
         self.__doc__ = func.__doc__
-        callinfo = _getCallInfo()
+        callinfo = _getCallInfo(self.hdlclass)
         self.callinfo = callinfo
         self.modctxt = callinfo.modctxt
         self.callername = callinfo.name
+        self.filename = callinfo.filename
         self.symdict = None
         self.sigdict = {}
         self.memdict = {}
-        self.skipname = skipname
-        self.endhierarchy = endhierarchy
         self.name = self.__name__ = name
         # flatten, but keep BlockInstance objects
         self.subs = _flatten(func(*args, **kwargs))
         self._verifySubs()
         self._updateNamespaces()
-        # ic(pp.pformat(self.symdict), self.sigdict, self.memdict)
+        # ic((self.symdict), self.sigdict, self.memdict)
         self.verilog_code = self.vhdl_code = None
         self.sim = None
+        self.endhierarchy = False
         if hasattr(deco, 'verilog_code'):
-            # ic(pp.pformat(self.symdict))
+            # ic((self.symdict))
             self.verilog_code = _UserVerilogCode(deco.verilog_code, self.symdict, func.__name__,
                                                  func, srcfile, srcline)
         elif hasattr(deco, 'verilog_instance'):
@@ -281,10 +275,10 @@ class _Block(object):
             self.vhdl_code = _UserVhdlInstance(deco.vhdl_instance, self.symdict, func.__name__,
                                                func, srcfile, srcline)
         self._config_sim = {'trace': False}
-        # ic(pp.pformat(self.symdict))
 
     def _verifySubs(self):
         for inst in self.subs:
+            # ic(vars(inst))
             if not isinstance(inst, (_Block, _Instantiator, Cosimulation)):
                 raise BlockError(_error.ArgType % (self.name,))
             if isinstance(inst, (_Block, _Instantiator)):
@@ -292,41 +286,55 @@ class _Block(object):
                     raise BlockError(_error.InstanceError % (self.name, inst.callername))
 
     def _updateNamespaces(self):
+        # ic(self.name, self.sigdict, self.memdict)
         # dicts to keep track of objects used in Instantiator objects
         usedsigdict = {}
         usedlosdict = {}
+        # ic(self.subs)
         for inst in self.subs:
+            # ic(inst)
             # the symdict of a block instance is defined by
             # the call context of its instantiations
             if isinstance(inst, Cosimulation):
                 continue  # ignore
+
             if self.symdict is None:
                 self.symdict = inst.callinfo.symdict
+                # ic(self.symdict)
+
             if isinstance(inst, _Instantiator):
+                # ic(inst.sigdict, inst.losdict)
                 usedsigdict.update(inst.sigdict)
                 usedlosdict.update(inst.losdict)
+
         if self.symdict is None:
             self.symdict = {}
         # Special case: due to attribute reference transformation, the
         # sigdict and losdict from Instantiator objects may contain new
         # references. Therefore, update the symdict with them.
         # To be revisited.
-        # ic(pp.pformat(usedlosdict))
-        self.symdict.update(usedsigdict)
-        self.symdict.update(usedlosdict)
+        # ic(self.symdict)
+        # self.symdict.update(usedsigdict)
+        # self.symdict.update(usedlosdict)
+        # ic(usedsigdict)
+        updatesymdict(self.symdict, usedsigdict)
+        updatesymdict(self.symdict, usedlosdict)
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
         for n, v in self.symdict.items():
             if isinstance(v, _Signal):
                 self.sigdict[n] = v
                 if n in usedsigdict:
                     v._markUsed()
-                # ic(n, pp.pformat(v))
+                # ic(n, (v))
+
             if _isListOfSigs(v):
                 m = _makeMemInfo(v)
                 self.memdict[n] = m
                 if n in usedlosdict:
                     m._used = True
-                # ic(n, pp.pformat(m))
+                # ic(n, (m))
+
+        # ic(self.sigdict, self.memdict)
 
     def _inferInterface(self):
         from myhdl.conversion._analyze import _analyzeTopFunc
@@ -346,14 +354,12 @@ class _Block(object):
         # and second it will print every user debug message twice cluttering the console output
         # so there must be a better way than this *lazy* workaround
         # maybe later ...
-        if isboundmethod(self.func):
-            if hasattr(self, 'isHdlClass'):
-                # if present it will be `True`, even if it is `False` :)
-                # An HdlClass object's hdl() method does not take any args nor kwargs
-                # all ports/signals (must) have resolved in the `__init__()` call
-                self.func()
-            else:
-                self.func(*self.args, **self.kwargs)
+
+        if self.hdlclass is not None:
+            # if present it is a **backlink** tot the instantiated HdlClass
+            # An HdlClass object's hdl() method does not take any args nor kwargs
+            # all ports/signals (must) have resolved in the `__init__()` call
+            self.func()
         else:
             self.func(*self.args, **self.kwargs)
 
@@ -402,7 +408,31 @@ class _Block(object):
         from myhdl.conversion._converter import Converter
 
         self._clear()
-        converter = Converter(hdl, **kwargs)
+
+        if hdl in ('toVerilog', 'toVHDL'):
+            ''' temporay access to deprecated converters for comparison '''
+            if hdl == 'toVHDL':
+                converter = myhdl.conversion._toVHDL.toVHDL
+            elif hdl == 'toVerilog':
+                converter = myhdl.conversion._toVerilog.toVerilog
+
+            conv_attrs = {}
+            if 'name' in kwargs:
+                conv_attrs['name'] = kwargs.pop('name')
+            conv_attrs['directory'] = kwargs.pop('path', '')
+            if hdl.lower() == 'verilog':
+                conv_attrs['no_testbench'] = not kwargs.pop('testbench', True)
+                conv_attrs['timescale'] = kwargs.pop('timescale', '1ns/10ps')
+                conv_attrs['trace'] = kwargs.pop('trace', False)
+
+            conv_attrs.update(kwargs)
+            for k, v in conv_attrs.items():
+                setattr(converter, k, v)
+
+        else:
+            # ic(self.name, kwargs)
+            converter = Converter(hdl, **kwargs)
+
         return converter(self)
 
     def config_sim(self, trace=False, **kwargs):
