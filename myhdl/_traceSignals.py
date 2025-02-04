@@ -25,7 +25,11 @@ import time
 import os
 path = os.path
 import shutil
-import warnings
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import _simulator, __version__, EnumItemType
 # from myhdl._extractHierarchy import _HierExtr
@@ -33,6 +37,7 @@ from myhdl import TraceSignalsError
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._block import _Block
 from myhdl._getHierarchy import _getHierarchy
+from myhdl._fixbv import fixbv
 
 _tracing = 0
 _profileFunc = None
@@ -75,7 +80,7 @@ class _TraceSignalsClass(object):
                 _simulator._tracing = 0
                 _simulator._tf.close()
                 os.remove(vcdpath)
-        else: # deprecated
+        else:  # deprecated
             if _tracing:
                 return dut(*args, **kwargs)  # skip
             else:
@@ -229,10 +234,20 @@ def _writeVcdSigs(f, hierarchy, tracelists):
             sval = _getSval(s)
             if sval is None:
                 raise ValueError(f"{n} of module {name} has no initial value")
+
+# TODO: revisit code
+
             if not s._tracing:
                 s._tracing = 1
-                s._code = next(namegen)
+                if isinstance(s.val, fixbv):
+                    # we need two symbols, one for the real and the other for the integer part
+                    s._code = (next(namegen), next(namegen))
+                else:
+                    s._code = next(namegen)
+
+                # ic(repr(s), s.val, s._code)
                 siglist.append(s)
+
             w = s._nrbits
             n = n.replace('self_', '')
             fullpathname = '_'.join((fullpathprefix, n))
@@ -255,7 +270,11 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                     vcdtype = 'real'
                     ww = 1
 
-                print(f"{' '*indent}$var {vcdtype} {ww} {s._code} {n} $end", file=f)
+                if isinstance(s.val, fixbv):
+                    print(f"{' '*indent}$var {vcdtype} {ww} {s._code[0]} {n}_vector $end", file=f)
+                    print(f"{' '*indent}$var real 1 {s._code[1]} {n}_real $end", file=f)
+                else:
+                    print(f"{' '*indent}$var {vcdtype} {ww} {s._code} {n} $end", file=f)
 
         # Memory dump by Frederik Teichert, http://teichert-ing.de, date: 2011.03.28
         # The Value Change Dump standard doesn't support multidimensional arrays so
@@ -275,8 +294,15 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                             raise ValueError(f"{nn} of module {name} has no initial value")
                         if not s._tracing:
                             s._tracing = 1
-                            s._code = next(namegen)
+                            if isinstance(s.val, fixbv):
+                                # we need two symbols, one for the real and the other for the integer part
+                                s._code = (next(namegen), next(namegen))
+                            else:
+                                s._code = next(namegen)
+
+                            # ic(repr(s), s.val, s._code)
                             siglist.append(s)
+
                         w = s._nrbits
                         if w:
                             ww = w
@@ -289,8 +315,12 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                         else:
                             vcdtype = 'real'
                             ww = 1
-
-                        print(f"{' '*indent}$var {vcdtype} {ww} {s._code} {nn}({memindex}) $end", file=f)
+# TODO: revisit code
+                        if isinstance(s.val, fixbv):
+                            print(f"{' '*indent}$var {vcdtype} {ww} {s._code[0]} {nn}_vector({memindex}) $end", file=f)
+                            print(f"{' '*indent}$var real 1 {s._code[1]} {nn}_real({memindex}) $end", file=f)
+                        else:
+                            print(f"{' '*indent}$var {vcdtype} {ww} {s._code} {nn}({memindex}) $end", file=f)
 
                         memindex += 1
                     indent -= 2

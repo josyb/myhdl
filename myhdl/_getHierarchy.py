@@ -64,7 +64,7 @@ class _Hierarchy(object):
 
 
 def _getHierarchy(name, modinst, descend=True):
-    ic(descend)
+    # ic(descend)
     h = _Hierarchy(name, modinst, descend)
     return h
 

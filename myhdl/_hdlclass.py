@@ -56,6 +56,7 @@ class HdlClass(ABC):
                     arg._driven = False
         else:
             self._hdlblock = self.hdl()
+            self._hdlblock.name = self.__class__.__name__
 
         ic(self, kwargs)
         self._hdlblock.convert(**kwargs)

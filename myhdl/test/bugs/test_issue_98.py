@@ -1,4 +1,4 @@
-from myhdl import (block, Signal, intbv, always_comb, TristateSignal, toVHDL, toVerilog)
+from myhdl import (block, Signal, intbv, always_comb, TristateSignal)  # , toVHDL, toVerilog)
 
 import pytest
 
@@ -21,7 +21,7 @@ def issue_98(sda, scl, sda_i, sda_o, scl_i, scl_o):
 def test_issue_98_1():
     sda_i, sda_o, scl_i, scl_o = [Signal(False) for __ in range(4)]
     sda, scl = [TristateSignal(False) for __ in range(2)]
-    toVHDL.name = toVerilog.name = 'issue_98_1'
+    # toVHDL.name = toVerilog.name = 'issue_98_1'
     assert issue_98(sda, scl, sda_i, sda_o, scl_i, scl_o).analyze_convert() == 0
 
 
@@ -29,7 +29,7 @@ def test_issue_98_1():
 def test_issue_98_2():
     sda_i, sda_o, scl_i, scl_o = [Signal(intbv(0)[2:0]) for __ in range(4)]
     sda, scl = [TristateSignal(intbv(0)[2:0]) for __ in range(2)]
-    toVHDL.name = toVerilog.name = 'issue_98_2'
+    # toVHDL.name = toVerilog.name = 'issue_98_2'
     assert issue_98(sda, scl, sda_i, sda_o, scl_i, scl_o).analyze_convert() == 0
 
 
@@ -37,6 +37,6 @@ def test_issue_98_2():
 def test_issue_98_3():
     sda_i, sda_o, scl_i, scl_o = [Signal(intbv(0)[1:0]) for __ in range(4)]
     sda, scl = [TristateSignal(intbv(0)[1:0]) for __ in range(2)]
-    toVHDL.name = toVerilog.name = 'issue_98_3'
+    # toVHDL.name = toVerilog.name = 'issue_98_3'
     assert issue_98(sda, scl, sda_i, sda_o, scl_i, scl_o).analyze_convert() == 0
 

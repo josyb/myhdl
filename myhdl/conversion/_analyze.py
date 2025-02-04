@@ -20,11 +20,8 @@
 """ MyHDL conversion analysis module.
 
 """
-# import compiler
-# from compiler import ast as astNode
 
 from types import FunctionType, MethodType
-import sys
 import re
 import ast
 import builtins

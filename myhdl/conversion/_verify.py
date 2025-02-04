@@ -24,7 +24,7 @@ def registerSimulator(name=None, hdl=None, analyze=None, elaborate=None, simulat
                       skiplines=None, skipchars=None, ignore=None):
     if not isinstance(name, str) or (name.strip() == ""):
         raise ValueError("Invalid simulator name")
-    if hdl not in ("VHDL", "Verilog"):
+    if hdl not in ("VHDL", "Verilog", "SystemVerilog"):
         raise ValueError("Invalid hdl %s" % hdl)
     if not isinstance(analyze, str) or (analyze.strip() == ""):
         raise ValueError("Invalid analyzer command")
@@ -86,6 +86,13 @@ registerSimulator(
     analyze="cver -c -q %(topname)s.v",
     simulate="cver -q %(topname)s.v",
     skiplines=3
+)
+
+registerSimulator(
+    name="sverilog",  # actually iverilog in disguise :)
+    hdl="SystemVerilog",
+    analyze="iverilog -g2012 -o %(topname)s.o %(topname)s.sv",
+    simulate="vvp %(topname)s.o"
 )
 
 

@@ -1,4 +1,4 @@
-from myhdl import (block, Signal, intbv, always, always_comb, toVHDL)
+from myhdl import (block, Signal, intbv, always, always_comb)  # , toVHDL)
 
 
 @block
@@ -28,6 +28,6 @@ clk = Signal(bool(0))
 
 
 def test_issue_18():
-    toVHDL.std_logic_ports = True
+    # toVHDL.std_logic_ports = True
     assert issue_18(dout, din, addr, we, clk).analyze_convert() == 0
 

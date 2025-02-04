@@ -1,7 +1,7 @@
-import pytest
+
 from myhdl import Simulation, delay, SimulationError, instance, now, block
 from myhdl._Simulation import _error
-from helpers import raises_kind
+from myhdl.test.helpers import raises_kind
 
 
 @block

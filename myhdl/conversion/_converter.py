@@ -37,7 +37,6 @@ try:
     '''
     ic.configureOutput(outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
-    # ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
@@ -67,14 +66,11 @@ class Converter(object):
         self.hierarchical = False
         self.trace = False
         for key, value in kwargs.items():
-            # ic(key, value)
             if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace', 'sourcepath']:
                 setattr(self, key, value)
-                # # drop it?
-                # del kwargs[key]
 
         # select the appropriate HDL Writer
-        # and apply the remaining kwargs
+        # and apply the (remaining) kwargs
         if hdl == 'VHDL':
             self.writer = VhdlWriter(**kwargs)
         elif hdl == 'Verilog':
@@ -86,10 +82,10 @@ class Converter(object):
 
     def __call__(self, func, *args, **kwargs):
 
+# TODO: check whether _converting and _tracing have any effect
         global _converting
         if _converting:
             # NOTE _block.py calls us with empty args and empty kwargs ...
-            # ic('Help, we\'re already converting?')
             return func(*args, **kwargs)  # skip
         else:
             # clean start
@@ -99,7 +95,7 @@ class Converter(object):
         if _traceSignals._tracing:
             raise ConversionError("Cannot use Converter while tracing signals")
 
-        # _converting = 1
+        _converting = 1
         if self.name is None:
             self.name = func.func.__name__
 
@@ -108,7 +104,7 @@ class Converter(object):
         try:
             h = _getHierarchy(self.name, func)
         finally:
-            # _converting = 0
+            _converting = 0
             pass
 
         # report the hierarchy
@@ -124,7 +120,8 @@ class Converter(object):
             collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha)  # give it an empty list as a placeholder
 
             # now start converting 'bottoms up'
-            # we need an empty directory where we place all output
+            # we need an empty directory where we place all output files
+            # we will erase any existing files ...
             self.directory = f'{self.name}'
             if not os.path.exists(self.directory):
                 # create it
@@ -151,17 +148,6 @@ class Converter(object):
                         ic(ssub, vars(ssub))
                     if bb.blocksubs.hdlclass is not None:
                         ic(bb.blocksubs.hdlclass)
-                    #     # if present it is a **backlink** to the instantiated HdlClass
-                    #     ports = []
-                    #     # bb.blocksubs.hdlclass.__dict__ is made by the __init__ call on class instantiation
-                    #     for name, sig in bb.blocksubs.hdlclass.__dict__.items():
-                    #         # TODO: look out for interfaces (and structures, lists etc in the future)
-                    #         if isinstance(sig, _Signal):
-                    #             if sig._name is None:
-                    #                 sig._name = name
-                    #             ports.append(sig)
-                    #     ic(ports)
-                    #     bb.blocksubs.args = tuple(ports)
 
                     ic(bb.instancename, bb.blocksubs, bb.blocksubs.endhierarchy)
                     bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy or (ll == startlevel))
@@ -170,6 +156,8 @@ class Converter(object):
                     genlist = _analyzeGens(bb.gens, bbh.absnames)
                     ic(genlist, bb.blocksubs, len(bb.blocksubs.subs), bb.blocksubs.subs,
                        bb.blocksubs.args, bb.blocksubs.kwargs, bb.blocksubs.sigdict)
+
+                    # see if we have an already generated file for this block
                     for sub in bb.blocksubs.subs:
                         if sub.name in modules:
                             ic(f'{ll} found {sub.name} in generated {modules=}')
@@ -196,9 +184,6 @@ class Converter(object):
                             if s._driver is not None:
                                 s._driver = 'driven'
 
-                    # argnames = getargnames(bb.blocksubs)
-                    # ic(argnames)
-
                     siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
                     info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
                     ic(info)
@@ -210,13 +195,9 @@ class Converter(object):
                     # as it may be called upon by the next higher code level
                     # save the converted block information
                     sl = []
-                    # ic(vars(res))
                     for argname in res.argnames:
                         s = res.argdict[argname]
                         sl.append(s)
-                    if hasattr(bb.blocksubs, 'hdlclass'):
-                        # must add local signals
-                        pass
 
                     ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
                     modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl)
@@ -227,6 +208,7 @@ class Converter(object):
             ic(modules)
 
         else:
+            # TODO: check if we can refactor this code into the 'generic hierachical' branch
             ic('We flatten the design')
 
             arglist = _flattenhierarchy(self.hdl, h.top)
@@ -299,10 +281,7 @@ class Converter(object):
         if not self.hierarchical:
             # don't write testbench if module has no ports
             if len(intf.argnames) > 0 and not self.no_testbench:
-                tbpath = os.path.join(self.directory, "tb_" + name + ".v")
-                tbfile = open(tbpath, 'w')
-                self.writer._writeTestBench(tbfile, intf, self.trace)
-                tbfile.close()
+                self.writer._writeTestBench(self.directory, name, intf, self.trace)
 
             ### clean-up properly ###
             self._cleanup(siglist, memlist)

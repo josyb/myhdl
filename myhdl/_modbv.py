@@ -31,7 +31,12 @@ class modbv(intbv):
                 self._val = (val - lo) % (hi - lo) + lo
 
     def __repr__(self):
-        return "modbv(" + repr(self._val) + ")"
+        nrbits = self._nrbits
+        if nrbits:
+            # return "intbv(" + repr(self._val) + ")[{}:]".format(self._nrbits)
+            return f"modbv({repr(self._val)})[{self._nrbits}:]"
+        else:
+            return f"modbv({repr(self._val)})"
 
     # indexing and slicing methods
     # dedicated for modbv to support "declaration by slicing"

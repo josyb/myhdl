@@ -14,7 +14,7 @@ class Minimal(HdlClass):
         self.Sigin = Sigin
         self.SigOut = SigOut if SigOut is not None else Sigin.duplicate()
 
-    @block(skipname=False)
+    @block
     def hdl(self):
 
         @always_comb

@@ -1,3 +1,23 @@
+#  This file is part of the myhdl library, a Python package for using
+#  Python as a Hardware Description Language.
+#
+#  Copyright (C) 2003-2012 Jan Decaluwe
+#  Copyright (C) 2023-2025 Josy Boelen
+#
+#  The myhdl library is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU Lesser General Public License as
+#  published by the Free Software Foundation; either version 2.1 of the
+#  License, or (at your option) any later version.
+#
+#  This library is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#  Lesser General Public License for more details.
+#
+#  You should have received a copy of the GNU Lesser General Public
+#  License along with this library; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
 '''
 Created on 29 okt. 2023
 
@@ -470,7 +490,10 @@ class VhdlWriter(object):
         self.dedent()
         self.file.write(f"\nend architecture {self.architecture};\n")
 
-    def _writeTestBench(self, f, intf, trace=False):
+    def _writeTestBench(self, directory, name, intf, trace=False):
+        # # self.directory, name, intf, self.trace
+        # tbpath = os.path.join(directory, f"tb_{name}.sv")
+        # with open(tbpath, 'w') as f:
         pass
 
     def writeDoc(self, node):

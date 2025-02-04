@@ -20,6 +20,11 @@
 """ Module with the intbv class """
 import builtins
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl._bin import bin
 
 
@@ -89,7 +94,7 @@ class intbv(object):
 
     # hash
     def __hash__(self):
-        raise TypeError("intbv objects are unhashable")
+        raise TypeError(f"{self.__class__} objects are unhashable")
 
     # copy methods
     def __copy__(self):
@@ -109,7 +114,7 @@ class intbv(object):
     # iterator method
     def __iter__(self):
         if not self._nrbits:
-            raise TypeError("Cannot iterate over unsized intbv (with _nrbits == 0)")
+            raise TypeError(f"Cannot iterate over unconstrained {self.__class__}")
         return iter([self[i] for i in range(self._nrbits - 1, -1, -1)])
 
     # logical testing
@@ -471,6 +476,7 @@ class intbv(object):
 
     # comparisons
     def __eq__(self, other):
+        # ic(self, other)
         if isinstance(other, intbv):
             return self._val == other._val
         else:

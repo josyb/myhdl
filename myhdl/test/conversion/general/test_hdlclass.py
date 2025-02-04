@@ -79,13 +79,13 @@ class Pwm(HdlClass):
         if 1:
             SClr = Constant(bool(0))
             CntEn = Constant(bool(1))
-            counter = UpCounter(self.RANGE, self.Clk, self.Reset, SClr, CntEn, IsMax=OpenPort(), WRAP_AROUND=True)
+            upcounter = UpCounter(self.RANGE, self.Clk, self.Reset, SClr, CntEn, IsMax=OpenPort(), WRAP_AROUND=True)
         else:
-            counter = UpCounter(self.RANGE, self.Clk, self.Reset, SClr=Constant(bool(0)), CntEn=Constant(bool(1)), IsMax=OpenPort(), WRAP_AROUND=True)
+            upcounter = UpCounter(self.RANGE, self.Clk, self.Reset, SClr=Constant(bool(0)), CntEn=Constant(bool(1)), IsMax=OpenPort(), WRAP_AROUND=True)
 
         @always_seq(self.Clk.posedge, reset=self.Reset)
         def synch():
-            if counter.Q >= self.PwmValue:
+            if upcounter.Q >= self.PwmValue:
                 self.PwmOut.next = 0
             else:
                 self.PwmOut.next = 1
@@ -185,9 +185,9 @@ if __name__ == '__main__':
 
         # doing direct conversion from the class instance itself
         # this is quite necessary for hierarchical conversion
-        dfc = XYMotors(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
         for level in [-1]:
+            dfc = XYMotors(PWMCOUNT, Clk, Reset, XSpeed, YSpeed, XDrive, YDrive)
             dfc.name = f'xymotors_h{level}'.replace('-', 'm')
-            dfc.convert(hdl='Verilog', name=f'xymotors_h{level}'.replace('-', 'm'), hierarchical=level, no_testbench=True)
+            dfc.convert(hdl='SystemVerilog', name=f'xymotors_class_h{level}'.replace('-', 'm'), hierarchical=level, no_testbench=True)
 
     convert()

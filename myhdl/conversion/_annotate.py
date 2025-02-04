@@ -34,21 +34,9 @@ try:
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
-# from myhdl import  ConversionError
-# from myhdl._instance import _Instantiator
-# from myhdl._block import _Block
-# from myhdl._concat import concat
-# from myhdl._enum import EnumType, EnumItemType
 from myhdl._extractHierarchy import  _UserCode
-# from myhdl._getHierarchy import _getHierarchy
 from myhdl._intbv import intbv
-# from myhdl._modbv import modbv
-# from myhdl._Signal import Signal, _WaiterList, posedge, negedge, Constant
-# from myhdl._simulator import now
-# from myhdl.conversion._analyze import (_analyzeSigs, _analyzeGens, _Ram, _Rom)
-from myhdl.conversion._misc import (_error, _kind, _ConversionMixin, _genUniqueSuffix,
-                                    sig_boolean, sig_enum, sig_int, sig_nat, sig_signed,
-                                    sig_std_logic, sig_string, sig_type, sig_unsigned, sig_vector, inferSigObj, _loopInt)
+from myhdl.conversion._misc import   _ConversionMixin, _loopInt
 from myhdl.conversion._hierarchical import _HierarchicalInstance
 
 

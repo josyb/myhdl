@@ -171,7 +171,8 @@ from ._block import block
 from ._enum import enum, EnumType, EnumItemType
 from ._traceSignals import traceSignals
 from ._openport import OpenPort
-from ._hdlclass import HdlClass  # , hdlinstances
+from ._hdlclass import HdlClass
+from ._fixbv import fixbv
 
 from myhdl import conversion
 from ._tristate import Tristate
@@ -210,5 +211,5 @@ __all__ = ["bin",
            "Tristate",
            "OpenPort",
            "HdlClass",
-           # "hdlinstances",
+           "fixbv"
            ]

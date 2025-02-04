@@ -63,7 +63,7 @@ class _SigNameVisitor(ast.NodeVisitor):
         if isinstance(s, _Signal):
             self.sigdict[n] = s
         elif _isListOfSigs(s):
-            ic(n, s)
+            # ic(n, s)
             self.losdict[n] = s
 
     def visit_Assign(self, node):

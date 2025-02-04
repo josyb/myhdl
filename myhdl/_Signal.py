@@ -38,6 +38,8 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
+from myhdl._modbv import modbv
+from myhdl._fixbv import fixbv, _FixbvResult
 from myhdl._bin import bin
 
 # from myhdl._enum import EnumItemType
@@ -140,6 +142,7 @@ class _Signal(object):
         val -- initial value
 
         """
+        # ic(val, repr(val), type(val), type(val) is fixbv, isinstance(val, fixbv), isinstance(val, modbv), isinstance(val, intbv))
         self._init = deepcopy(val)
         self._val = deepcopy(val)
         self._next = deepcopy(val)
@@ -156,9 +159,20 @@ class _Signal(object):
             self._setNextVal = self._setNextBool
             self._printVcd = self._printVcdBit
             self._nrbits = 1
+
         elif isinstance(val, int):
             self._type = (int,)
             self._setNextVal = self._setNextInt
+
+        elif isinstance(val, fixbv):
+            # ic(val)
+            self._type = fixbv
+            self._min = val._min
+            self._max = val._max
+            self._nrbits = val._wl
+            self._setNextVal = self._setNextFixbv
+            self._printVcd = self._printVcdFixbv
+
         elif isinstance(val, intbv):
             self._type = intbv
             self._min = val._min
@@ -169,6 +183,7 @@ class _Signal(object):
                 self._printVcd = self._printVcdVec
             else:
                 self._printVcd = self._printVcdHex
+
         else:
             self._type = type(val)
             if isinstance(val, EnumItemType):
@@ -177,6 +192,7 @@ class _Signal(object):
                 self._setNextVal = self._setNextMutable
             if hasattr(val, '_nrbits'):
                 self._nrbits = val._nrbits
+
         self._eventWaiters = _WaiterList()
         self._posedgeWaiters = _PosedgeWaiterList(self)
         self._negedgeWaiters = _NegedgeWaiterList(self)
@@ -204,23 +220,34 @@ class _Signal(object):
 
     def _update(self):
         val, nextval = self._val, self._next
+        # ic(val, nextval, val != nextval)
         if val != nextval:
             waiters = self._eventWaiters[:]
             del self._eventWaiters[:]
             if not val and nextval:
                 waiters.extend(self._posedgeWaiters[:])
                 del self._posedgeWaiters[:]
+
             elif not nextval and val:
                 waiters.extend(self._negedgeWaiters[:])
                 del self._negedgeWaiters[:]
+
             if nextval is None:
                 self._val = None
+
+            elif isinstance(val, fixbv):
+                self._val._val = nextval._val
+                self._val._fval = nextval._fval
+
             elif isinstance(val, intbv):
                 self._val._val = nextval._val
+
             elif isinstance(val, (int, EnumItemType)):
                 self._val = nextval
+
             else:
                 self._val = deepcopy(nextval)
+
             if self._tracing:
                 self._printVcd()
             return waiters
@@ -318,6 +345,24 @@ class _Signal(object):
         self._next._val = val
         self._next._handleBounds()
 
+    def _setNextFixbv(self, val):
+        if isinstance(val, float):
+            nval = _FixbvResult(val, int(val * self._val._SCALE))
+        elif isinstance(val, int):
+            nval = _FixbvResult(float(val) / self._val._SCALE, val)
+        elif isinstance(val, fixbv):
+            nval = _FixbvResult(val._fval, val._val)
+        elif isinstance(val, _FixbvResult):
+            # correct format
+            nval = val
+        elif isinstance(val, intbv):
+            nval = _FixbvResult(float(val._val) / self._val._SCALE, val._val)
+        else:
+            raise ValueError(f"_setNextFixbv: received {repr(val)} : unhandled")
+
+        self._next._val = nval.vector
+        self._next._fval = nval.real
+
     def _setNextNonmutable(self, val):
         if not isinstance(val, self._type):
             raise TypeError(f"Expected {self._type}, got {type(val)}")
@@ -337,6 +382,10 @@ class _Signal(object):
             print(f"sz {self._code}", file=sim._tf)
         else:
             print(f"s{hex(self._val)} {self._code}", file=sim._tf)
+
+    def _printVcdFixbv(self):
+        print(f"r{self._fval} {self._code[1]}", file=sim._tf)
+        print(f"b{bin(self._val.ord, self._wl)} {self._code[0]}", file=sim._tf)
 
     def _printVcdBit(self):
         if self._val is None:
@@ -384,6 +433,7 @@ class _Signal(object):
         sig = Signal(self._val)
         if val:
             sig._val._val = val
+        # ic(self._val, repr(sig))
         return sig
 
     # integer-like methods

@@ -1,4 +1,4 @@
-from myhdl import (block, Signal, intbv, always, concat, toVerilog, toVHDL)
+from myhdl import (block, Signal, intbv, always, concat)  # , toVerilog, toVHDL)
 from myhdl.conversion import analyze
 
 
@@ -26,7 +26,7 @@ def test_issue_117_1():
     clk, sdi = [Signal(bool(0)) for _ in range(2)]
     pdo = Signal(intbv(0)[8:])
     sel = Signal(intbv(0, min=0, max=3))
-    toVHDL.name = toVerilog.name = 'issue_117_1'
+    # toVHDL.name = toVerilog.name = 'issue_117_1'
     assert issue_117(clk, sdi, pdo, sel, const=bool(0)).analyze_convert() == 0
 
 
@@ -34,7 +34,7 @@ def test_issue_117_2():
     clk, sdi = [Signal(bool(0)) for _ in range(2)]
     pdo = Signal(intbv(0)[8:])
     sel = Signal(intbv(0, min=0, max=3))
-    toVHDL.name = toVerilog.name = 'issue_117_2'
+    # toVHDL.name = toVerilog.name = 'issue_117_2'
     assert issue_117(clk, sdi, pdo, sel, const=False).analyze_convert() == 0
 
 
@@ -42,7 +42,7 @@ def test_issue_117_3():
     clk, sdi = [Signal(bool(0)) for _ in range(2)]
     pdo = Signal(intbv(0)[8:])
     sel = Signal(intbv(0, min=0, max=3))
-    toVHDL.name = toVerilog.name = 'issue_117_3'
+    # toVHDL.name = toVerilog.name = 'issue_117_3'
     assert issue_117(clk, sdi, pdo, sel, const=intbv(0)[1:]).analyze_convert() == 0
 
 
