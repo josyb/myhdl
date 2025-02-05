@@ -45,7 +45,7 @@ re_str = re.compile(r"[+ | -]*[0 | 1 | _]*\.[0 | 1 | _]+")
 
 class _FixbvResult(object):
 
-    def __init__(self, real, vector):
+    def __init__(self, real=None, vector=None):
         self.real = real
         self.vector = vector
 
@@ -329,13 +329,57 @@ class fixbv(intbv):
     def fractionalbits(self):
         return self._wf
 
-    def adjustvalue(self, spec):
-        # the float value doesn't change!
-        # TODO: if the actual _fval is negative and exceeds the 'new' range we may have a problem ...
-        # simulation will cover that, no?
-        # TODO: how will conversion handle this
-        # return _FixbvResult(self._fval, self._val >> self._wf - spec[1])
-        return _FixbvResult(self._fval, self._val >> spec)
+    def __getitem__(self, key):
+        '''
+            __getitem__ works on the vector representation
+        '''
+        if isinstance(key, slice):
+            left = key.start
+            right = key.stop
+            # assume there is no key.step ...
+            rv = _FixbvResult()
+            if left is None:
+                # s[:R]
+                # this means we are truncating on the right of the fraction bits
+                # the real value is thus unchanged
+                rv.real = self._fval
+                rv.vector = self._val >> int(right)
+            else:
+                # s[L:] or s[L:R]
+                # first truncate on the left
+                left = int(left)
+                tl = left if left > 0 else (self._wl + left)
+                rv.vector = self._val & (2 ** tl - 1)
+                twf = self._wf
+                if right is not None:
+                    # also cutting on the right side
+                    right = int(right)
+                    tr = right if right > 0 else (self._wl + right)
+                    rv.vector >>= tr
+                    twf -= tr
+
+                # we must check whether the actual real value fits in the left-truncated
+                # if not we return the trusted NaN
+                if self._signed:
+                    treal = rv.vector / (2 ** (twf - 1))
+                    if -treal <= self._fval < treal:
+                        rv.real = self._fval
+                    else:
+                        # doesn't fit
+                        rv.real = math.nan
+
+                else:
+                    if self._fval < rv.vector / (2 ** twf):
+                        rv.real = self._fval
+                    else:
+                        # doesn't fit
+                        rv.real = math.nan
+
+            return rv
+
+        else:
+            # s[I]
+            return bool((self._val >> int(key)) & 0x1)
 
     def __setitem__(self, key, val):
         raise NotImplementedError(f"a fixbv does not have a method to set bits in the bitvector")
@@ -472,3 +516,5 @@ if __name__ == '__main__':
     # ic(s0, s0.next)
     # s0.update()
     # ic(s0)
+    ic(t0, t0.ord, t0[:4], t0[-1:])
+    ic(t2, t2.ord, t2[:4], t2[-1:])
