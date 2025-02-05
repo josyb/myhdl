@@ -224,14 +224,14 @@ class VerilogWriter(object):
                     print(f'    {d} {s._driven} {p} {r} {portname},', file=b)
 
                 else:
-                    print(f'    input {p} {r} {portname},', file=b)
-                    # a top level input may have ShadowSignals
-                    # which have not been processed by _analyzeSigs
-                    for sl in s._slicesigs:
-                        sl._setName('Verilog')
-
                     if not s._read:
                         warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
+                    else:
+                        print(f'    input {p} {r} {portname},', file=b)
+                        # a top level input may have ShadowSignals
+                        # which have not been processed by _analyzeSigs
+                        for sl in s._slicesigs:
+                            sl._setName('Verilog')
 
             print(b.getvalue()[:-2], file=self.file)
             b.close()

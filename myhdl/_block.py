@@ -191,8 +191,7 @@ class block(object):
 
         if bound_key not in self.bound_functions:
             bound_func = self.func.__get__(instance, owner)
-            function_wrapper = _bound_function_wrapper(
-                bound_func, self.srcfile, self.srcline)
+            function_wrapper = _bound_function_wrapper(bound_func, self.srcfile, self.srcline)
             self.bound_functions[bound_key] = function_wrapper
 
             proposed_inst_name = owner.__name__ + '0'
@@ -217,8 +216,7 @@ class block(object):
         # See concerns above about uniqueifying
         name = _uniqueify_name(name)
 
-        return _Block(self.func, self, name, self.srcfile,
-                      self.srcline, *args, **kwargs)
+        return _Block(self.func, self, name, self.srcfile, self.srcline, *args, **kwargs)
 
 
 class _Block(object):
@@ -234,6 +232,7 @@ class _Block(object):
                 self.hdlclass = func.__self__  # make a backlink to the class
                 self.args = tuple([v for v in vars(func.__self__).values()])
                 self.kwargs = {}
+                ic(func.__name__, func.__self__, vars(func.__self__), self.args, self.kwargs)
             else:
                 # some other classe see test\conversion\general\test_method.py
                 self.args = args
@@ -241,6 +240,7 @@ class _Block(object):
         else:
             self.args = args
             self.kwargs = kwargs
+            ic(self.args, self.kwargs)
 
         # ic(self.args, self.kwargs)
         self.__doc__ = func.__doc__
@@ -257,7 +257,7 @@ class _Block(object):
         self.subs = _flatten(func(*args, **kwargs))
         self._verifySubs()
         self._updateNamespaces()
-        # ic((self.symdict), self.sigdict, self.memdict)
+        # ic(self.symdict, self.sigdict, self.memdict)
         self.verilog_code = self.vhdl_code = None
         self.sim = None
         self.endhierarchy = False
@@ -336,9 +336,10 @@ class _Block(object):
 
         # ic(self.sigdict, self.memdict)
 
-    def _inferInterface(self):
+    def _inferInterface(self, hdl):
         from myhdl.conversion._analyze import _analyzeTopFunc
-        intf = _analyzeTopFunc(self.func, *self.args, **self.kwargs)
+        ic(self.args)
+        intf = _analyzeTopFunc(self.func, hdl, *self.args, **self.kwargs)
         self.argnames = intf.argnames
         self.argdict = intf.argdict
 

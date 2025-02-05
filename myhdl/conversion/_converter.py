@@ -43,6 +43,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
 from myhdl._Signal import _Signal
+from myhdl._block import _Block
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
 from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
@@ -234,17 +235,25 @@ class Converter(object):
             # func.hdlclass.__dict__ is made by the __init__ call on class instantiation
             ic(func.hdlclass.__dict__)
             for n, s in func.hdlclass.__dict__.items():
-                # ic(n, s)
+                ic(n, s)
                 # TODO: look out for interfaces (and structures, lists etc in the future)
                 if isinstance(s, _Signal):
                     # if s._name is None:
                     s._name = n
                     ports.append(s)
+                elif isinstance(s, _Block):
+                    # skip
+                    pass
+                elif hasattr(s, '__dict__'):
+                    # the 'anonymous' interface ...
+                    s._name = n
+                    ports.append(s)
+
             ic(ports)
             func.args = tuple(ports)
 
         # infer interface after signals have been analyzed
-        func._inferInterface()
+        func._inferInterface(self.hdl)
         intf = func
         intf.name = name
 

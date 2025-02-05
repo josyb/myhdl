@@ -1402,22 +1402,21 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
 # a local function to drill down to the last interface
 def expandinterface(v, name, obj):
     for attr, attrobj in vars(obj).items():
+        nname = ''.join((name, '_', attr))
         if isinstance(attrobj, _Signal):
-# override any 'mangled' name
-#             signame = attrobj._name
-#             if not signame:
-            signame = name + '_' + attr
-            attrobj._name = signame
-            v.argdict[signame] = attrobj
-            v.argnames.append(signame)
+            # override any 'mangled' name
+            attrobj._name = nname
+            v.argdict[nname] = attrobj
+            v.argnames.append(nname)
         elif isinstance(attrobj, myhdl.EnumType):
             pass
         elif hasattr(attrobj, '__dict__'):
             # can assume is yet another interface ...
-            expandinterface(v, name + '_' + attr, attrobj)
+            expandinterface(v, nname, attrobj)
 
 
-def _analyzeTopFunc(func, *args, **kwargs):
+def _analyzeTopFunc(func, hdl, *args, **kwargs):
+    ic(func, hdl, args, kwargs)
     tree = _makeAST(func)
     v = _AnalyzeTopFuncVisitor(func, tree, *args, **kwargs)
     v.visit(tree)
@@ -1430,6 +1429,7 @@ def _analyzeTopFunc(func, *args, **kwargs):
     # create ports for any signal in the top instance if it was buried in an
     # object passed as in argument
     # now expand the interface objects
+    ic(objs)
     for name, obj in objs:
         if hasattr(obj, '__dict__'):
             # must be an interface object (probably ...?)
@@ -1456,7 +1456,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         self.name = node.name
         if isboundmethod(self.func):
             if isinstance(self.func.__self__, HdlClass):
-                # ic(self.func)
+                ic(node, vars(node), self.func, vars(self.func), self.args)
                 # must find names ...
                 for arg in self.args:
                     # be selective
@@ -1464,9 +1464,13 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                     if isinstance(arg, _Signal):
                         self.argnames.append(arg._name)
                     elif _isListOfSigs(arg):
-                        raise NotImplementedError(f'do not handle ListOfSignals {self.name}:{arg}')
+                        self.argnames.append(arg._name)
+                        # decide later what to do with it
+                        # raise NotImplementedError(f'do not handle ListOfSignals {self.name}:{arg}')
+                    elif hasattr(arg, '__dict__'):
+                        self.argnames.append(arg._name)
             else:
-                # another class
+                # another class has the args in the method.call
                 self.argnames = _get_argnames(node)
                 if not self.argnames[0] == 'self':
                     self.raiseError(node, _error.NotSupported,
@@ -1482,7 +1486,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             self.fullargdict[n] = arg
             if isinstance(arg, _Signal):
                 self.argdict[n] = arg
-            if _isMem(arg):
+            if _isMem(arg)and hdl == "Verilog":
                 self.raiseError(node, _error.ListAsPort, n)
         for n in self.argnames[i + 1:]:
             if n in self.kwargs:
@@ -1490,6 +1494,6 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                 self.fullargdict[n] = arg
                 if isinstance(arg, _Signal):
                     self.argdict[n] = arg
-                if _isMem(arg):
+                if _isMem(arg) and hdl == "Verilog":
                     self.raiseError(node, _error.ListAsPort, n)
         self.argnames = [n for n in self.argnames if n in self.argdict]
