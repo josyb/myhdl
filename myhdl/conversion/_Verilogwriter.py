@@ -54,6 +54,7 @@ from myhdl._delay import delay
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._extractHierarchy import (_isMem, _getMemInfo, _UserVerilogCode)
 from myhdl._intbv import intbv
+from myhdl._fixbv import fixbv
 from myhdl._modbv import modbv
 from myhdl._openport import OpenPort
 from myhdl._parameter import  Parameter
@@ -597,7 +598,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if self.writer.standard == '1995':
             sep = ' or '
         self.write("@(")
-        ic((senslist))
+        # ic((senslist))
         for e in senslist[:-1]:
             self.write(e._toVerilog())
             self.write(sep)
@@ -1602,6 +1603,9 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             tipe = intbv
         if tipe is bool:
             v = '1' if init else '0'
+        elif tipe is fixbv:
+            init = init.ord  # int representation
+            v = "{}".format(init) if init is not None else "'bz"
         elif tipe is intbv:
             init = int(init)  # int representation
             v = "{}".format(init) if init is not None else "'bz"

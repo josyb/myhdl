@@ -343,6 +343,8 @@ class fixbv(intbv):
                 # this means we are truncating on the right of the fraction bits
                 # the real value is thus unchanged
                 rv.real = self._fval
+                if right < 0:
+                    right += self._wl
                 rv.vector = self._val >> int(right)
             else:
                 # s[L:] or s[L:R]
@@ -512,9 +514,11 @@ if __name__ == '__main__':
     ic(s0, s0._type)
     s1 = Signal(intbv(0, _nrbits=16))
     ic(s1)
+
+    # this doesn't seem to work, but does if executed in a console ...
     # s0.next = 6.0
     # ic(s0, s0.next)
     # s0.update()
     # ic(s0)
-    ic(t0, t0.ord, t0[:4], t0[-1:])
-    ic(t2, t2.ord, t2[:4], t2[-1:])
+    ic(t0, t0.ord, t0[:1], t0[-1:], t0[17:], t0[:-17])
+    ic(t2, t2.ord, t2[:1], t2[-1:])
