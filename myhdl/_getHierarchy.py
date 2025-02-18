@@ -70,7 +70,7 @@ def _getHierarchy(name, modinst, descend=True):
 
 
 def _getHierarchyHelper(level, modinst, hierarchy, descend):
-    subs = [(s.name, s) for s in modinst.subs]
+    subs = [(sub.name, sub) for sub in modinst.subs]
     inst = _Instance(level, modinst, subs, modinst.sigdict, modinst.memdict)
     hierarchy.append(inst)
     if descend:

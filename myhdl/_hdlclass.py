@@ -51,6 +51,7 @@ class HdlClass(ABC):
             # reset _driven attribute to avoid a '*Signal has multiple drivers: *' **fatal** error
             # when converting for successive V* (as shown in test_hdlclassxx.py
             # TODO: what about lower levels?
+            # TODO: lists?
             for arg in self._hdlb.args:
                 if isinstance(arg, _Signal):
                     arg._driven = False

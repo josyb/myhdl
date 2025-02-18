@@ -33,7 +33,6 @@ try:
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
-from myhdl._bin import bin
 from myhdl._intbv import intbv
 
 re_u1 = re.compile(r"\d+\.\d+\.\d+")
@@ -521,6 +520,9 @@ if __name__ == '__main__':
     import sys
     from myhdl import Signal
 
+    def printexception(e):
+        print(f'Exception: {e}')
+
     t0 = fixbv(math.pi, spec='2.16')
     t1 = fixbv(math.pi, spec='0.2.16')
     t2 = fixbv(-math.pi, spec='1.2.15')
@@ -564,12 +566,12 @@ if __name__ == '__main__':
     try:
         t2[6:] = 42
     except NotImplementedError as e:
-        print(e)
+        printexception(e)
 
     try:
         t14[5] = 0
     except NotImplementedError as e:
-        print(e)
+        printexception(e)
 
     t15 = fixbv(1.234, -1.0, 2.0, 16)
     t16 = fixbv(1.234, -2.0, 4.0, 16)
@@ -591,4 +593,4 @@ if __name__ == '__main__':
     try:
         t25 = fixbv(8.0, -8.0, 8.0, 16)
     except ValueError as e:
-        print(e)
+        printexception(e)
