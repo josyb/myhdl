@@ -462,6 +462,8 @@ class VerilogWriter(object):
             pm = StringIO()
             for portname in intf.argnames:
                 s = intf.argdict[portname]
+                if not s._used:
+                    continue
                 r = _getRangeString(s)
                 if s._driven:
                     print(f"wire {r}{portname};", file=f)
