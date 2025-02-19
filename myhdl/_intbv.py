@@ -156,6 +156,7 @@ class intbv(object):
                         lower = self._nrbits + lower
                     if lower < 0:
                         raise ValueError(f'lower: {key.stop} results in negative stop index {lower}')
+
                 if upper is None:
                     upper = self._nrbits - 1
                 else:
@@ -164,24 +165,29 @@ class intbv(object):
                         upper = self._nrbits + upper
                     if upper < 0:
                         raise ValueError(f'upper: {key.start} results in negative start index {upper}')
+
                 return intbv((self._val & ((1 << upper) - 1)) >> lower, _nrbits=upper - lower)
+
             else:
                 # unconstrained
                 if upper is  None and lower is None:
                     raise ValueError(f'Cannot slice unconstrained intbv[{upper}:{lower}]')
+
                 if lower is None:
                     lower = 0
                 else:
                     lower = int(lower)
                     if lower < 0:
                         raise ValueError(f'Slicing unconstrained intbv cannot accept negative lower {lower}')
+
                 if upper is None:
                     return intbv(self._val >> lower)
                 else:
                     upper = int(upper)
                     if upper < 0:
                         raise ValueError(f'Slicing unconstrained intbv cannot accept negative upper {upper}')
-                    return intbv(self._val & ((1 << upper) - 1) >> lower, _nrbits=upper - lower)
+
+                    return intbv((self._val & ((1 << upper) - 1)) >> lower, _nrbits=upper - lower)
 
         else:
             i = int(key)

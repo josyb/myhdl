@@ -224,14 +224,19 @@ class VerilogWriter(object):
                     print(f'    {d} {s._driven} {p} {r} {portname},', file=b)
 
                 else:
-                    if not s._read:
-                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
-                    else:
+                    if s._used or s._read:
+                        # TODO:
+                        # hack to pick up free variables when using functions
+                        # look in test_dec.py
+                        # 'enable' is only read in a function and hasn't got `_read` set
                         print(f'    input {p} {r} {portname},', file=b)
                         # a top level input may have ShadowSignals
                         # which have not been processed by _analyzeSigs
                         for sl in s._slicesigs:
                             sl._setName('Verilog')
+                    else:
+                        # not s._used and not s._read ...
+                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
 
             print(b.getvalue()[:-2], file=self.file)
             b.close()
