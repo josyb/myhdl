@@ -51,6 +51,12 @@ class _FixbvResult(object):
     def __repr__(self):
         return f"_FixbvResult(real={self.real}, vector={self.vector})"
 
+    def __add__(self, other):
+        assert isinstance(other, _FixbvResult)
+        return _FixbvResult(self.real + other.real, self.vector + other.vector)
+
+    __radd__ = __add__
+
 
 class fixbv(intbv):
     '''

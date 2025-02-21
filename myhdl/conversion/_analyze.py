@@ -1486,7 +1486,8 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             self.fullargdict[n] = arg
             if isinstance(arg, _Signal):
                 self.argdict[n] = arg
-            if _isMem(arg)and hdl == "Verilog":
+            # if _isMem(arg)and hdl == "Verilog":
+            if _isMem(arg):
                 self.raiseError(node, _error.ListAsPort, n)
         for n in self.argnames[i + 1:]:
             if n in self.kwargs:
@@ -1494,6 +1495,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                 self.fullargdict[n] = arg
                 if isinstance(arg, _Signal):
                     self.argdict[n] = arg
-                if _isMem(arg) and hdl == "Verilog":
+                # if _isMem(arg) and hdl == "Verilog":
+                if _isMem(arg):
                     self.raiseError(node, _error.ListAsPort, n)
         self.argnames = [n for n in self.argnames if n in self.argdict]
