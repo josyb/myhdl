@@ -278,8 +278,8 @@ class SystemVerilogWriter(object):
         ic(intf, siglist, memlist)
         constwires = []
         for s in siglist:
+            ic(s._info)
             if not s._used:
-                ic(s._info)
                 continue
 
             if isinstance(s, OpenPort):
@@ -289,7 +289,6 @@ class SystemVerilogWriter(object):
                 signame = s._name
 
             if signame in intf.argnames:
-                ic(s._info)
                 continue
 
             r = _getRangeString(s)
@@ -333,6 +332,33 @@ class SystemVerilogWriter(object):
                     warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToVerilogWarning)
                     constwires.append(s)
                     print(f"    logic {r}{signame};", file=self.file)
+
+            else:
+                # _used but not _driven and not _read
+                # ???
+                ic(s._info)
+                # if self.hierarchical:
+                if isinstance(s, Constant):
+                    c = int(s.val)
+                    c_len = s._nrbits
+                    c_str = f"{c}"
+                    if isinstance(s.val, bool):
+                        print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
+                    elif isinstance(s.val, int):
+                        print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
+                    elif isinstance(s.val, float):
+                        print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
+                    else:
+                        # intbv
+                        print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                else:
+                    if not self.initial_values:
+                        print(f"    logic {p}{r}{signame};", file=self.file)
+                    else:
+                        if isinstance(s._init, EnumItemType):
+                            print(f"    logic {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                        else:
+                            print(f"    logic {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
 
         for m in memlist:
             if not m._used:

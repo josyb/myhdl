@@ -204,7 +204,7 @@ class _Signal(object):
     @property
     def _info(self):
         ''' as we have `slots` we need some way to inspect what we have '''
-        return f'{repr(self)} used {self._used,} driven {self._driven}, driver {self._driver}, read {self._read} '
+        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read} '
 
     def _clear(self):
         del self._eventWaiters[:]
@@ -635,6 +635,7 @@ class _Signal(object):
     def assign(self, sig):
 
         self.driven = "wire"
+        sig._markRead()
 
         def genFunc():
             while 1:

@@ -74,10 +74,7 @@ def _flattenhierarchy(hdl, *args):
                 else:
                     arg = arg.subs
 
-        # if id(arg) in _userCodeMap[hdl]:
-        #     arglist.append(_userCodeMap[hdl][id(arg)])
-
-        # elif isinstance(arg, (list, tuple, set)):
+        # no `elif` as we now build the arglistg ...
         if isinstance(arg, (list, tuple, set)):
             for item in arg:
                 arglist.extend(_flattenhierarchy(hdl, item))
@@ -90,41 +87,45 @@ def _flattenhierarchy(hdl, *args):
     return arglist
 
 
-def collectsubs(subs, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
-    # ic(level, maxdepth, subs, name_prefixes, hierarchy)
-    if isinstance(subs, _Block):
-        # ic(subs.name, subs.skipname, name_prefixes, subs.subs)
+def collectsubs(top, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
+    # ic(level, maxdepth, top, name_prefixes, hierarchy)
+    if isinstance(top, _Block):
+        ic(level, top.name, name_prefixes, top.subs, top.symdict, top.sigdict, top.memdict)
+        sigdictinfo = []
+        for k, v in top.sigdict.items():
+            sigdictinfo.append([k, v._info])
+        ic(sigdictinfo)
 
         if len(hierarchy) < level + 1:
             # start the first or new level
             hierarchy.append([])
 
         if maxdepth == -1:
-            if subs.endhierarchy:
+            if top.endhierarchy:
                 # walk down
-                gens = _flattenhierarchy(hdl, subs.subs)
+                gens = _flattenhierarchy(hdl, top.subs)
             else:
                 # only local generators
-                gens = [ss for ss in subs.subs if not isinstance(ss, _Block)]
+                gens = [ss for ss in top.subs if not isinstance(ss, _Block)]
         else:
             # > 0!
             if level == maxdepth:
                 # walk down
-                gens = _flattenhierarchy(hdl, subs.subs)
+                gens = _flattenhierarchy(hdl, top.subs)
             else:
                 # only local generators
-                gens = [ss for ss in subs.subs if not isinstance(ss, _Block)]
+                gens = [ss for ss in top.subs if not isinstance(ss, _Block)]
 
         # sanity check
         _checkArgs(gens)
         # now append
-        hierarchy[level].append(LevelInfo(subs.name, '_'.join(name_prefixes) if level > 0 else subs.name, subs, gens))
+        hierarchy[level].append(LevelInfo(top.name, '_'.join(name_prefixes) if level > 0 else top.name, top, gens))
 
-        if not subs.endhierarchy and level != maxdepth:
-            collectsubs(subs.subs, hdl, level, maxdepth, name_prefixes, hierarchy)
+        if not top.endhierarchy and level != maxdepth:
+            collectsubs(top.subs, hdl, level, maxdepth, name_prefixes, hierarchy)
 
-    elif isinstance(subs, (list, tuple, set)):
-        for sub in subs:
+    elif isinstance(top, (list, tuple, set)):
+        for sub in top:
             name_prefixes.append(sub.name)
             collectsubs(sub, hdl, level + 1, maxdepth, name_prefixes, hierarchy)
             name_prefixes.pop(-1)
@@ -133,15 +134,34 @@ def collectsubs(subs, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[])
         pass
 
 
+class _HierarchicalPort(object):
+
+    def __init__(self, obj):
+        self.obj = obj
+        self._used = obj._used
+        self._driven = obj._driven
+        self._driver = obj._driver
+        self._read = obj._read
+
+    def __repr__(self):
+        return f"_HierarchicalPort({repr(self.obj)}"
+
+    @property
+    def _info(self):
+        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read} '
+
+
 class _HierarchicalInstance(object):
     # __slots__ = ['hdlwriter', 'name', 'namespace', 'funcname', 'func', 'sourcefile', 'sourceline']
 
     # def __init__(self, hdlwriter, code, namespace, funcname, func, sourcefile, sourceline):
-    def __init__(self, hdlwriter, name, argnames, argsigs):
+    def __init__(self, hdlwriter, name, argnames, argsigs, argports):
+        ic(name, argnames, argsigs)
         self.hdlwriter = hdlwriter
         self.name = name
         self.argnames = argnames
         self.sigdict = argsigs
+        self.argports = argports
         # self.sourcefile = sourcefile
         # self.func = func
         # self.funcname = funcname
@@ -150,6 +170,11 @@ class _HierarchicalInstance(object):
     def __str__(self):
         return self.hdlwriter.hierarchicalinstance(self)
 
+    def __repr__(self):
+        siginfo = []
+        for sig in self.sigdict:
+            siginfo.append(sig._info)
+        return f"{self.name}, {self.argnames} -> {siginfo}"
 # # a local function to drill down to the last interface
 # def expandinterface(v, name, obj):
 #     for attr, attrobj in vars(obj).items():

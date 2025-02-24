@@ -29,7 +29,7 @@ class Minimal(HdlClass):
 
 
 if __name__ == '__main__':
-    if 1:
+    if 0:
         Sigin = Signal(bool(0))
         SigOut = Signal(bool(0))
 
@@ -46,6 +46,6 @@ if __name__ == '__main__':
 
             dfc = Minimal(Sigin)
             # dfc.convert(hdl='VHDL', name='Minimal')
-            # dfc.convert(hdl='Verilog', name='Minimal')
+            dfc.convert(hdl='Verilog', hierarchical=-1, name='Minimal')
 
         convert()

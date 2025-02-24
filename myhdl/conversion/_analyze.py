@@ -93,7 +93,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         name = inst.name
         sigdict = inst.sigdict
         memdict = inst.memdict
-        # ic(level, name, sigdict, memdict)
+        ic(level, name, sigdict, memdict)
         namedict = dict(chain(sigdict.items(), memdict.items()))
         delta = curlevel - level
         curlevel = level
@@ -106,7 +106,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
-            # ic(n, s, s._name)
+            ic(n, s, s._name)
             if s._name is not None:
                 continue
             if isinstance(s, _SliceSignal):
