@@ -121,6 +121,7 @@ class Converter(object):
 
             ha = []
             collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha)  # give it an empty list as a placeholder
+            # ic(ha)
             # now start converting 'bottoms up'
             # we need an empty directory where we place all output files
             # we will erase any existing files ...
@@ -138,32 +139,32 @@ class Converter(object):
             modules = {}
 
             startlevel = len(ha) - 1
-            ic(ha, startlevel)
+            # ic(ha, startlevel)
             for ll in range(startlevel, -1, -1):
-                ic(ll, (ha[ll]))
+                # ic(ll, (ha[ll]))
                 for bb in ha[ll]:
-                    ic('======================================', bb)
+                    # ic('======================================', bb)
                     # we normally only need one level of hierarchy
                     # unless we choose to flatten a part of the code
                     # ic(vars(bb.blocksubs))
-                    for ssub in bb.blocksubs.subs:
-                        ic(ssub, vars(ssub))
-                    if bb.blocksubs.hdlclass is not None:
-                        ic(bb.blocksubs.hdlclass)
+                    # for ssub in bb.blocksubs.subs:
+                    #     ic(ssub, vars(ssub))
+                    # if bb.blocksubs.hdlclass is not None:
+                    #     ic(bb.blocksubs.hdlclass)
 
-                    ic(bb.instancename, bb.blocksubs, bb.blocksubs.endhierarchy)
+                    # ic(bb.instancename, bb.blocksubs, bb.blocksubs.endhierarchy)
                     bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy or (ll == startlevel))
-                    ic(bbh, bbh.top, bbh.hierarchy, bb.gens)
+                    # ic(bbh, bbh.top, bbh.hierarchy, bb.gens)
 
                     genlist = _analyzeGens(bb.gens, bbh.absnames)
-                    ic(genlist, bb.blocksubs, len(bb.blocksubs.subs), bb.blocksubs.subs,
-                       bb.blocksubs.args, bb.blocksubs.kwargs, bb.blocksubs.sigdict)
+                    # ic(genlist, bb.blocksubs, len(bb.blocksubs.subs), bb.blocksubs.subs,
+                    #    bb.blocksubs.args, bb.blocksubs.kwargs, bb.blocksubs.sigdict)
 
                     # see if we have an already generated file for this block
                     subsoutputports = []
                     for sub in bb.blocksubs.subs:
                         if sub.name in modules:
-                            ic(f'{ll} found {sub.name} in generated modules', repr(modules[sub.name]))
+                            # ic(f'{ll} found {sub.name} in generated modules', repr(modules[sub.name]))
                             # ic(vars(sub))
                             # add the found generated module to the list
                             genlist.insert(0, modules[sub.name])
@@ -171,7 +172,7 @@ class Converter(object):
                             for port in modules[sub.name].argports:
                                 subsoutputports.append(modules[sub.name].argports[port])
 
-                    ic(genlist, subsoutputports)
+                    # ic(genlist, subsoutputports)
 
                     # _analyzeSigs will skip signals that have been treated at a lower level
                     # invalidating the name will force a re-evaluation
@@ -179,9 +180,9 @@ class Converter(object):
                     # which has been generated/treated by another module and also have the _driven attribute set
                     # in which case this signal gets flagged as an output
                     # so whave to reset the ._driven for these specific signals only
-                    ic((bb.blocksubs.sigdict))
+                    # ic((bb.blocksubs.sigdict))
                     for __, s in bb.blocksubs.sigdict.items():
-                        ic(s._name, repr(s), s._used, s._driven, s._driver, s._read)
+                        # ic(s._name, repr(s), s._used, s._driven, s._driver, s._read)
                         s._name = None
                         if ll:
                             if s._driver == 'driven':
@@ -191,10 +192,12 @@ class Converter(object):
                                 s._driver = 'driven'
 
                     siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
-                    info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
-                    ic(info)
+                    # info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
+                    # ic(info)
 
                     _annotateTypes(self.hdl, genlist)
+                    siglistinfo = [ sig._info for sig in siglist]
+                    # ic(ll, bb.instancename, siglistinfo, bb.blocksubs, bb.blocksubs)
 
                     res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist, subsoutputports)
                     # build the 'placeholder' information for this block
@@ -217,11 +220,11 @@ class Converter(object):
                     # else there will be no output ports ...
                     # so we have to keep a deepcopy' instead
                     # or perhaps make a new class?
-                    ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
+                    # ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
                     argportsinfo = []
                     for arg in argports:
                         argportsinfo.append(argports[arg]._info)
-                    ic(argportsinfo)
+                    # ic(argportsinfo)
 
                     modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argports)
 
@@ -248,7 +251,7 @@ class Converter(object):
                     argportsinfo = []
                     for arg in argports:
                         argportsinfo.append(argports[arg]._info)
-                    ic(argportsinfo)
+                    # ic(argportsinfo)
                     # ic(modules)
 
         else:
@@ -269,7 +272,7 @@ class Converter(object):
 
     def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None):
 
-        # ic(name, h, func, func.args, siglist, memlist, genlist)
+        ic(level, name, h, func, func.args, siglist, memlist, genlist)
         # finally
         if func.hdlclass is not None:
             # if present it is a **backlink** tot the instantiated HdlClass
@@ -348,7 +351,8 @@ class Converter(object):
 
         self.writer.close()
 
-        if not self.hierarchical:
+        # if not self.hierarchical:
+        if level == 0:
             # don't write testbench if module has no ports
             if len(intf.argnames) > 0 and not self.no_testbench:
                 self.writer._writeTestBench(self.directory, name, intf, self.trace)
@@ -382,13 +386,13 @@ class Converter(object):
     def _convertGens(self, genlist):
         blockBuf = StringIO()
         funcBuf = StringIO()
-        ic(genlist)
+        # ic(genlist)
         for tree in genlist:
             if isinstance(tree, self.writer.usercode) or isinstance(tree, _HierarchicalInstance):
                 blockBuf.write(str(tree))
                 continue
 
-            ic(tree, tree.kind)
+            # ic(tree, tree.kind)
             if tree.kind == _kind.ALWAYS:
                 Visitor = self.writer.ConvertAlwaysVisitor
             elif tree.kind == _kind.INITIAL:

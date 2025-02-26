@@ -127,6 +127,10 @@ class ToVerilogError(ConversionError):
     pass
 
 
+class ToSystemVerilogError(ConversionError):
+    pass
+
+
 class ToVHDLError(ConversionError):
     pass
 
@@ -136,6 +140,10 @@ class ConversionWarning(UserWarning):
 
 
 class ToVerilogWarning(ConversionWarning):
+    pass
+
+
+class ToSystemVerilogWarning(ConversionWarning):
     pass
 
 

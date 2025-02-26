@@ -240,7 +240,7 @@ class _Block(object):
         else:
             self.args = args
             self.kwargs = kwargs
-            ic(self.args, self.kwargs)
+            # ic(self.args, self.kwargs)
 
         # ic(self.args, self.kwargs)
         self.__doc__ = func.__doc__
@@ -338,7 +338,7 @@ class _Block(object):
 
     def _inferInterface(self, hdl):
         from myhdl.conversion._analyze import _analyzeTopFunc
-        ic(self.args)
+        # ic(self.args)
         intf = _analyzeTopFunc(self.func, hdl, *self.args, **self.kwargs)
         self.argnames = intf.argnames
         self.argdict = intf.argdict

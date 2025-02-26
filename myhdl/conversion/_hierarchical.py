@@ -25,7 +25,6 @@ Created on 2 jan. 2025
 @author: josy
 
 '''
-import ast
 from collections import namedtuple
 from types import GeneratorType
 
@@ -39,12 +38,8 @@ from myhdl._instance import _Instantiator
 from myhdl._block import _Block
 # from myhdl._extractHierarchy import  _userCodeMap, _UserCode, _isMem, _getMemInfo
 from myhdl._extractHierarchy import  _UserCode, _isMem, _getMemInfo
-from myhdl._Signal import _Signal, _isListOfSigs
-from myhdl._util import _makeAST
-from myhdl._misc import isboundmethod
-from myhdl._enum import EnumType
-from myhdl._hdlclass import HdlClass
-from myhdl.conversion._misc import _error, _get_argnames, _ConversionMixin
+from myhdl._Signal import _Signal
+from myhdl.conversion._misc import _error
 
 LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' , 'gens'])
 
@@ -90,11 +85,11 @@ def _flattenhierarchy(hdl, *args):
 def collectsubs(top, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
     # ic(level, maxdepth, top, name_prefixes, hierarchy)
     if isinstance(top, _Block):
-        ic(level, top.name, name_prefixes, top.subs, top.symdict, top.sigdict, top.memdict)
+        # ic(level, top.name, name_prefixes, top.subs, top.symdict, top.sigdict, top.memdict)
         sigdictinfo = []
         for k, v in top.sigdict.items():
             sigdictinfo.append([k, v._info])
-        ic(sigdictinfo)
+        # ic(sigdictinfo)
 
         if len(hierarchy) < level + 1:
             # start the first or new level
@@ -156,7 +151,7 @@ class _HierarchicalInstance(object):
 
     # def __init__(self, hdlwriter, code, namespace, funcname, func, sourcefile, sourceline):
     def __init__(self, hdlwriter, name, argnames, argsigs, argports):
-        ic(name, argnames, argsigs)
+        # ic(name, argnames, argsigs)
         self.hdlwriter = hdlwriter
         self.name = name
         self.argnames = argnames

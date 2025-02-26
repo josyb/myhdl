@@ -45,7 +45,7 @@ except ImportError:
     astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
-from myhdl import ToVerilogError, ToVerilogWarning
+from myhdl import ToSystemVerilogError, ToSystemVerilogWarning
 from myhdl import __version__ as myhdlversion
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
@@ -165,6 +165,9 @@ class SystemVerilogWriter(object):
         else:
             print(f"module {intf.name} (", file=self.file)
 
+        subnames = [sub.name for sub in intf.subs]
+        # ic(subnames)
+
         # ANSI-style module declaration
         for portname in intf.argnames:
             s = intf.argdict[portname]
@@ -172,10 +175,10 @@ class SystemVerilogWriter(object):
             if isinstance(s, _Signal):
                 # ic(portname, repr(s), s._driven, s._driver)
                 if s._name is None:
-                    raise ToVerilogError(_error.ShadowingSignal, portname)
+                    raise ToSystemVerilogError(_error.ShadowingSignal, portname)
 
                 if s._inList:
-                    raise ToVerilogError(_error.PortInList, portname)
+                    raise ToSystemVerilogError(_error.PortInList, portname)
 
                 if isinstance(s, (OpenPort, Parameter)):
                     continue
@@ -184,33 +187,15 @@ class SystemVerilogWriter(object):
                 r = _getRangeString(s)
                 p = _getSignString(s)
 
-                # TODO: re-visit this code
-                # if self.hierarchical > 1 or self.hierarchical == -1:
-                #     # find out whether we need to declare an output
-                #     # possibly this may be a 'tautology' :)
-                #     sigdriven = s._driven
-                #     if s._driver is None:
-                #         sigdriven = False
-                #     else:
-                #         if s._driver == 'driven':
-                #             # nobody has claimed to be the driver (yet?)
-                #             # this is always the case for the top level
-                #             pass
-                #         # elif intf.name in s._driver:
-                #             # s._driver is built with prefixes
-                #             # if our intf.name is somewhere in this string we are
-                #             # on a 'straight hierachy line'
-                #             # this may be a bit simple as when using 'really' short names
-                #             # for modules, e.g. 'ab' they may be present inside another name
-                #             # so we restrict it to either start or end, or is fenced by underscores if somewhere in the middle
-                #         elif s._driver.startswith(intf.name) or s._driver.endswith(intf.name) or f'_{intf.name}_' in s._driver:
-                #             pass
-                #         else:
-                #             # no positive match
-                #             sigdriven = False
-                # else:
-                sigdriven = s._driven in ['reg', 'wire']
+                # TODO: refactor this code to _converter.py
+                # but do not update the _driven there
+                # else the information for the higher levels gets lost!
+                # correct the _driven attribute
+                sigdriven = False
+                if s._driven and s._driver in subnames or s._driver == intf.name or s._driver == 'driven':
+                    sigdriven = True
 
+                # ic(s._info, sigdriven)
                 if sigdriven:
                     if isinstance(s, _TristateSignal):
                         d = 'inout'
@@ -233,7 +218,7 @@ class SystemVerilogWriter(object):
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
-                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
+                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToSystemVerilogWarning)
             elif _isMem(s):
                 m = _getMemInfo(s)
                 ic(m._info)
@@ -265,7 +250,7 @@ class SystemVerilogWriter(object):
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
-                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToVerilogWarning)
+                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToSystemVerilogWarning)
 
         print(b.getvalue()[:-2], file=self.file)
         b.close()
@@ -273,7 +258,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def hierarchicalinstance(self, sub):
-        ic(sub, vars(sub), sub.argnames, sub.sigdict)
+        # ic(sub, vars(sub), sub.argnames, sub.sigdict)
         args = []
         # first look for parameters
         parameters = []
@@ -299,16 +284,18 @@ class SystemVerilogWriter(object):
 
         for i, arg in enumerate(sub.argnames):
             signame = f'{sub.sigdict[i]}'
-            ic(i, arg, signame)
+            # ic(i, arg, signame)
             if isinstance(sub.sigdict[i], OpenPort):
                 pass
             elif isinstance(sub.sigdict[i], Parameter):
                 pass
             elif isinstance(sub.sigdict[i], _Signal):
-                args.append(f"\n        .{arg}({signame})")
+                if sub.sigdict[i]._used:
+                    args.append(f"\n        .{arg}({signame})")
             elif _isMem(sub.sigdict[i]):
                 m = _getMemInfo(sub.sigdict[i])
-                args.append(f"\n        .{arg}({m.name})")
+                if m._used:
+                    args.append(f"\n        .{arg}({m.name})")
 
         return "".join((s, ",".join(args), "\n        );\n\n"))
 
@@ -333,7 +320,7 @@ class SystemVerilogWriter(object):
             p = _getSignString(s)
             if s._driven:
                 if not s._read and not isinstance(s, _TristateDriver):
-                    warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToSystemVerilogWarning)
                 k = 'wire'
                 if s._driven == 'reg':
                     k = 'logic'
@@ -372,7 +359,7 @@ class SystemVerilogWriter(object):
                     # the original exception
                     # raise ToVerilogError(_error.UndrivenSignal, signame)
                     # changed to a warning and a continuous assignment to a wire
-                    warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToVerilogWarning)
+                    warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToSystemVerilogWarning)
                     constwires.append(s)
                     ic(s._info)
                     print(f"    logic {r}{signame};", file=self.file)
@@ -475,7 +462,7 @@ class SystemVerilogWriter(object):
             if s._type in (bool, intbv):
                 c = int(s.val)
             else:
-                raise ToVerilogError(f"Unexpected type for constant signal: {s._name}")
+                raise ToSystemVerilogError(f"Unexpected type for constant signal: {s._name}")
             c_len = s._nrbits
             c_str = f"{c}"
             print(f"    assign {s._name} = {c_len}'d{c_str};", file=self.file)
@@ -492,6 +479,7 @@ class SystemVerilogWriter(object):
         print("\nendmodule", file=self.file)
 
     def _writeTestBench(self, directory, name, intf, trace=False):
+        ic(directory, name, intf, trace)
         # self.directory, name, intf, self.trace
         tbpath = os.path.join(directory, f"tb_{name}.sv")
         with open(tbpath, 'w') as f:
@@ -523,11 +511,11 @@ class SystemVerilogWriter(object):
                     r = _getRangeString(s)
                     if s._driven:
                         print(f"wire {r}{portname};", file=f)
-                        print(f"        {portname},", file=to)
+                        print(f"        .{portname},", file=to)
                     else:
                         print(f"logic {r}{portname};", file=f)
                         print(f"        {portname},", file=fr)
-                    print(f"    {portname},", file=pm)
+                    print(f"    .{portname}({portname}),", file=pm)
 
                 elif _isMem(s):
                     m = _getMemInfo(s)
@@ -542,7 +530,7 @@ class SystemVerilogWriter(object):
                     else:
                         print(f"logic {r}{portname}{d};", file=f)
                         print(f"        {portname},", file=fr)
-                    print(f"    {portname},", file=pm)
+                    print(f"    .{portname}({portname}),", file=pm)
 
             print(file=f)
             print("initial begin", file=f)
@@ -1442,11 +1430,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.context = None
         self.visit(node.value)
         self.write("[")
-        # assert len(node.subs) == 1
-        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
-            self.visit(node.slice)
-        else:
-            self.visit(node.slice.value)
+        self.visit(node.slice)
         self.write("]")
         if addSignBit:
             self.write("})")
