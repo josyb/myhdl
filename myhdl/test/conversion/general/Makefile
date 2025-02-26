@@ -1,4 +1,4 @@
-all:  vlog vcom 
+all:  ghdl iverilog sverilog 
 
 ghdl:
 	py.test --sim ghdl
@@ -12,11 +12,14 @@ vcom:
 iverilog:
 	py.test --sim iverilog
 
+sverilog:
+	py.test --sim sverilog
+
 cver:
 	py.test --sim cver
 
 clean:
-	- rm *.o *.out *.v *.vhd *.pyc *~ *.vcd* *.log *_ghdl
+	- rm *.o *.out *.v *.vhd *.sv *.hex *.pyc *~ *.vcd* *.log *_ghdl
 
 gitclean:
 	git clean -dfx

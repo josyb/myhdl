@@ -15,11 +15,11 @@ def calculateHecRef(header):
     The hec polynomial is 1 + x + x**2 + x**8.
     """
     hec = intbv(0)
-    for bit in header[32:]:
+    for b in header[32:]:
         hec[8:] = concat(hec[7:2],
-                         bit ^ hec[1] ^ hec[7],
-                         bit ^ hec[0] ^ hec[7],
-                         bit ^ hec[7]
+                         b ^ hec[1] ^ hec[7],
+                         b ^ hec[0] ^ hec[7],
+                         b ^ hec[7]
                         )
     return hec ^ COSET
 
@@ -32,11 +32,11 @@ def calculateHecFunc(header):
     """
     h = intbv(0)[8:]
     for i in downrange(len(header)):
-        bit = header[i]
+        b = header[i]
         h[:] = concat(h[7:2],
-                      bit ^ h[1] ^ h[7],
-                      bit ^ h[0] ^ h[7],
-                      bit ^ h[7]
+                      b ^ h[1] ^ h[7],
+                      b ^ h[0] ^ h[7],
+                      b ^ h[7]
                       )
     h ^= COSET
     return h
@@ -50,11 +50,11 @@ def calculateHecTask(hec, header):
     """
     h = intbv(0)[8:]
     for i in downrange(len(header)):
-        bit = header[i]
+        b = header[i]
         h[:] = concat(h[7:2],
-                      bit ^ h[1] ^ h[7],
-                      bit ^ h[0] ^ h[7],
-                      bit ^ h[7]
+                      b ^ h[1] ^ h[7],
+                      b ^ h[0] ^ h[7],
+                      b ^ h[7]
                       )
     h ^= COSET
     hec[:] = h
@@ -74,11 +74,11 @@ def HecCalculatorPlain(hec, header):
             yield header
             h[:] = 0
             for i in downrange(len(header)):
-                bit = header[i]
+                b = header[i]
                 h[:] = concat(h[7:2],
-                              bit ^ h[1] ^ h[7],
-                              bit ^ h[0] ^ h[7],
-                              bit ^ h[7]
+                              b ^ h[1] ^ h[7],
+                              b ^ h[0] ^ h[7],
+                              b ^ h[7]
                               )
             hec.next = h ^ COSET
 

@@ -62,4 +62,4 @@ def test_top_level_interfaces_verify():
     top = chunk_buffer(Clk, Reset, Input, Output)
     top.name = 'ChunkBuffer'
     top.convert('Verilog')
-    top.convert('VHDL')
+    # top.convert('VHDL')

@@ -15,11 +15,11 @@ def ForLoopError1(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in (1, 2, 3):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -31,11 +31,11 @@ def ForLoopError2(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in list((1, 2, 3)):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -47,11 +47,11 @@ def ForLoopError3(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in range(1, 4, -1):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -63,11 +63,11 @@ def ForLoop1(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in downrange(len(a)):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -79,11 +79,11 @@ def ForLoop2(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in downrange(len(a), 5):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -95,11 +95,11 @@ def ForLoop3(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in downrange(len(a), 3, 2):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -111,11 +111,11 @@ def ForLoop4(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in range(len(a)):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -127,11 +127,11 @@ def ForLoop5(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in range(6, len(a)):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -143,11 +143,11 @@ def ForLoop6(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in range(5, len(a), 3):
                 if a[i] == 1:
-                    var += 1
-            out.next = var
+                    count += 1
+            out.next = count
 
     return comb
 
@@ -159,12 +159,12 @@ def ForContinueLoop(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in downrange(len(a)):
                 if a[i] == 0:
                     continue
-                var += 1
-            out.next = var
+                count += 1
+            out.next = count
 
     return comb
 
@@ -209,16 +209,16 @@ def NestedForLoop1(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             for i in downrange(len(a)):
                 if a[i] == 0:
                     continue
                 else:
                     for j in downrange(i):
                         if a[j] == 0:
-                            var += 1
+                            count += 1
                     break
-            out.next = var
+            out.next = count
 
     return comb
 
@@ -281,11 +281,11 @@ def TaskCall(a, out):
 
     @instance
     def comb():
-        var = intbv(0)[8:]
+        count = intbv(0)[8:]
         while 1:
             yield a
-            ReturnFromTask(a, var)
-            out.next = var
+            ReturnFromTask(a, count)
+            out.next = count
 
     return comb
 
@@ -297,13 +297,13 @@ def WhileLoop(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             i = len(a) - 1
             while i >= 0:
                 if a[i] == 1:
-                    var += 1
+                    count += 1
                 i -= 1
-            out.next = var
+            out.next = count
 
     return comb
 
@@ -315,15 +315,15 @@ def WhileContinueLoop(a, out):
     def comb():
         while 1:
             yield a
-            var = 0
+            count = 0
             i = len(a) - 1
             while i >= 0:
                 if a[i] == 0:
                     i -= 1
                     continue
-                var += 1
+                count += 1
                 i -= 1
-            out.next = var
+            out.next = count
 
     return comb
 
@@ -471,3 +471,7 @@ def testWhileBreakLoop():
 
 def testWhileBreakContinueLoop():
     assert verify(LoopBench(WhileBreakContinueLoop)) == 0
+
+
+if __name__ == '__main__':
+    testForLoop1()

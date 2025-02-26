@@ -41,7 +41,7 @@ class _error(object):
     FreeVarTypeError = "Free variable should be a Signal or an int"
     # IntbvSign = "intbv's that can have negative values are not yet supported"
     IntbvBitWidth = "intbv object should have a bit width"
-    ListAsPort = "List of signals as a port is not supported"
+    # ListAsPort = "List of signals as a port is not supported"
     ListElementAssign = "Can't assign to list element; use slice assignment to change its value"
     MissingNext = "Missing '.next' attribute in assignment"
     ModbvRange = "modbv object should have full bit vector range"

@@ -93,7 +93,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         name = inst.name
         sigdict = inst.sigdict
         memdict = inst.memdict
-        ic(level, name, sigdict, memdict)
+        # ic(level, name, sigdict, memdict)
         namedict = dict(chain(sigdict.items(), memdict.items()))
         delta = curlevel - level
         curlevel = level
@@ -106,7 +106,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
-            ic(n, s, s._name)
+            # ic(n, s, s._name)
             if s._name is not None:
                 continue
             if isinstance(s, _SliceSignal):
@@ -1416,7 +1416,7 @@ def expandinterface(v, name, obj):
 
 
 def _analyzeTopFunc(func, hdl, *args, **kwargs):
-    ic(func, hdl, args, kwargs)
+    # ic(func, hdl, args, kwargs)
     tree = _makeAST(func)
     v = _AnalyzeTopFuncVisitor(func, tree, *args, **kwargs)
     v.visit(tree)
@@ -1429,7 +1429,7 @@ def _analyzeTopFunc(func, hdl, *args, **kwargs):
     # create ports for any signal in the top instance if it was buried in an
     # object passed as in argument
     # now expand the interface objects
-    ic(objs)
+    # ic(objs)
     for name, obj in objs:
         if hasattr(obj, '__dict__'):
             # must be an interface object (probably ...?)
@@ -1463,8 +1463,11 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                     # TODO: interfaces?
                     if isinstance(arg, _Signal):
                         self.argnames.append(arg._name)
-                    elif _isListOfSigs(arg):
-                        self.argnames.append(arg._name)
+                    # elif _isListOfSigs(arg):
+                    #     self.argnames.append(arg._name)
+                    elif _isMem(arg):
+                        m = _getMemInfo(arg)
+                        self.argnames.append(m.name)
                         # decide later what to do with it
                         # raise NotImplementedError(f'do not handle ListOfSignals {self.name}:{arg}')
                     elif hasattr(arg, '__dict__'):
@@ -1484,18 +1487,12 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         for i, arg in enumerate(self.args):
             n = self.argnames[i]
             self.fullargdict[n] = arg
-            if isinstance(arg, _Signal):
+            if isinstance(arg, _Signal) or _isMem(arg):
                 self.argdict[n] = arg
-            # if _isMem(arg)and hdl == "Verilog":
-            if _isMem(arg):
-                self.raiseError(node, _error.ListAsPort, n)
         for n in self.argnames[i + 1:]:
             if n in self.kwargs:
                 arg = self.kwargs[n]
                 self.fullargdict[n] = arg
-                if isinstance(arg, _Signal):
+                if isinstance(arg, _Signal) or _isMem(arg):
                     self.argdict[n] = arg
-                # if _isMem(arg) and hdl == "Verilog":
-                if _isMem(arg):
-                    self.raiseError(node, _error.ListAsPort, n)
         self.argnames = [n for n in self.argnames if n in self.argdict]

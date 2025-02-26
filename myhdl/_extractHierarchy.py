@@ -71,6 +71,16 @@ class _MemInfo(object):
         self._driven = None
         self._read = None
 
+    def __repr__(self):
+        if self.name:
+            return f'{self.name} = _MemInfo({repr(self.mem)})'
+        else:
+            return f"Signal({repr(self.mem)})"
+
+    @property
+    def _info(self):
+        return f'{repr(self)} used {self._used}, driven {self._driven}, read {self._read} '
+
 
 def _getMemInfo(mem):
     return _memInfoMap[id(mem)]

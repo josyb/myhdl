@@ -28,6 +28,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 from myhdl._extractHierarchy import _Instance
 from myhdl._block import _Block
+from myhdl._Cosimulation import Cosimulation
 
 
 class _Hierarchy(object):
@@ -70,7 +71,7 @@ def _getHierarchy(name, modinst, descend=True):
 
 
 def _getHierarchyHelper(level, modinst, hierarchy, descend):
-    subs = [(sub.name, sub) for sub in modinst.subs]
+    subs = [(sub.name, sub) for sub in modinst.subs if not isinstance(sub, Cosimulation)]
     inst = _Instance(level, modinst, subs, modinst.sigdict, modinst.memdict)
     hierarchy.append(inst)
     if descend:

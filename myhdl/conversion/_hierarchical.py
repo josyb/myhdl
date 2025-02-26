@@ -82,7 +82,7 @@ def _flattenhierarchy(hdl, *args):
         else:
             arglist.append(arg)
 
-    ic(arglist)
+    # ic(arglist)
 
     return arglist
 
@@ -173,109 +173,10 @@ class _HierarchicalInstance(object):
     def __repr__(self):
         siginfo = []
         for sig in self.sigdict:
-            siginfo.append(sig._info)
-        return f"{self.name}, {self.argnames} -> {siginfo}"
-# # a local function to drill down to the last interface
-# def expandinterface(v, name, obj):
-#     for attr, attrobj in vars(obj).items():
-#         if isinstance(attrobj, _Signal):
-# # override any 'mangled' name
-# #             signame = attrobj._name
-# #             if not signame:
-#             signame = name + '_' + attr
-#             attrobj._name = signame
-#             v.argdict[signame] = attrobj
-#             v.argnames.append(signame)
-#         elif isinstance(attrobj, EnumType):
-#             pass
-#         elif hasattr(attrobj, '__dict__'):
-#             # can assume is yet another interface ...
-#             expandinterface(v, name + '_' + attr, attrobj)
+            if isinstance(sig, _Signal):
+                siginfo.append(sig._info)
+            elif _isMem(sig):
+                m = _getMemInfo(sig)
+                siginfo.append(m._info)
 
-# def getargnames(func):
-#     ic((func))
-#     tree = _makeAST(func.func)
-#     v = _AnalyzeTopFuncVisitor(func.func, tree, func.args, func.kwargs)
-#     v.visit(tree)
-#     #
-#     # objs = []
-#     # for name, obj in v.fullargdict.items():
-#     #     if not isinstance(obj, _Signal):
-#     #         objs.append((name, obj))
-#     #
-#     # # create ports for any signal in the top instance if it was buried in an
-#     # # object passed as in argument
-#     #
-#     # # now expand the interface objects
-#     # for name, obj in objs:
-#     #     if hasattr(obj, '__dict__'):
-#     #         # must be an interface object (probably ...?)
-#     #         expandinterface(v, name, obj)
-#
-#     return v.argnames
-#
-#
-# class _AnalyzeTopFuncVisitor(ast.NodeVisitor, _ConversionMixin):
-#     '''
-#         this visitor will only analyze the Function
-#         I assume that all other nodes will be visited by the generic-visitor
-#         which does nothing and has no (side-)effects?
-#     '''
-#
-#     def __init__(self, func, tree, *args, **kwargs):
-#         self.func = func
-#         self.tree = tree
-#         self.args = args
-#         self.kwargs = kwargs
-#         self.name = None
-#         self.fullargdict = {}
-#         self.argdict = {}
-#         self.argnames = []
-#
-#     def visit_FunctionDef(self, node):
-#         # ic(astdump(node, show_offsets=False))
-#
-#         self.name = node.name
-#         if isboundmethod(self.func):
-#             if isinstance(self.func.__self__, HdlClass):
-#                 # must find names ...
-#                 for arg in self.args:
-#                     # be selective
-#                     if isinstance(arg, _Signal):
-#                         self.argnames.append(arg._name)
-#                     elif _isListOfSigs(arg):
-#                         raise NotImplementedError(f'do not handle ListOfSignals {self.name}:{arg}')
-#
-#             else:
-#                 # another class
-#                 self.argnames = _get_argnames(node)
-#                 if not self.argnames[0] == 'self':
-#                     self.raiseError(node, _error.NotSupported,
-#                                     "first method argument name other than 'self'")
-#                 # skip self
-#                 self.argnames = self.argnames[1:]
-#
-#         else:
-#             self.argnames = _get_argnames(node)
-#
-#         i = -1
-#         for i, arg in enumerate(self.args):
-#             n = self.argnames[i]
-#             self.fullargdict[n] = arg
-#             if isinstance(arg, _Signal):
-#                 self.argdict[n] = arg
-#
-#             if _isMem(arg):
-#                 self.raiseError(node, _error.ListAsPort, n)
-#
-#         for n in self.argnames[i + 1:]:
-#             if n in self.kwargs:
-#                 arg = self.kwargs[n]
-#                 self.fullargdict[n] = arg
-#                 if isinstance(arg, _Signal):
-#                     self.argdict[n] = arg
-#
-#                 if _isMem(arg):
-#                     self.raiseError(node, _error.ListAsPort, n)
-#
-#         self.argnames = [n for n in self.argnames if n in self.argdict]
+        return f"{self.name}, {self.argnames} -> {siginfo}"

@@ -237,7 +237,7 @@ def test_processlist44():
 
 # signed and unsigned
 @block
-def unsigned():
+def unsignedlist():
     z = Signal(intbv(0)[8:])
     a = [Signal(intbv(0)[8:]) for __ in range(3)]
 
@@ -256,11 +256,11 @@ def unsigned():
 
 
 def test_unsigned():
-    conversion.verify(unsigned())
+    conversion.verify(unsignedlist())
 
 
 @block
-def signed():
+def signedlist():
     z = Signal(intbv(0, min=-10, max=34))
     a = [Signal(intbv(0, min=-5, max=17)) for __ in range(3)]
 
@@ -279,7 +279,7 @@ def signed():
 
 
 def test_signed():
-    conversion.verify(signed())
+    conversion.verify(signedlist())
 
 
 @block
@@ -378,12 +378,14 @@ def test_listAsPort():
     clk = Signal(False)
     inp = [Signal(intbv(0)[8:0]) for __ in range(count)]
     outp = [Signal(intbv(0)[8:0]) for __ in range(count)]
-    try:
-        inst = conversion.analyze(my_register(clk, inp, outp))
-    except ConversionError as e:
-        assert e.kind == _error.ListAsPort
-    else:
-        assert False
+    # try:
+    #     inst = conversion.analyze(my_register(clk, inp, outp))
+    # except ConversionError as e:
+    #     assert e.kind == _error.ListAsPort
+    # else:
+    #     assert False
+
+    conversion.verify(my_register(clk, inp, outp))
 
 
 if __name__ == '__main__':

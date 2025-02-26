@@ -7,6 +7,11 @@ import warnings
 
 from collections import namedtuple
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 import myhdl
 from myhdl._Simulation import Simulation
 from myhdl._block import _Block
@@ -81,18 +86,18 @@ registerSimulator(
 )
 
 registerSimulator(
+    name="sverilog",  # actually iverilog in disguise :)
+    hdl="SystemVerilog",
+    analyze="iverilog -g2012 -o %(topname)s.o %(topname)s.sv",
+    simulate="vvp %(topname)s.o"
+)
+
+registerSimulator(
     name="cver",
     hdl="Verilog",
     analyze="cver -c -q %(topname)s.v",
     simulate="cver -q %(topname)s.v",
     skiplines=3
-)
-
-registerSimulator(
-    name="sverilog",  # actually iverilog in disguise :)
-    hdl="SystemVerilog",
-    analyze="iverilog -g2012 -o %(topname)s.o %(topname)s.sv",
-    simulate="vvp %(topname)s.o"
 )
 
 
@@ -102,10 +107,14 @@ class _VerificationClass(object):
 
     def __init__(self, analyzeOnly=False):
         # self.simulator = 'ghdl'
-        self.simulator = 'iverilog'
+        # self.simulator = 'iverilog'
+        self.simulator = 'sverilog'
+        # the simulator must be explicitly sdpecified by the  callers
+        # self.simulator = None
         self._analyzeOnly = analyzeOnly
 
     def __call__(self, func, *args, **kwargs):
+        ic(func, args, kwargs)
 
         if not self.simulator:
             raise ValueError("No simulator specified")
@@ -143,6 +152,8 @@ class _VerificationClass(object):
         skiplines = hdlsim.skiplines
         skipchars = hdlsim.skipchars
         ignore = hdlsim.ignore
+
+        print(f'{analyze}', file=sys.stderr)  # , elaborate, simulate)
 
         # if isinstance(func, _Block):
         #     if hdl == "VHDL":

@@ -37,13 +37,15 @@ try:
     '''
     ic.configureOutput(outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
+    # ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
-from myhdl._Signal import _Signal
+from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._block import _Block
+from myhdl._extractHierarchy import _isMem, _getMemInfo
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
 from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs, _HierarchicalPort
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
@@ -109,7 +111,7 @@ class Converter(object):
             pass
 
         # report the hierarchy
-        ic(h, h.top, h.hierarchy, h.absnames)
+        # ic(h, h.top, h.hierarchy, h.absnames)
 
         ### initialize properly ###
         _genUniqueSuffix.reset()
@@ -203,8 +205,13 @@ class Converter(object):
                     for argname in res.argnames:
                         s = res.argdict[argname]
                         sl.append(s)
-                        if s._driven:
-                            argports[argname] = _HierarchicalPort(s)
+                        if isinstance(s, _Signal):
+                            if s._driven:
+                                argports[argname] = _HierarchicalPort(s)
+                        elif _isMem(s):
+                            m = _getMemInfo(s)
+                            if m._driven:
+                                argports[argname] = _HierarchicalPort(s)
                     # !!! the cleanup later will 'destroy' some of the information on the signals
                     # which we need ...
                     # else there will be no output ports ...
@@ -221,12 +228,22 @@ class Converter(object):
                     ### clean-up properly ###
                     # self._cleanup(siglist, memlist)
                     for sig in siglist:
-                        sig._clear()
+                        # sig._clear()
+                        sig._name = None
+                        sig._inList = False
+                        for sl in sig._slicesigs:
+                            sl._name = None
+                            sl._inList = False
 
                     for mem in memlist:
                         mem.name = None
                         for s in mem.mem:
-                            s._clear()
+                            # s._clear()
+                            s._name = None
+                            s._inList = False
+                            for sl in s._slicesigs:
+                                sl._name = None
+                                sl._inList = False
 
                     argportsinfo = []
                     for arg in argports:
@@ -242,7 +259,7 @@ class Converter(object):
             _checkArgs(arglist)
             genlist = _analyzeGens(arglist, h.absnames)
             siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
-            ic(h, h.top, h.hierarchy)
+            # ic(h, h.top, h.hierarchy)
             # generic annotate for 'all' target HDLs
             _annotateTypes(self.hdl, genlist)
 
@@ -252,23 +269,35 @@ class Converter(object):
 
     def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None):
 
-        ic(name, h, func, func.args, siglist, memlist, genlist)
+        # ic(name, h, func, func.args, siglist, memlist, genlist)
         # finally
         if func.hdlclass is not None:
             # if present it is a **backlink** tot the instantiated HdlClass
             ports = []
             # func.hdlclass.__dict__ is made by the __init__ call on class instantiation
-            ic(func.hdlclass, func.hdlclass.__dict__)
+            # ic(func.hdlclass, func.hdlclass.__dict__)
             for n, s in func.hdlclass.__dict__.items():
-                ic(n, s)
+                ic(n, s, _isListOfSigs(s))
                 # TODO: look out for interfaces (and structures, lists etc in the future)
                 if isinstance(s, _Signal):
                     # if s._name is None:
                     s._name = n
                     ports.append(s)
+
+                elif _isMem(s):
+                    m = _getMemInfo(s)
+                    m.name = n
+                    ports.append(s)
+
+                # elif _isListOfSigs(s):
+                #     # ic(s)
+                #     # no name yet ...?
+                #     ports.append(s)
+
                 elif isinstance(s, _Block):
                     # skip
                     pass
+
                 elif hasattr(s, '__dict__'):
                     # the 'anonymous' interface ...
                     s._name = n
@@ -353,12 +382,13 @@ class Converter(object):
     def _convertGens(self, genlist):
         blockBuf = StringIO()
         funcBuf = StringIO()
+        ic(genlist)
         for tree in genlist:
-            ic(f'_convertGens: {tree=}')
             if isinstance(tree, self.writer.usercode) or isinstance(tree, _HierarchicalInstance):
                 blockBuf.write(str(tree))
                 continue
 
+            ic(tree, tree.kind)
             if tree.kind == _kind.ALWAYS:
                 Visitor = self.writer.ConvertAlwaysVisitor
             elif tree.kind == _kind.INITIAL:

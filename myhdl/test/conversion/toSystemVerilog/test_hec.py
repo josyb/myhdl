@@ -161,7 +161,7 @@ class TestHec(unittest.TestCase):
         hec_v = Signal(intbv(0)[8:])
         header = Signal(intbv(-1)[32:])
 
-        heccalc_inst = HecCalculator(hec, header).convert(hdl='Verilog')
+        heccalc_inst = HecCalculator(hec, header).convert(hdl='SystemVerilog')
         # heccalc_inst = HecCalculator(hec, header)
         heccalc_v_inst = HecCalculator_v(HecCalculator.__name__, hec_v, header)
 

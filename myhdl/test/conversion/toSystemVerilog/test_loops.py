@@ -221,7 +221,7 @@ def FunctionCall(a, out):
 
 # During the following check, I noticed that non-blocking assignments
 # are not scheduled when a task is disabled in Icarus. Apparently
-# this is one of the many vague areas in the Verilog standard.
+# this is one of the many vague areas in the SystemVerilog standard.
 def ReturnFromTask(a, out):
     for i in downrange(len(a)):
         if a[i] == 1:
@@ -332,7 +332,7 @@ class TestLoops(unittest.TestCase):
         out_v = Signal(intbv(0)[16:])
         out = Signal(intbv(0)[16:])
 
-        looptest_inst = LoopTest(a, out).convert(hdl='Verilog')
+        looptest_inst = LoopTest(a, out).convert(hdl='SystemVerilog')
         # looptest_inst = LoopTest(hec, header)
         looptest_v_inst = LoopTest_v(LoopTest.__name__, a, out_v)
 

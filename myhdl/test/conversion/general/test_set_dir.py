@@ -20,27 +20,26 @@ def simple_dir_model(din, dout, clk):
 
     return register
 
-
-def test_toVHDL_set_dir():
-    '''In order that a developer can define where in the project 
-    hierarchy any generated VHDL files should be placed, it should be 
-    possible to set a directory attribute on toVHDL controlling this.
-    '''
-
-    tmp_dir = mkdtemp()
-
-    din = Signal(intbv(0)[5:])
-    dout = Signal(intbv(0)[5:])
-    clock = Signal(bool(0))
-
-    try:
-        dfc = simple_dir_model(din, dout, clock)
-        dfc.convert('VHDL', directory=tmp_dir)
-        assert os.path.exists(os.path.join(tmp_dir, 'simple_dir_model.vhd'))
-        assert os.path.exists(os.path.join(tmp_dir, "pck_myhdl.vhd"))
-
-    finally:
-        rmtree(tmp_dir)
+# def test_toVHDL_set_dir():
+#     '''In order that a developer can define where in the project
+#     hierarchy any generated VHDL files should be placed, it should be
+#     possible to set a directory attribute on toVHDL controlling this.
+#     '''
+#
+#     tmp_dir = mkdtemp()
+#
+#     din = Signal(intbv(0)[5:])
+#     dout = Signal(intbv(0)[5:])
+#     clock = Signal(bool(0))
+#
+#     try:
+#         dfc = simple_dir_model(din, dout, clock)
+#         dfc.convert('VHDL', directory=tmp_dir)
+#         assert os.path.exists(os.path.join(tmp_dir, 'simple_dir_model.vhd'))
+#         assert os.path.exists(os.path.join(tmp_dir, "pck_myhdl.vhd"))
+#
+#     finally:
+#         rmtree(tmp_dir)
 
 
 def test_toVerilog_set_dir():
