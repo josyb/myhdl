@@ -50,6 +50,7 @@ from myhdl._util import _makeAST
 from myhdl._resolverefs import _AttrRefTransformer
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
+from myhdl._fixbv import fixbv
 from myhdl._enum import EnumItemType, EnumType
 from myhdl._concat import concat
 from myhdl._delay import delay
@@ -106,21 +107,25 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
-            # ic(n, s, s._name)
+            # ic(n, s._info)
             if s._name is not None:
                 continue
+
             if isinstance(s, _SliceSignal):
                 continue
+
             s._name = _makeName(n, prefixes, namedict)
             if isinstance(s, Constant):
                 pass
             else:
                 if not s._nrbits:
                     raise ConversionError(_error.UndefinedBitWidth, s._name)
+
             # slice signals
             # ic(s._slicesigs)
             for sl in s._slicesigs:
                 sl._setName(hdl)
+
             siglist.append(s)
 
         # list of signals
@@ -142,14 +147,18 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 s._name = f"{m.name}({i})"
             else:
                 s._name = f"{m.name}[{i}]"
+
             s._used = False
             if s._inList:
                 raise ConversionError(_error.SignalInMultipleLists, s._name)
+
             s._inList = True
             if not s._nrbits:
                 raise ConversionError(_error.UndefinedBitWidth, s._name)
+
             if type(s.val) != type(m.elObj.val):
                 raise ConversionError(_error.InconsistentType, s._name)
+
             if s._nrbits != m.elObj._nrbits:
                 raise ConversionError(_error.InconsistentBitWidth, s._name)
 
@@ -655,17 +664,23 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         argsAreInputs = True
         if type(f) is type and issubclass(f, intbv):
             node.obj = self.getVal(node)
+
         elif f is concat:
             node.obj = self.getVal(node)
+
         elif f is len:
             self.access = _access.UNKNOWN
             node.obj = int(0)  # XXX
+
         elif f is bool:
             node.obj = bool()
+
         elif f is int:
             node.obj = int(-1)
+
 # elif f in (posedge , negedge):
 # #             node.obj = _EdgeDetector()
+
         elif f is ord:
             node.obj = int(-1)
             if isinstance(node.args[0], ast.Constant) and \
@@ -677,6 +692,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                                 "ord: expect string argument with length 1")
         elif f is delay:
             node.obj = delay(0)
+
         # suprize: identity comparison on unbound methods doesn't work in python 2.5??
         elif f == intbv.signed:
             obj = node.func.value.obj
@@ -685,20 +701,26 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 node.obj = intbv(-1, min=-M, max=M)
             else:
                 node.obj = intbv(-1)
+
         elif f in myhdlObjects:
             pass
+
         elif f in builtinObjects:
             pass
+
         elif type(f) is FunctionType:
             argsAreInputs = False
             tree = _makeAST(f)
+            ic(f, astdump(tree, show_offsets=False))
+
             fname = f.__name__
             tree.name = _Label(fname)
-            # tree.symdict = f.__globals__.copy()
-            tree.symdict = getsymdict(f.__globals__)
+            tree.symdict = f.__globals__.copy()
+            # tree.symdict = getsymdict(f.__globals__)
             tree.nonlocaldict = {}
             if fname in self.tree.callstack:
                 self.raiseError(node, _error.NotSupported, "Recursive call")
+
             tree.callstack = self.tree.callstack[:]
             tree.callstack.append(fname)
             # handle free variables
@@ -708,6 +730,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                     if not isinstance(obj, (int, _Signal)):
                         self.raiseError(node, _error.FreeVarTypeError, n)
                     tree.symdict[n] = obj
+
             v = _FirstPassVisitor(tree)
             v.visit(tree)
             v = _AnalyzeFuncVisitor(tree, node.args, node.keywords)
@@ -715,22 +738,28 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.obj = tree.returnObj
             node.tree = tree
             tree.argnames = argnames = _get_argnames(tree.body[0])
+            ic(vars(tree))
             # extend argument list with keyword arguments on the correct position
             node.args.extend([None] * len(node.keywords))
             for kw in node.keywords:
                 node.args[argnames.index(kw.arg)] = kw.value
+
             for n, arg in zip(argnames, node.args):
                 if n in tree.outputs:
                     self.access = _access.OUTPUT
                     self.visit(arg)
                     self.access = _access.INPUT
+
                 if n in tree.inputs:
                     self.visit(arg)
+
         elif type(f) is MethodType:
             self.raiseError(node, _error.NotSupported, "method call: '%s'" % f.__name__)
+
         else:
             debug_info = [e for e in ast.iter_fields(node.func)]
             raise AssertionError("Unexpected callable %s" % str(debug_info))
+
         if argsAreInputs:
             for arg in node.args:
                 self.visit(arg)
@@ -842,6 +871,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             # ic.dedent()
             return
         for test, suite in node.tests:
+            # ic(node.tests)
             self.visit(test)
             self.refStack.push()
             self.visitList(suite)
@@ -908,6 +938,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def visit_Name(self, node):
         # ic.indent()
+        # ic(astdump(node, show_offsets=False))
         if isinstance(node.ctx, ast.Store):
             self.setName(node)
         else:
@@ -941,37 +972,49 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def getName(self, node):
         # ic(astdump(node, show_offsets=False), (vars(node)))
+        # ic(astdump(node, show_offsets=False), self.tree.sigdict, self.access)
         n = node.id
         node.obj = None
         if n not in self.refStack:
             if (n in self.tree.vardict) and (n not in self.tree.nonlocaldict):
                 self.raiseError(node, _error.UnboundLocal, n)
             self.globalRefs.add(n)
+
         if n in self.tree.sigdict:
             node.obj = sig = self.tree.sigdict[n]
             # mark shadow signal as driven only when they are seen somewhere
             if isinstance(sig, _ShadowSignal):
                 sig._driven = 'wire'
+
             # mark tristate signal as driven if its driver is seen somewhere
             if isinstance(sig, _TristateDriver):
                 sig._sig._driven = 'wire'
-            if not isinstance(sig, _Signal):
-                pass
-            else:
-                if sig._type is bool:
-                    node.edge = sig.posedge
+
+            # if not isinstance(sig, _Signal):
+            #     pass
+            # else:
+            #     if sig._type is bool:
+            #         node.edge = sig.posedge
+            if isinstance(sig, _Signal) and sig._type is bool:
+                node.edge = sig.posedge
+
             if self.access == _access.INPUT:
                 self.tree.inputs.add(n)
+
             elif self.access == _access.OUTPUT:
                 self.tree.kind = _kind.TASK
                 if n in self.tree.outputs:
                     node.kind = _kind.REG
+
                 self.tree.outputs.add(n)
+
             elif self.access == _access.UNKNOWN:
                 pass
+
             else:
                 self.raiseError(node, _error.NotSupported, "Augmented signal assignment")
                 # pass
+
         if n in self.tree.vardict:
             obj = self.tree.vardict[n]
             if self.access == _access.INOUT:  # probably dead code
@@ -979,31 +1022,42 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 if isinstance(obj, bool):
                     obj = int(-1)
                     self.tree.vardict[n] = obj
+
             node.obj = obj
+
         elif n in self.tree.symdict:
             node.obj = self.tree.symdict[n]
             if _isTupleOfInts(node.obj):
                 node.obj = _Rom(node.obj)
                 self.tree.hasRom = True
+
             elif _isMem(node.obj):
                 m = _getMemInfo(node.obj)
                 if self.access == _access.INPUT:
                     m._read = True
+
                 elif self.access == _access.OUTPUT:
                     m._driven = 'reg'
+
                     self.tree.outmems.add(n)
                 elif self.access == _access.UNKNOWN:
                     pass
+
                 else:
                     assert False, "unexpected mem access %s %s" % (n, self.access)
+
                 self.tree.hasLos = True
+
             elif isinstance(node.obj, int):
                 node.value = node.obj
+
             if n in self.tree.nonlocaldict:
                 # hack: put nonlocal intbv's in the vardict
-                self.tree.vardict[n] = v = node.obj
+                self.tree.vardict[n] = node.obj
+
         elif n in builtins.__dict__:
             node.obj = builtins.__dict__[n]
+
         else:
             self.raiseError(node, _error.UnboundLocal, n)
 
@@ -1186,7 +1240,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
 
     def visit_FunctionDef(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1221,6 +1275,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
         for n in self.tree.inputs:
             s = self.tree.sigdict[n]
             s._markRead()
+            # s._readers.append('read')
         # ic.dedent()
 
     def visit_Return(self, node):
@@ -1336,26 +1391,31 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
 
     def visit_FunctionDef(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False))
+        ic(astdump(node, show_offsets=False))
         self.refStack.push()
         argnames = _get_argnames(node)
         for i, arg in enumerate(self.args):
             n = argnames[i]
             self.tree.symdict[n] = self.getObj(arg)
             self.tree.argnames.append(n)
+
         for kw in self.keywords:
             n = kw.arg
             self.tree.symdict[n] = self.getObj(kw.value)
             self.tree.argnames.append(n)
+
         for n, v in self.tree.symdict.items():
             if isinstance(v, (_Signal, intbv)):
                 self.tree.sigdict[n] = v
+
         for stmt in node.body:
             self.visit(stmt)
+
         self.refStack.pop()
         if self.tree.hasYield:
             self.raiseError(node, _error.NotSupported,
                             "call to a generator function")
+
         if self.tree.kind == _kind.TASK:
             if self.tree.returnObj is not None:
                 self.raiseError(node, _error.NotSupported,
@@ -1489,6 +1549,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             self.fullargdict[n] = arg
             if isinstance(arg, _Signal) or _isMem(arg):
                 self.argdict[n] = arg
+
         for n in self.argnames[i + 1:]:
             if n in self.kwargs:
                 arg = self.kwargs[n]

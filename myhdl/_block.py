@@ -18,7 +18,7 @@
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 """ Block with the @block decorator function. """
-import os
+
 import inspect
 
 # from functools import wraps
@@ -85,10 +85,6 @@ def _getCallInfo(hdlclass):
         FUNCREC = 3
 
     stack = inspect.stack()
-    # ic(hdlclass, stack)
-    # for i, f in enumerate(stack):
-    #     ic(i, f[0].f_globals, f[0].f_locals)
-
     # caller may be undefined if instantiation from a Python module
     callerrec = None
     funcrec = stack[FUNCREC]
@@ -104,11 +100,8 @@ def _getCallInfo(hdlclass):
     name = funcrec[FUNCREC]  # redo as the <listcomp> may have disturbed us
     frame = funcrec[0]
     filename = funcrec[1]
-    # symdict = dict(frame.f_globals)
-    # symdict.update(frame.f_locals)
     symdict = getsymdict(frame.f_globals)
     updatesymdict(symdict, frame.f_locals)
-    # ic(symdict)
     modctxt = False
     if callerrec is not None:
         f_locals = callerrec[0].f_locals
@@ -162,10 +155,9 @@ class _bound_function_wrapper(object):
 
     def __call__(self, *args, **kwargs):
         # name = self.name_prefix + '_' + self.bound_func.__name__ +  str(self.calls)
-        name = f'{self.name_prefix}_{self.bound_func.__name__}{self.calls}'
-        self.calls += 1
         # See concerns above about uniqueifying
-        name = _uniqueify_name(name)
+        name = _uniqueify_name(f'{self.name_prefix}_{self.bound_func.__name__}_{self.calls}')
+        self.calls += 1
 
         return _Block(self.bound_func, self, name, self.srcfile,
                       self.srcline, *args, **kwargs)
@@ -211,10 +203,9 @@ class block(object):
         return function_wrapper
 
     def __call__(self, *args, **kwargs):
-        name = self.func.__name__ + str(self.calls)
-        self.calls += 1
         # See concerns above about uniqueifying
-        name = _uniqueify_name(name)
+        name = _uniqueify_name(f"{self.func.__name__}_{self.calls}")
+        self.calls += 1
 
         return _Block(self.func, self, name, self.srcfile, self.srcline, *args, **kwargs)
 
@@ -240,7 +231,6 @@ class _Block(object):
         else:
             self.args = args
             self.kwargs = kwargs
-            # ic(self.args, self.kwargs)
 
         # ic(self.args, self.kwargs)
         self.__doc__ = func.__doc__
@@ -253,8 +243,15 @@ class _Block(object):
         self.sigdict = {}
         self.memdict = {}
         self.name = self.__name__ = name
+
         # flatten, but keep BlockInstance objects
-        self.subs = _flatten(func(*args, **kwargs))
+        # self.subs = _flatten(func(*args, **kwargs))
+        if self.hdlclass is not None:
+            # the `hdl()` method accepts no arguments
+            self.subs = _flatten(func())
+        else:
+            self.subs = _flatten(func(*args, **kwargs))
+
         self._verifySubs()
         self._updateNamespaces()
         # ic(self.symdict, self.sigdict, self.memdict)
@@ -351,11 +348,11 @@ class _Block(object):
         This is a workaround function for cleaning up before converts.
         """
         # workaround: elaborate again for the side effect on signal attibutes
+
         # TODO: jb -> jck: unfortunately this may/will also take twice as long, which for big designs matters!
         # and second it will print every user debug message twice cluttering the console output
         # so there must be a better way than this *lazy* workaround
         # maybe later ...
-
         if self.hdlclass is not None:
             # if present it is a **backlink** tot the instantiated HdlClass
             # An HdlClass object's hdl() method does not take any args nor kwargs
@@ -365,8 +362,14 @@ class _Block(object):
             self.func(*self.args, **self.kwargs)
 
         # reset number of calls in all blocks
+        # this looks as it has no effect?
         for b in myhdl._simulator._blocks:
             b.calls = 0
+
+        # it would be nice if we could reset all assigned 'uniquefy'ed names
+        # ...
+        _name_set.clear()
+        _inst_name_set.clear()
 
     def verify_convert(self):
         self._clear()
@@ -409,30 +412,7 @@ class _Block(object):
         from myhdl.conversion._converter import Converter
 
         self._clear()
-
-        if hdl in ('toVerilog', 'toVHDL'):
-            ''' temporay access to deprecated converters for comparison '''
-            if hdl == 'toVHDL':
-                converter = myhdl.conversion._toVHDL.toVHDL
-            elif hdl == 'toVerilog':
-                converter = myhdl.conversion._toVerilog.toVerilog
-
-            conv_attrs = {}
-            if 'name' in kwargs:
-                conv_attrs['name'] = kwargs.pop('name')
-            conv_attrs['directory'] = kwargs.pop('path', '')
-            if hdl.lower() == 'verilog':
-                conv_attrs['no_testbench'] = not kwargs.pop('testbench', True)
-                conv_attrs['timescale'] = kwargs.pop('timescale', '1ns/10ps')
-                conv_attrs['trace'] = kwargs.pop('trace', False)
-
-            conv_attrs.update(kwargs)
-            for k, v in conv_attrs.items():
-                setattr(converter, k, v)
-
-        else:
-            # ic(self.name, kwargs)
-            converter = Converter(hdl, **kwargs)
+        converter = Converter(hdl, **kwargs)
 
         return converter(self)
 

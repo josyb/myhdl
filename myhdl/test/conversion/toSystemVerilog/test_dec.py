@@ -1,6 +1,5 @@
 import os
 path = os.path
-import unittest
 from unittest import TestCase
 import random
 from random import randrange
@@ -10,7 +9,8 @@ from myhdl import (block, Signal, intbv, delay, always,
                    instance, StopSimulation)
 from myhdl._Simulation import Simulation
 
-from .util import setupCosimulation
+# from .util import setupCosimulation
+from myhdl.test.conversion.toSystemVerilog.util import setupCosimulation
 
 ACTIVE_LOW, INACTIVE_HIGH = 0, 1
 
@@ -179,8 +179,8 @@ class TestDec(TestCase):
                     expect -= 1
             yield delay(1)
             # print "%d count %s expect %s count_v %s" % (now(), count, expect, count_v)
-            self.assertEqual(count, expect)
-            self.assertEqual(count, count_v)
+            self.assertEqual(count, expect, f"{count=} != {expect=}")
+            self.assertEqual(count, count_v, f"{count=} != {count_v=}")
 
     def bench(self, dec):
 
@@ -215,16 +215,26 @@ class TestDec(TestCase):
         sim = self.bench(decFunc)
         sim.run(quiet=1)
 
-# # signed inout in task doesn't work yet in Icarus
-# #     def testDecTask(self):
-# #         sim = self.bench(decTask)
-# #         sim.run(quiet=1)
-
     def testDecTaskFreeVar(self):
         sim = self.bench(decTaskFreeVar)
         sim.run(quiet=0)
 
+    # # signed inout in task doesn't work yet in Icarus
+    # def testDecTask(self):
+    #     sim = self.bench(decTask)
+    #     sim.run(quiet=1)
+
 
 if __name__ == '__main__':
-    unittest.main()
+    # import unittest
+    #
+    # unittest.main()
+    n = 128
+    count = Signal(intbv(0, -n, n))
+    enable = Signal(bool(0))
+    clock = Signal(bool(0))
+    reset = Signal(bool(0))
+
+    dfc = decTaskFreeVar(count, enable, clock, reset, n)
+    dfc.convert(hdl='SystemVerilog', notestbench=True)
 

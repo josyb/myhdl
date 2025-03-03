@@ -320,8 +320,9 @@ class fixbv(intbv):
         return (f"fixbv: fval={self._fval}, fmin={self._fmin}, fmax={self._fmax}, fractionalbits={self._wf}, intbits={self._wi},"
                 f"val={self._val}, min={self._min}, max={self._max}, nrbits={self._nrbits}")
 
-    def __int__(self):
-        return self._val >> self._wf
+    # def __int__(self):
+    #     ''' this complies with intbv '''
+    #     return self._val
 
     def __float__(self):
         return self._fval
@@ -331,11 +332,11 @@ class fixbv(intbv):
         return self._fval
 
     @property
-    def int(self):
+    def integer(self):
         return self._val >> self._wf
 
     @property
-    def frac(self):
+    def fractional(self):
         return self._val & (self._SCALE - 1)
 
     @property
@@ -344,7 +345,7 @@ class fixbv(intbv):
 
     @property
     def spec(self):
-        return (self._wi, self._wf)
+        return ('Q' if self.signed else 'UQ', self._wi, self._wf)
 
     @property
     def fractionalbits(self):
@@ -553,8 +554,8 @@ if __name__ == '__main__':
     ic(repr(t13), t13._val)
     ic((1 / t13) - t13)
     ic((1 / t13) * t13)
-    ic(t6, t6.int, t6.frac, t6.ord)
-    ic(t5, t5.int)
+    ic(t6, t6.integer, t6.fractional, t6.ord)
+    ic(t5, t5.integer)
     ic(t0 == t1, t0 == t2, t0 > t2, t1 + t2, t2 + t1, t0 + 1, 1 + t0, 12.34 + t0)
 
     s0 = Signal(t0)

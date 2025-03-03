@@ -132,7 +132,7 @@ class _Signal(object):
                  '_eventWaiters', '_posedgeWaiters', '_negedgeWaiters',
                  '_code', '_tracing', '_nrbits', '_checkVal',
                  '_setNextVal', '_printVcd', '_driven', '_driver',
-                 '_read', '_name', '_used', '_inList', '_waiter',
+                 '_read', '_readers', '_name', '_used', '_inList', '_waiter',
                  'toVHDL', 'toVerilog', '_slicesigs',
                  )
 
@@ -150,7 +150,9 @@ class _Signal(object):
         self._name = None
         self._driven = None
         self._driver = None
-        self._read = self._used = False
+        self._read = False
+        self._readers = []
+        self._used = False
         self._inList = False
         self._nrbits = 0
         self._printVcd = self._printVcdStr
@@ -204,7 +206,7 @@ class _Signal(object):
     @property
     def _info(self):
         ''' as we have `slots` we need some way to inspect what we have '''
-        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read} '
+        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
 
     def _clear(self):
         del self._eventWaiters[:]
@@ -400,7 +402,7 @@ class _Signal(object):
             print(f"b{bin(self._val, self._nrbits)} {self._code}", file=sim._tf)
 
     ### use call interface for shadow signals ###
-    def __call__(self, left, right=None):
+    def __call__(self, left=None, right=None):
         s = _SliceSignal(self, left, right)
         self._slicesigs.append(s)
         return s
@@ -648,6 +650,9 @@ class _Signal(object):
             return f"{self._name} <= {sig._name};"
 
         def toVerilog():
+            return f"assign {self._name} = {sig._name};"
+
+        def toSystemVerilog():
             return f"assign {self._name} = {sig._name};"
 
         self.toVHDL = toVHDL

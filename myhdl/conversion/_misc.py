@@ -65,7 +65,7 @@ class _error(object):
     UndefinedBitWidth = "Signal has undefined bit width"
     UndrivenSignal = "Signal is not driven"
     UnreadSignal = "Signal is driven but not read"
-    UnusedPort = "Port is not used"
+    UnusedPort = "Unused Port is discarded"
     UnboundLocal = "Local variable may be referenced before assignment"
     UnsupportedYield = "Unsupported yield statement"
     UnsupportedListComp = "Unsupported list comprehension form: should be [intbv()[n:] for i in range(m)]"

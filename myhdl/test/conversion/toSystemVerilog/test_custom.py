@@ -12,7 +12,8 @@ from myhdl._Simulation import Simulation
 from myhdl import ConversionError
 from myhdl.conversion._misc import _error
 
-from .util import setupCosimulation
+# from .util import setupCosimulation
+from myhdl.test.conversion.toSystemVerilog.util import setupCosimulation
 
 ACTIVE_LOW, INACTIVE_HIGH = 0, 1
 
@@ -164,6 +165,7 @@ def inc_seq(count, nextCount, enable, clock, reset):
                 count.next = nextCount
 
     count.driven = "reg"
+    nextCount.read = True
 
     inc_seq.verilog_code = \
 """
@@ -356,5 +358,12 @@ class TestInc(TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    n = 128
+    count = Signal(intbv(0, -n, n))
+    enable = Signal(bool(0))
+    clock = Signal(bool(0))
+    reset = Signal(bool(0))
 
+    dfc = inc2(count, enable, clock, reset, n)
+    dfc.convert(hdl='SystemVerilog', no_testbench=True)

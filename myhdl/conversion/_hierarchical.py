@@ -39,6 +39,7 @@ from myhdl._block import _Block
 # from myhdl._extractHierarchy import  _userCodeMap, _UserCode, _isMem, _getMemInfo
 from myhdl._extractHierarchy import  _UserCode, _isMem, _getMemInfo
 from myhdl._Signal import _Signal
+from myhdl._util import _flatten
 from myhdl.conversion._misc import _error
 
 LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' , 'gens'])
@@ -115,6 +116,9 @@ def collectsubs(top, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
         _checkArgs(gens)
         # now append
         hierarchy[level].append(LevelInfo(top.name, '_'.join(name_prefixes) if level > 0 else top.name, top, gens))
+        # this results in shorter module names, but still always unique?
+        # TODO: re-visit this code?
+        # hierarchy[level].append(LevelInfo(top.name, top.name, top, gens))
 
         if not top.endhierarchy and level != maxdepth:
             collectsubs(top.subs, hdl, level, maxdepth, name_prefixes, hierarchy)
@@ -127,6 +131,14 @@ def collectsubs(top, hdl, level=0, maxdepth=-1, name_prefixes=[], hierarchy=[]):
 
     else:
         pass
+
+
+def gethierarchicalmodulenames(hierarchy):
+    fl = []
+    for level in hierarchy:
+        fl.extend(level)
+    # ic(fl)
+    return [item.instancename for item in fl]
 
 
 class _HierarchicalPort(object):

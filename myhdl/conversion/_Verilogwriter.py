@@ -151,7 +151,12 @@ class VerilogWriter(object):
         parameters = []
         for portname in intf.argnames:
             s = intf.argdict[portname]
-            ic(s._info)
+
+            if isinstance(s, _Signal):
+                ic(s._info)
+            elif _isMem(s):
+                ic(s)
+
             if isinstance(s, Parameter):
                 # insert a Verilog parameter
                 parameters.append(f"{portname} = {s.value}")
@@ -458,7 +463,7 @@ class VerilogWriter(object):
         # self.directory, name, intf, self.trace
         tbpath = os.path.join(directory, f"tb_{name}.v")
         with open(tbpath, 'w') as f:
-            print(f'{f=} {intf=}')
+            ic(f, intf)
 
             print(f"module tb_{intf.name};", file=f)
             print(file=f)

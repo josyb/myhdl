@@ -29,16 +29,21 @@ def registerSimulator(name=None, hdl=None, analyze=None, elaborate=None, simulat
                       skiplines=None, skipchars=None, ignore=None):
     if not isinstance(name, str) or (name.strip() == ""):
         raise ValueError("Invalid simulator name")
+
     if hdl not in ("VHDL", "Verilog", "SystemVerilog"):
         raise ValueError("Invalid hdl %s" % hdl)
+
     if not isinstance(analyze, str) or (analyze.strip() == ""):
         raise ValueError("Invalid analyzer command")
+
     # elaborate command is optional
     if elaborate is not None:
         if not isinstance(elaborate, str) or (elaborate.strip() == ""):
             raise ValueError("Invalid elaborate command")
+
     if not isinstance(simulate, str) or (simulate.strip() == ""):
         raise ValueError("Invalid simulator command")
+
     _simulators[name] = sim(name, hdl, analyze, elaborate, simulate, skiplines, skipchars, ignore)
 
 
@@ -106,8 +111,11 @@ class _VerificationClass(object):
     __slots__ = ("simulator", "_analyzeOnly")
 
     def __init__(self, analyzeOnly=False):
+        # TODO: add a simulator argument
+
         # self.simulator = 'ghdl'
         # self.simulator = 'iverilog'
+        # shortcut: force testing with SystemVerilog
         self.simulator = 'sverilog'
         # the simulator must be explicitly sdpecified by the  callers
         # self.simulator = None
@@ -125,20 +133,10 @@ class _VerificationClass(object):
         hdlsim = _simulators[self.simulator]
         hdl = hdlsim.hdl
 
-        if isinstance(func, _Block):
-            name = func.func.__name__
-        else:
+        if not isinstance(func, _Block):
             raise SyntaxError(f'{func} must be decorated with @block')
-            # warnings.warn(
-            #     "\n    analyze()/verify(): Deprecated usage: See http://dev.myhdl.org/meps/mep-114.html",
-            #     stacklevel=2,
-            #     category=DeprecationWarning,
-            # )
-            # try:
-            #     name = func.__name__
-            # except:
-            #     raise TypeError(str(type(func)))
 
+        name = func.func.__name__
         vals = {}
         vals['topname'] = name
         vals['unitname'] = name.lower()
@@ -172,6 +170,7 @@ class _VerificationClass(object):
         if hdl == "VHDL":
             if not os.path.exists("work"):
                 os.mkdir("work")
+
         if hdlsim.name in ('vlog', 'vcom'):
             if not os.path.exists("work_vsim"):
                 try:

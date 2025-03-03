@@ -35,8 +35,13 @@ try:
         this is the only place where we configure icecream
         all other modules refrain!
     '''
-    ic.configureOutput(outputFunction=print, includeContext=True, contextAbsPath=True,
+    import pprint
+    # the times of 80-column monitors is long gone - fuck PEP-8's Maximum Line Length
+    preferredWidth = 150  # thiswill make the astdumps more readable, among others ...
+    pp = pprint.PrettyPrinter(width=preferredWidth)
+    ic.configureOutput(argToStringFunction=pp.pformat, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
+    ic.lineWrapWidth = preferredWidth
     # ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
@@ -47,7 +52,8 @@ from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._block import _Block
 from myhdl._extractHierarchy import _isMem, _getMemInfo
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
-from myhdl.conversion._hierarchical import collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs, _HierarchicalPort
+from myhdl.conversion._hierarchical import (collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs,
+                                            _HierarchicalPort, gethierarchicalmodulenames)
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
 from myhdl.conversion._annotate import _annotateTypes
 from myhdl.conversion._VHDLwriter import VhdlWriter
@@ -121,7 +127,6 @@ class Converter(object):
 
             ha = []
             collectsubs(h.top, maxdepth=self.hierarchical, hdl=self.hdl, hierarchy=ha)  # give it an empty list as a placeholder
-            # ic(ha)
             # now start converting 'bottoms up'
             # we need an empty directory where we place all output files
             # we will erase any existing files ...
@@ -182,21 +187,37 @@ class Converter(object):
                     # so whave to reset the ._driven for these specific signals only
                     # ic((bb.blocksubs.sigdict))
                     for __, s in bb.blocksubs.sigdict.items():
-                        # ic(s._name, repr(s), s._used, s._driven, s._driver, s._read)
-                        s._name = None
+                        # ic(ll, s._info)
+                        # s._name = None
                         if ll:
                             if s._driver == 'driven':
                                 s._driver = bb.instancename
+
+                            # if s._read:
+                            #     if len(s._readers):
+                            #         if s._readers[-1] == 'read':
+                            #             s._readers[-1] = bb.instancename
+                            #
+                            #         else:
+                            #             s._readers.append(bb.instancename)
+                            #
+                            #     else:
+                            #         s._readers.append(bb.instancename)
+
                         else:
+                            # if s._read:
+                            #     s._readers = []
+
                             if s._driver is not None:
                                 s._driver = 'driven'
+                        # ic(ll, s._info)
 
                     siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
                     # info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
                     # ic(info)
 
                     _annotateTypes(self.hdl, genlist)
-                    siglistinfo = [ sig._info for sig in siglist]
+                    # siglistinfo = [ sig._info for sig in siglist]
                     # ic(ll, bb.instancename, siglistinfo, bb.blocksubs, bb.blocksubs)
 
                     res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist, subsoutputports)
@@ -253,6 +274,14 @@ class Converter(object):
                         argportsinfo.append(argports[arg]._info)
                     # ic(argportsinfo)
                     # ic(modules)
+            # we sould return something useful
+            # e.g.: the collected subs?
+            # ic(ha)
+            res = gethierarchicalmodulenames(ha)
+            # ic(res)
+            # we need the block object ...
+            # python allows us to add attributes at run-time, without a whisper ...
+            h.top.modules = res
 
         else:
             # TODO: check if we can refactor this code into the 'generic hierachical' branch
@@ -268,11 +297,11 @@ class Converter(object):
 
             self._convert(0, self.name, h, func, siglist, memlist, genlist)
 
-            return h.top
+        return h.top
 
     def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None):
 
-        ic(level, name, h, func, func.args, siglist, memlist, genlist)
+        # ic(level, name, h, func, func.args, siglist, memlist, genlist)
         # finally
         if func.hdlclass is not None:
             # if present it is a **backlink** tot the instantiated HdlClass

@@ -891,45 +891,45 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             # elif isinstance(rhs, ast.Subscript):
             #     pass
 
-            ic((vars(lhs)), (vars(rhs)))
-            match type(rhs):
-                case ast.Compare:
-                    if isinstance(lhs.obj, _Signal):
-                        if isinstance(lhs.obj._val, bool):
-                            pre, suf = 'stdl(', ')'
-                        else:
-                            # intbv? ???
-                            pass
-                    else:
-                        # must be a variable?
-                        pass
+            # ic((vars(lhs)), (vars(rhs)))
+            # match type(rhs):
+            #     case ast.Compare:
+            #         if isinstance(lhs.obj, _Signal):
+            #             if isinstance(lhs.obj._val, bool):
+            #                 pre, suf = 'stdl(', ')'
+            #             else:
+            #                 # intbv? ???
+            #                 pass
+            #         else:
+            #             # must be a variable?
+            #             pass
+            #
+            #     case ast.Name:
+            #         if isinstance(lhs.obj, _Signal):
+            #             if isinstance(lhs.obj._val, bool):
+            #                 # pre, suf = 'stdl(', ')'
+            #                 pass
+            #             else:
+            #                 # intbv
+            #                 if isinstance(rhs.obj, int):
+            #                     pre, suf = 'to_unsigned(', f', {lhs.obj._nrbits})'
+            #         else:
+            #             # must be a variable?
+            #             if isinstance(lhs.obj, intbv):
+            #                 if len(lhs.obj) != len(rhs.obj):
+            #                     # works both ways!
+            #                     pre, suf = 'resize(', f', {len(lhs.obj)})'
+            #             else:
+            #                 # bool?
+            #                 pass
+            #
+            #     case ast.Subscript:
+            #         pass
 
-                case ast.Name:
-                    if isinstance(lhs.obj, _Signal):
-                        if isinstance(lhs.obj._val, bool):
-                            # pre, suf = 'stdl(', ')'
-                            pass
-                        else:
-                            # intbv
-                            if isinstance(rhs.obj, int):
-                                pre, suf = 'to_unsigned(', f', {lhs.obj._nrbits})'
-                    else:
-                        # must be a variable?
-                        if isinstance(lhs.obj, intbv):
-                            if len(lhs.obj) != len(rhs.obj):
-                                # works both ways!
-                                pre, suf = 'resize(', f', {len(lhs.obj)})'
-                        else:
-                            # bool?
-                            pass
-
-                case ast.Subscript:
-                    pass
-
-            self.write(pre)
-            self.visit(rhs)
-            self.write(suf)
-            self.write(';')
+            # self.write(pre)
+            # self.visit(rhs)
+            # self.write(suf)
+            # self.write(';')
             self.writer.emitline()
         # ic.dedent()
         # ic.disable()

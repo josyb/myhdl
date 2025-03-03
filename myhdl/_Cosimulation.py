@@ -20,7 +20,7 @@
 """ Module that provides the Cosimulation class """
 import sys
 import os
-#import shlex
+# import shlex
 import subprocess
 from os import set_inheritable
 
@@ -32,10 +32,13 @@ _MAXLINE = 4096
 
 class _error:
     pass
+
+
 _error.DuplicateSigNames = "Duplicate signal name in myhdl vpi call"
 _error.SigNotFound = "Signal not found in Cosimulation arguments"
 _error.TimeZero = "myhdl vpi call when not at time 0"
 _error.NoCommunication = "No signals communicating to myhdl"
+_error.InitialisationError = "Error initialising Cosimulation"
 _error.SimulationEnd = "Premature simulation end"
 _error.OSError = "OSError"
 
@@ -77,6 +80,7 @@ class Cosimulation(object):
         if sys.platform != "win32":
             env['MYHDL_TO_PIPE'] = str(wt)
             env['MYHDL_FROM_PIPE'] = str(rf)
+
         else:
             import msvcrt
             env['MYHDL_TO_PIPE'] = str(msvcrt.get_osfhandle(wt))
@@ -85,7 +89,6 @@ class Cosimulation(object):
         if isinstance(exe, str):
 #             exe = shlex.split(exe)
             exe = exe.split(' ')
-
 
         try:
             sp = subprocess.Popen(exe, env=env, close_fds=False)
@@ -99,21 +102,27 @@ class Cosimulation(object):
         while 1:
             s = os.read(rt, _MAXLINE).decode()
             if not s:
-                raise CosimulationError(_error.SimulationEnd)
+                raise CosimulationError(_error.InitialisationError)
+
             e = s.split()
             if e[0] == "FROM":
                 if int(e[1]) != 0:
                     raise CosimulationError(_error.TimeZero, "$from_myhdl")
+
                 for i in range(2, len(e) - 1, 2):
                     n = e[i]
                     if n in fromSignames:
                         raise CosimulationError(_error.DuplicateSigNames, n)
+
                     if not n in kwargs:
                         raise CosimulationError(_error.SigNotFound, n)
+
                     fromSignames.append(n)
                     fromSigs.append(kwargs[n])
+                    # int() doesn't work for fixbv ...
                     fromSizes.append(int(e[i + 1]))
                 os.write(wf, b"OK")
+
             elif e[0] == "TO":
                 if int(e[1]) != 0:
                     raise CosimulationError(_error.TimeZero, "$to_myhdl")
@@ -128,11 +137,13 @@ class Cosimulation(object):
                     toSigDict[n] = kwargs[n]
                     toSizes.append(int(e[i + 1]))
                 os.write(wf, b"OK")
+
             elif e[0] == "START":
                 if not toSignames:
                     raise CosimulationError(_error.NoCommunication)
                 os.write(wf, b"OK")
                 break
+
             else:
                 raise CosimulationError("Unexpected cosim input")
 
@@ -146,18 +157,22 @@ class Cosimulation(object):
         for i in range(1, len(e), 2):
             s, v = self._toSigDict[e[i]], e[i + 1]
             if v in 'zZ':
-                next = None
+                nextval = None
+
             elif v in 'xX':
-                next = s._init
+                nextval = s._init
+
             else:
                 try:
-                    next = int(v, 16)
+                    nextval = int(v, 16)
                     if s._nrbits and s._min is not None and s._min < 0:
-                        if next >= (1 << (s._nrbits - 1)):
-                            next |= (-1 << s._nrbits)
+                        if nextval >= (1 << (s._nrbits - 1)):
+                            nextval |= (-1 << s._nrbits)
+
                 except ValueError:
-                    next = intbv(0)
-            s.next = next
+                    nextval = intbv(0)
+
+            s.next = nextval
 
         self._getMode = 0
 
@@ -174,9 +189,11 @@ class Cosimulation(object):
                 # signed support
                 if s._nrbits and v < 0:
                     v += (1 << s._nrbits)
+
                 buf = hex(v)[2:]
                 if buf[-1] == 'L':
                     buf = buf[:-1]  # strip trailing L
+
                 buflist.append(buf)
         os.write(self._wf, (" ".join(buflist)).encode())
         self._getMode = 1

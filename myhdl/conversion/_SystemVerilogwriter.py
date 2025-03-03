@@ -84,6 +84,7 @@ class SystemVerilogWriter(object):
                  "path",
                  "filename",
                  "ind",
+                 "sourcepath",
                  "ConvertAlwaysVisitor",
                  "ConvertInitialVisitor",
                  "ConvertSimpleAlwaysCombVisitor",
@@ -106,6 +107,7 @@ class SystemVerilogWriter(object):
         self.initial_values = False
         self.usercode = _UserVerilogCode
         self.ind = ''
+        self.sourcepath = None
         for key, value in kwargs.items():
             if key in ['trace', 'initial_values', 'hierarchical']:
                 setattr(self, key, value)
@@ -142,6 +144,7 @@ class SystemVerilogWriter(object):
 
     def writeModuleHeader(self, intf, sourcepath):
         # ic(intf.name, intf.argnames)
+        self.sourcepath = sourcepath
         self.writeFileHeader(sourcepath)
         doc = _makeDoc(inspect.getdoc(intf), self.comment)
         print(doc, file=self.file)
@@ -151,7 +154,6 @@ class SystemVerilogWriter(object):
         parameters = []
         for portname in intf.argnames:
             s = intf.argdict[portname]
-            # ic(s._info)
             if isinstance(s, Parameter):
                 # insert a Verilog parameter
                 parameters.append(f"{portname} = {s.value}")
@@ -173,7 +175,7 @@ class SystemVerilogWriter(object):
             s = intf.argdict[portname]
 
             if isinstance(s, _Signal):
-                # ic(portname, repr(s), s._driven, s._driver)
+                # ic(portname, s._info)
                 if s._name is None:
                     raise ToSystemVerilogError(_error.ShadowingSignal, portname)
 
@@ -192,9 +194,12 @@ class SystemVerilogWriter(object):
                 # else the information for the higher levels gets lost!
                 # correct the _driven attribute
                 sigdriven = False
-                if s._driven and s._driver in subnames or s._driver == intf.name or s._driver == 'driven':
-                    sigdriven = True
-
+                if s._driven:
+                    if s._driver is None or s._driver == 'driven':
+                        sigdriven = True
+                    else:
+                        if s._driver in subnames or s._driver == intf.name:
+                            sigdriven = True
                 # ic(s._info, sigdriven)
                 if sigdriven:
                     if isinstance(s, _TristateSignal):
@@ -205,20 +210,37 @@ class SystemVerilogWriter(object):
                     print(f'    {d} logic {p} {r} {portname},', file=b)
 
                 else:
-                    if s._used or s._read:
+                    if s._read:
+                        if len(s._readers):
+                            ic(intf.name, s._info)
+                            if  intf.name in s._readers:
+                                print(f'    input {p} {r} {portname},', file=b)
+                                # a top level input may have ShadowSignals
+                                # which have not been processed by _analyzeSigs
+                                for sl in s._slicesigs:
+                                    sl._setName('Verilog')
+                        else:
+                            print(f'    input {p} {r} {portname},', file=b)
+                            # a top level input may have ShadowSignals
+                            # which have not been processed by _analyzeSigs
+                            for sl in s._slicesigs:
+                                sl._setName('Verilog')
+
+                    elif s._used:
                         # TODO:
                         # hack to pick up free variables when using functions
-                        # look in test_dec.py
+                        # look in test_dec.py: decTaskFreeVar()
                         # 'enable' is only read in a function and hasn't got `_read` set
+                        # BUT this hack only seems to work when running py.test
+                        # and not when simply converting
+                        # ... where is the difference?
+                        # found it: `enable` is also used in other `block`s ...
                         print(f'    input {p} {r} {portname},', file=b)
-                        # a top level input may have ShadowSignals
-                        # which have not been processed by _analyzeSigs
-                        for sl in s._slicesigs:
-                            sl._setName('Verilog')
+
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
-                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToSystemVerilogWarning)
+                        warnings.warn(f"{_error.UnusedPort}: {repr(s)}", category=ToSystemVerilogWarning)
             elif _isMem(s):
                 m = _getMemInfo(s)
                 ic(m._info)
@@ -250,7 +272,7 @@ class SystemVerilogWriter(object):
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
-                        warnings.warn(f"{_error.UnusedPort}: {portname}", category=ToSystemVerilogWarning)
+                        warnings.warn(f"{intf.name}: {_error.UnusedPort}: {portname}", category=ToSystemVerilogWarning)
 
         print(b.getvalue()[:-2], file=self.file)
         b.close()
@@ -258,7 +280,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def hierarchicalinstance(self, sub):
-        # ic(sub, vars(sub), sub.argnames, sub.sigdict)
+        # ic(sub.name, vars(sub))
         args = []
         # first look for parameters
         parameters = []
@@ -275,7 +297,7 @@ class SystemVerilogWriter(object):
                     parameters.append(f'.{arg}({ppar})')
 
         if len(parameters):
-            ic((parameters))
+            # ic((parameters))
             s1 = f"    {sub.name} #("
             s2 = f") {sub.name}_inst("  # % (sub.func.__name__, sub.name)
             s = ''.join((s1, ','.join(parameters), s2))
@@ -284,14 +306,27 @@ class SystemVerilogWriter(object):
 
         for i, arg in enumerate(sub.argnames):
             signame = f'{sub.sigdict[i]}'
-            # ic(i, arg, signame)
-            if isinstance(sub.sigdict[i], OpenPort):
-                pass
-            elif isinstance(sub.sigdict[i], Parameter):
-                pass
-            elif isinstance(sub.sigdict[i], _Signal):
-                if sub.sigdict[i]._used:
-                    args.append(f"\n        .{arg}({signame})")
+            if isinstance(sub.sigdict[i], _Signal):
+                # this will cover OpenPort, Constant, Parameter too
+                sig = sub.sigdict[i]
+                # ic(i, arg, signame)
+                if isinstance(sig, OpenPort):
+                    pass
+                elif isinstance(sig, Parameter):
+                    pass
+                elif isinstance(sig, _Signal):
+                    if sig._used:
+                        if sig._driven:
+                            args.append(f"\n        .{arg}({signame})")
+                        elif sig._read:
+                            if len(sig._readers):
+                                ic(sub.name, sig._info, repr(sig._readers))
+                                if sub.name in sig._readers:
+                                    ic('Gotcha?')
+                                    args.append(f"\n        .{arg}({signame})")
+                            else:
+                                args.append(f"\n        .{arg}({signame})")
+
             elif _isMem(sub.sigdict[i]):
                 m = _getMemInfo(sub.sigdict[i])
                 if m._used:
@@ -479,13 +514,19 @@ class SystemVerilogWriter(object):
         print("\nendmodule", file=self.file)
 
     def _writeTestBench(self, directory, name, intf, trace=False):
-        ic(directory, name, intf, trace)
+        # ic(directory, name, intf, trace)
         # self.directory, name, intf, self.trace
+
         tbpath = os.path.join(directory, f"tb_{name}.sv")
         with open(tbpath, 'w') as f:
-
+            vvars = dict(filename=f'tb_{name}.sv',
+                        version=myhdlversion,
+                        date=getutcdatetime(),
+                        source=self.sourcepath
+                        )
+            if not self.no_myhdl_header:
+                print(string.Template(myhdl_header).substitute(vvars), file=f)
             # ic(f, intf)
-
             print(f"module tb_{intf.name};", file=f)
             print(file=f)
             fr = StringIO()
@@ -510,12 +551,13 @@ class SystemVerilogWriter(object):
 
                     r = _getRangeString(s)
                     if s._driven:
-                        print(f"wire {r}{portname};", file=f)
-                        print(f"        .{portname},", file=to)
+                        print(f"    wire {r}{portname};", file=f)
+                        print(f"            {portname},", file=to)
                     else:
-                        print(f"logic {r}{portname};", file=f)
-                        print(f"        {portname},", file=fr)
-                    print(f"    .{portname}({portname}),", file=pm)
+                        print(f"    logic {r}{portname};", file=f)
+                        print(f"            {portname},", file=fr)
+                    print(f"        .{portname}({portname}),", file=pm)
+                    # print(f"    {portname},", file=pm)
 
                 elif _isMem(s):
                     m = _getMemInfo(s)
@@ -525,31 +567,32 @@ class SystemVerilogWriter(object):
                     d = _getArraySize(m)
 
                     if m._driven:
-                        print(f"wire {r}{portname}{d};", file=f)
-                        print(f"        {portname},", file=to)
+                        print(f"    wire {r}{portname}{d};", file=f)
+                        print(f"            {portname},", file=to)
                     else:
-                        print(f"logic {r}{portname}{d};", file=f)
-                        print(f"        {portname},", file=fr)
-                    print(f"    .{portname}({portname}),", file=pm)
+                        print(f"   logic {r}{portname}{d};", file=f)
+                        print(f"            {portname},", file=fr)
+                    print(f"        .{portname}({portname}),", file=pm)
+                    # print(f"    {portname},", file=pm)
 
             print(file=f)
-            print("initial begin", file=f)
+            print("    initial begin", file=f)
             if trace:
-                print(f'    $dumpfile("{intf.name}.vcd");', file=f)
-                print('    $dumpvars(0, dut);', file=f)
+                print(f'        $dumpfile("tb_{intf.name}_cosim.vcd");', file=f)
+                print('        $dumpvars(0, dut);', file=f)
             if fr.getvalue():
-                print("    $from_myhdl(", file=f)
+                print("        $from_myhdl(", file=f)
                 print(fr.getvalue()[:-2], file=f)
-                print("    );", file=f)
+                print("        );", file=f)
             if to.getvalue():
-                print("    $to_myhdl(", file=f)
+                print("        $to_myhdl(", file=f)
                 print(to.getvalue()[:-2], file=f)
-                print("    );", file=f)
-            print("end", file=f)
+                print("        );", file=f)
+            print("    end", file=f)
             print(file=f)
-            print(f"{intf.name} dut(", file=f)
+            print(f"    {intf.name} dut(", file=f)
             print(pm.getvalue()[:-2], file=f)
-            print(");", file=f)
+            print("    );", file=f)
             print(file=f)
             print("endmodule", file=f)
 
