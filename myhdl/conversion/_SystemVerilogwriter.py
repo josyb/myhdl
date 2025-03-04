@@ -143,7 +143,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def writeModuleHeader(self, intf, sourcepath):
-        # ic(intf.name, intf.argnames)
+        ic(intf.name, intf.argnames, intf.argdict, intf.sigdict)
         self.sourcepath = sourcepath
         self.writeFileHeader(sourcepath)
         doc = _makeDoc(inspect.getdoc(intf), self.comment)
@@ -175,7 +175,6 @@ class SystemVerilogWriter(object):
             s = intf.argdict[portname]
 
             if isinstance(s, _Signal):
-                # ic(portname, s._info)
                 if s._name is None:
                     raise ToSystemVerilogError(_error.ShadowingSignal, portname)
 
@@ -198,9 +197,15 @@ class SystemVerilogWriter(object):
                     if s._driver is None or s._driver == 'driven':
                         sigdriven = True
                     else:
-                        if s._driver in subnames or s._driver == intf.name:
+                        if s._driver in subnames:
                             sigdriven = True
-                # ic(s._info, sigdriven)
+                            # promote!
+                            s._driver = intf.name
+                        elif s._driver == intf.name:
+                            sigdriven = True
+
+                # ic(portname, s._info, sigdriven)
+
                 if sigdriven:
                     if isinstance(s, _TristateSignal):
                         d = 'inout'
@@ -240,7 +245,7 @@ class SystemVerilogWriter(object):
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
-                        warnings.warn(f"{_error.UnusedPort}: {repr(s)}", category=ToSystemVerilogWarning)
+                        warnings.warn(f"{intf.name}: {_error.UnusedPort}: {repr(s)}", category=ToSystemVerilogWarning)
             elif _isMem(s):
                 m = _getMemInfo(s)
                 ic(m._info)
@@ -280,7 +285,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def hierarchicalinstance(self, sub):
-        # ic(sub.name, vars(sub))
+        ic(sub.name, sub.argnames, sub.sigdict)
         args = []
         # first look for parameters
         parameters = []
@@ -335,7 +340,7 @@ class SystemVerilogWriter(object):
         return "".join((s, ",".join(args), "\n        );\n\n"))
 
     def writeDecls(self, intf, siglist, memlist):
-        # ic(intf, siglist, memlist)
+        ic(intf.name, siglist, memlist)
         constwires = []
         for s in siglist:
             # ic(s._info)
@@ -517,9 +522,9 @@ class SystemVerilogWriter(object):
         # ic(directory, name, intf, trace)
         # self.directory, name, intf, self.trace
 
-        tbpath = os.path.join(directory, f"tb_{name}.sv")
+        tbpath = os.path.join(directory, f"tb_{name}_cosim.sv")
         with open(tbpath, 'w') as f:
-            vvars = dict(filename=f'tb_{name}.sv',
+            vvars = dict(filename=f'tb_{name}_cosim.sv',
                         version=myhdlversion,
                         date=getutcdatetime(),
                         source=self.sourcepath
@@ -527,7 +532,7 @@ class SystemVerilogWriter(object):
             if not self.no_myhdl_header:
                 print(string.Template(myhdl_header).substitute(vvars), file=f)
             # ic(f, intf)
-            print(f"module tb_{intf.name};", file=f)
+            print(f"module tb_{intf.name}_cosim;", file=f)
             print(file=f)
             fr = StringIO()
             to = StringIO()

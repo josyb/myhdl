@@ -19,7 +19,8 @@ from myhdl._Signal import _Signal
 
 class HdlClass(ABC):
     '''
-        This Abstract Base Class 
+        an Abstract Base Class to build large strutural designs
+        in MyHDL without (or with very little) 'glue' Signals 
     '''
 
     @abstractmethod
@@ -33,9 +34,7 @@ class HdlClass(ABC):
             placeholder for user written hdl 
             
             !!! do not forget the `@block` !!!
-            Note that even if you set skipname=True as the block argument eventually
-            a name will be given to that block; either by yourself or in the better case
-            by the hdlinstances() method below
+
         '''
         pass
 
@@ -59,5 +58,7 @@ class HdlClass(ABC):
             self._hdlblock = self.hdl()
             self._hdlblock.name = self.__class__.__name__
 
-        # ic(self, kwargs)
-        self._hdlblock.convert(**kwargs)
+        # must return result of conversion to build a possible Cosimulation object
+        res = self._hdlblock.convert(**kwargs)
+        # ic(res)
+        return res

@@ -42,13 +42,13 @@ try:
     ic.configureOutput(argToStringFunction=pp.pformat, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
     ic.lineWrapWidth = preferredWidth
-    # ic.disable()
+    ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
-from myhdl._Signal import _Signal, _isListOfSigs
+from myhdl._Signal import _Signal
 from myhdl._block import _Block
 from myhdl._extractHierarchy import _isMem, _getMemInfo
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
@@ -309,7 +309,6 @@ class Converter(object):
             # func.hdlclass.__dict__ is made by the __init__ call on class instantiation
             # ic(func.hdlclass, func.hdlclass.__dict__)
             for n, s in func.hdlclass.__dict__.items():
-                ic(n, s, _isListOfSigs(s))
                 # TODO: look out for interfaces (and structures, lists etc in the future)
                 if isinstance(s, _Signal):
                     # if s._name is None:
@@ -321,11 +320,6 @@ class Converter(object):
                     m.name = n
                     ports.append(s)
 
-                # elif _isListOfSigs(s):
-                #     # ic(s)
-                #     # no name yet ...?
-                #     ports.append(s)
-
                 elif isinstance(s, _Block):
                     # skip
                     pass
@@ -335,7 +329,7 @@ class Converter(object):
                     s._name = n
                     ports.append(s)
 
-            ic(ports)
+            # ic(ports)
             func.args = tuple(ports)
 
         # infer interface after signals have been analyzed

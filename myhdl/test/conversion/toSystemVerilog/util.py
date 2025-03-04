@@ -11,7 +11,7 @@ def setupCosimulationIcarus(**kwargs):
     objfile = "%s.o" % name
     if path.exists(objfile):
         os.remove(objfile)
-    analyze_cmd = ['iverilog', '-g2012', '-o', objfile, '%s.sv' % name, 'tb_%s.sv' % name]
+    analyze_cmd = ['iverilog', '-g2012', '-o', objfile, '%s.sv' % name, 'tb_%s_cosim.sv' % name]
     subprocess.call(analyze_cmd)
     vpifile = "myhdl"
     if sys.platform == "win32":

@@ -79,10 +79,11 @@ def _getCallInfo(hdlclass):
 
     """
 
-    if hdlclass is not None:
-        FUNCREC = 4
-    else:
-        FUNCREC = 3
+    # if hdlclass is not None:
+    #     FUNCREC = 4
+    # else:
+    #     FUNCREC = 3
+    FUNCREC = 3
 
     stack = inspect.stack()
     # caller may be undefined if instantiation from a Python module
@@ -107,8 +108,9 @@ def _getCallInfo(hdlclass):
         f_locals = callerrec[0].f_locals
         # ic(f_locals)
         if 'self' in f_locals:
-            modctxt = isinstance(f_locals['self'], _Block)
+            modctxt = isinstance(f_locals['self'], (block, _Block))
 
+    # ic(name, modctxt, symdict, filename)
     return _CallInfo(name, modctxt, symdict, filename)
 
 
@@ -218,21 +220,30 @@ class _Block(object):
 
         self.func = func
         self.hdlclass = None
-        if isboundmethod(func):
-            if isinstance(func.__self__, HdlClass):
-                self.hdlclass = func.__self__  # make a backlink to the class
-                self.args = tuple([v for v in vars(func.__self__).values()])
-                self.kwargs = {}
-                ic(func.__name__, func.__self__, vars(func.__self__), self.args, self.kwargs)
-            else:
-                # some other classe see test\conversion\general\test_method.py
-                self.args = args
-                self.kwargs = kwargs
+        # if isboundmethod(func):
+        #     if isinstance(func.__self__, HdlClass):
+        #         self.hdlclass = func.__self__  # make a backlink to the class
+        #         self.args = tuple([v for v in vars(func.__self__).values()])
+        #         self.kwargs = {}
+        #         ic(func.__name__, func.__self__, vars(func.__self__), self.args, self.kwargs)
+        #     else:
+        #         # some other classe see test\conversion\general\test_method.py
+        #         self.args = args
+        #         self.kwargs = kwargs
+        # else:
+        #     self.args = args
+        #     self.kwargs = kwargs
+
+        if isboundmethod(func) and isinstance(func.__self__, HdlClass):
+            self.hdlclass = func.__self__  # make a backlink to the class
+            self.args = tuple([v for v in vars(func.__self__).values()])
+            self.kwargs = {}
         else:
+            # either a function
+            # or some other class see test\conversion\general\test_method.py
             self.args = args
             self.kwargs = kwargs
 
-        # ic(self.args, self.kwargs)
         self.__doc__ = func.__doc__
         callinfo = _getCallInfo(self.hdlclass)
         self.callinfo = callinfo
@@ -244,6 +255,8 @@ class _Block(object):
         self.memdict = {}
         self.name = self.__name__ = name
 
+        # ic(func, deco, name, self.args, self.kwargs, self.callername)
+
         # flatten, but keep BlockInstance objects
         # self.subs = _flatten(func(*args, **kwargs))
         if self.hdlclass is not None:
@@ -254,7 +267,8 @@ class _Block(object):
 
         self._verifySubs()
         self._updateNamespaces()
-        # ic(self.symdict, self.sigdict, self.memdict)
+        # ic(func, deco, name, self.symdict, self.sigdict, self.memdict)
+
         self.verilog_code = self.vhdl_code = None
         self.sim = None
         self.endhierarchy = False
@@ -313,23 +327,24 @@ class _Block(object):
         # ic(self.symdict)
         # self.symdict.update(usedsigdict)
         # self.symdict.update(usedlosdict)
+
         # ic(usedsigdict)
+
         updatesymdict(self.symdict, usedsigdict)
         updatesymdict(self.symdict, usedlosdict)
+
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
         for n, v in self.symdict.items():
             if isinstance(v, _Signal):
                 self.sigdict[n] = v
                 if n in usedsigdict:
                     v._markUsed()
-                # ic(n, (v))
 
             if _isListOfSigs(v):
                 m = _makeMemInfo(v)
                 self.memdict[n] = m
                 if n in usedlosdict:
                     m._used = True
-                # ic(n, (m))
 
         # ic(self.sigdict, self.memdict)
 
@@ -417,6 +432,7 @@ class _Block(object):
         return converter(self)
 
     def config_sim(self, trace=False, **kwargs):
+        # ic(trace, kwargs)
         self._config_sim['trace'] = trace
         if trace:
             for k, v in kwargs.items():

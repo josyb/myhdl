@@ -73,45 +73,46 @@ class _TraceSignalsClass(object):
 
     def __call__(self, dut, *args, **kwargs):
         global _tracing, vcdpath
-        if isinstance(dut, _Block):
-            # now we go bottom-up: so clean up and start over
-            # TODO: consider a warning for the overruled block
-            if _simulator._tracing:
-                _simulator._tracing = 0
-                _simulator._tf.close()
-                os.remove(vcdpath)
-        else:  # deprecated
-            if _tracing:
-                return dut(*args, **kwargs)  # skip
-            else:
-                # clean start
-                sys.setprofile(None)
+        # ic(dut, args, kwargs)
+        # if isinstance(dut, _Block):
+        # now we go bottom-up: so clean up and start over
+        # TODO: consider a warning for the overruled block
+        if _simulator._tracing:
+            _simulator._tracing = 0
+            _simulator._tf.close()
+            os.remove(vcdpath)
+        # else:  # deprecated
+        #     if _tracing:
+        #         return dut(*args, **kwargs)  # skip
+        #     else:
+        #         # clean start
+        #         sys.setprofile(None)
 
         # from myhdl.conversion import _toVerilog
         # if _toVerilog._converting:
         #     raise TraceSignalsError("Cannot use traceSignals while converting to Verilog")
 
         if not isinstance(dut, _Block):
-            if not callable(dut):
-                raise TraceSignalsError(_error.ArgType, "got %s" % type(dut))
+            # if not callable(dut):
+            raise TraceSignalsError(_error.ArgType, "got %s" % type(dut))
+
         if _simulator._tracing:
             raise TraceSignalsError(_error.MultipleTraces)
 
-        _tracing = 1
+        # _tracing = 1
         try:
-            if self.name is None:
-                name = dut.__name__
-                if isinstance(dut, _Block):
-                    name = dut.func.__name__
-            else:
-                name = str(self.name)
-            if name is None:
-                raise TraceSignalsError(_error.TopLevelName)
+            # if self.name is None:
+            #     # name = dut.__name__
+            #     # if isinstance(dut, _Block):
+            #     name = dut.func.__name__
+            # else:
+            #     name = str(self.name)
+            name = dut.func.__name__ if self.name is None else str(self.name)
 
-            if self.directory is None:
-                directory = ''
-            else:
-                directory = self.directory
+            # if name is None:
+            #     raise TraceSignalsError(_error.TopLevelName)
+
+            directory = '' if self.directory is None else self.directory
 
             # if isinstance(dut, _Block):
             h = _getHierarchy(name, dut)
@@ -123,10 +124,12 @@ class _TraceSignalsClass(object):
             #         )
             #     h = _HierExtr(name, dut, *args, **kwargs)
 
-            if self.filename is None:
-                filename = name
-            else:
-                filename = str(self.filename)
+            # if self.filename is None:
+            #     filename = name
+            # else:
+            #     filename = str(self.filename)
+
+            filename = name if self.filename is None else str(self.filename)
 
             vcdpath = os.path.join(directory, filename + ".vcd")
 
@@ -141,7 +144,8 @@ class _TraceSignalsClass(object):
             _writeVcdHeader(vcdfile, self.timescale)
             _writeVcdSigs(vcdfile, h.hierarchy, self.tracelists)
         finally:
-            _tracing = 0
+            # _tracing = 0
+            pass
 
         return h.top
 
@@ -209,6 +213,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
         memdict = inst.memdict
         delta = previouslevel - level
         previouslevel = level
+        # ic(level, name, sigdict, memdict, delta)
 
         if name is None:
             # an @block(skipname=True) has been applied for this 'inst'
@@ -231,6 +236,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
 
         fullpathprefix = '_'.join(prefixstack)
         for n, s in sigdict.items():
+            # ic(n, s._info, s._tracing)
             sval = _getSval(s)
             if sval is None:
                 raise ValueError(f"{n} of module {name} has no initial value")
@@ -251,6 +257,8 @@ def _writeVcdSigs(f, hierarchy, tracelists):
             w = s._nrbits
             n = n.replace('self_', '')
             fullpathname = '_'.join((fullpathprefix, n))
+            # ic(fullpathname, fullpathnames)
+
             if fullpathname not in fullpathnames:
                 fullpathnames.append(fullpathname)
                 if w:

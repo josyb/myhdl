@@ -43,7 +43,7 @@ from myhdl._always_comb import _AlwaysComb
 from myhdl._always_seq import _AlwaysSeq
 from myhdl._always import _Always
 from myhdl._extractHierarchy import _isMem, _getMemInfo, _UserCode
-from myhdl._Signal import _Signal, _WaiterList, Constant, _isListOfSigs
+from myhdl._Signal import _Signal, _WaiterList, Constant
 from myhdl._ShadowSignal import _ShadowSignal, _SliceSignal, _TristateDriver
 from myhdl._util import _isTupleOfInts
 from myhdl._util import _makeAST
@@ -1516,22 +1516,23 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         self.name = node.name
         if isboundmethod(self.func):
             if isinstance(self.func.__self__, HdlClass):
-                ic(node, vars(node), self.func, vars(self.func), self.args)
+                # ic(node, vars(node), self.func, vars(self.func), self.args)
                 # must find names ...
                 for arg in self.args:
                     # be selective
                     # TODO: interfaces?
                     if isinstance(arg, _Signal):
                         self.argnames.append(arg._name)
-                    # elif _isListOfSigs(arg):
-                    #     self.argnames.append(arg._name)
+
                     elif _isMem(arg):
                         m = _getMemInfo(arg)
                         self.argnames.append(m.name)
                         # decide later what to do with it
                         # raise NotImplementedError(f'do not handle ListOfSignals {self.name}:{arg}')
+
                     elif hasattr(arg, '__dict__'):
                         self.argnames.append(arg._name)
+
             else:
                 # another class has the args in the method.call
                 self.argnames = _get_argnames(node)
@@ -1540,6 +1541,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                                     "first method argument name other than 'self'")
                 # skip self
                 self.argnames = self.argnames[1:]
+
         else:
             self.argnames = _get_argnames(node)
 
@@ -1556,4 +1558,5 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                 self.fullargdict[n] = arg
                 if isinstance(arg, _Signal) or _isMem(arg):
                     self.argdict[n] = arg
+
         self.argnames = [n for n in self.argnames if n in self.argdict]
