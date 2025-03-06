@@ -38,7 +38,6 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
-from myhdl._modbv import modbv
 from myhdl._fixbv import fixbv, _FixbvResult
 from myhdl._bin import bin
 
@@ -105,9 +104,8 @@ def negedge(sig):
     """ Return a negedge trigger object """
     return sig.negedge
 
+
 # signal factory function
-
-
 def Signal(val=None, delay=None):
     """ Return a new _Signal (default or delay 0) or DelayedSignal """
     if delay is not None:
@@ -342,6 +340,8 @@ class _Signal(object):
     def _setNextIntbv(self, val):
         if isinstance(val, intbv):
             val = val._val
+        elif isinstance(val, _FixbvResult):
+            val = val.vector
         elif not isinstance(val, int):
             raise TypeError(f"Expected int or intbv,  got {type(val)}")
         self._next._val = val

@@ -25,7 +25,7 @@ Created on 2 jan. 2025
 @author: josy
 
 '''
-from collections import namedtuple
+# from collections import namedtuple
 from types import GeneratorType
 
 try:
@@ -42,7 +42,16 @@ from myhdl._Signal import _Signal
 from myhdl._util import _flatten
 from myhdl.conversion._misc import _error
 
-LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' , 'gens'])
+# LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' , 'gens'])
+
+
+class LevelInfo(object):
+
+    def __init__(self, modulename, instancename, blocksubs , gens):
+        self.modulename = modulename
+        self.instancename = instancename
+        self.blocksubs = blocksubs
+        self.gens = gens
 
 
 def _checkArgs(arglist):

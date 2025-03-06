@@ -69,14 +69,15 @@ class Converter(object):
         assert hdl in ['VHDL', 'Verilog', 'SystemVerilog']
         self.hdl = hdl
         # process the common kwargs
-        self.name = None
-        self.directory = ''
-        self.no_testbench = False
-        self.hierarchical = False
-        self.trace = False
-        for key, value in kwargs.items():
-            if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace', 'sourcepath']:
-                setattr(self, key, value)
+        self.name = kwargs.get('name', None)
+        self.directory = kwargs.get('directory', '')
+        self.no_testbench = kwargs.get('no_testbench', False)
+        self.hierarchical = kwargs.get('hierarchical', 0)
+        self.trace = kwargs.get('trace', False)
+        self.sourcepath = kwargs.get('sourcepath', '')
+        # for key, value in kwargs.items():
+        #     if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace', 'sourcepath']:
+        #         setattr(self, key, value)
 
         # select the appropriate HDL Writer
         # and apply the (remaining) kwargs
@@ -220,6 +221,8 @@ class Converter(object):
                     # siglistinfo = [ sig._info for sig in siglist]
                     # ic(ll, bb.instancename, siglistinfo, bb.blocksubs, bb.blocksubs)
 
+                    if ll == 0:
+                        bb.instancename = self.name
                     res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist, subsoutputports)
                     # build the 'placeholder' information for this block
                     # as it may be called upon by the next higher code level
@@ -241,7 +244,7 @@ class Converter(object):
                     # else there will be no output ports ...
                     # so we have to keep a deepcopy' instead
                     # or perhaps make a new class?
-                    # ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
+                    # ic( bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
                     argportsinfo = []
                     for arg in argports:
                         argportsinfo.append(argports[arg]._info)
@@ -279,7 +282,8 @@ class Converter(object):
             # ic(ha)
             res = gethierarchicalmodulenames(ha)
             # ic(res)
-            # we need the block object ...
+            # we need to return the block object ...
+            # but we also need the information on all generate modules (HDL files)
             # python allows us to add attributes at run-time, without a whisper ...
             h.top.modules = res
 
@@ -378,7 +382,7 @@ class Converter(object):
         if level == 0:
             # don't write testbench if module has no ports
             if len(intf.argnames) > 0 and not self.no_testbench:
-                self.writer._writeTestBench(self.directory, name, intf, self.trace)
+                self.writer._writeTestBench(self.directory, self.name, intf, self.trace)
 
             ### clean-up properly ###
             self._cleanup(siglist, memlist)

@@ -225,6 +225,7 @@ class SystemVerilogWriter(object):
                                 for sl in s._slicesigs:
                                     sl._setName('Verilog')
                         else:
+                            # s._readers.append(intf.name)
                             print(f'    input {p} {r} {portname},', file=b)
                             # a top level input may have ShadowSignals
                             # which have not been processed by _analyzeSigs
@@ -324,6 +325,7 @@ class SystemVerilogWriter(object):
                         if sig._driven:
                             args.append(f"\n        .{arg}({signame})")
                         elif sig._read:
+                            ic(sig._info)
                             if len(sig._readers):
                                 ic(sub.name, sig._info, repr(sig._readers))
                                 if sub.name in sig._readers:
@@ -522,8 +524,12 @@ class SystemVerilogWriter(object):
         # ic(directory, name, intf, trace)
         # self.directory, name, intf, self.trace
 
-        tbpath = os.path.join(directory, f"tb_{name}_cosim.sv")
-        with open(tbpath, 'w') as f:
+        # TODO: clean up code to
+        # shortcut for hierarchical converion:
+        # save the test-bench in the same place as the HDL source
+        # tbpath = os.path.join(directory, f"tb_{name}_cosim.sv")
+        # with open(tbpath, 'w') as f:
+        with open(f"tb_{name}_cosim.sv", 'w') as f:
             vvars = dict(filename=f'tb_{name}_cosim.sv',
                         version=myhdlversion,
                         date=getutcdatetime(),

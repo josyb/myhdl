@@ -15,9 +15,7 @@ def setupCosimulationIcarus(**kwargs):
     subprocess.call(analyze_cmd)
     vpifile = "myhdl"
     if sys.platform == "win32":
-        # vpifiles = glob("myhdl.vpi", root_dir="C:\\", recursive=True)
-        # TODO: shortcut to get things moving ...
-        vpifiles = ["C:\\Programs\\iverilog\\lib\\ivl\\myhdl.vpi"]
+        vpifiles = glob("**/myhdl.vpi", recursive=True)
     else:
         vpifiles = glob("**/myhdl.vpi", recursive=True)
     print(f'{vpifiles=}', file=sys.stderr)

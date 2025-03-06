@@ -127,7 +127,7 @@ class _UserCode(object):
         return code
 
     def _scrub_namespace(self):
-        ic((self.namespace))
+        # ic((self.namespace))
         for nm, obj in self.namespace.items():
             if _isMem(obj):
                 memi = _getMemInfo(obj)
