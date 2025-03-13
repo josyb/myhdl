@@ -23,6 +23,7 @@ from types import FunctionType
 from myhdl import AlwaysError, intbv
 from myhdl._util import _isGenFunc
 from myhdl._Signal import _Signal, _WaiterList, _isListOfSigs
+from myhdl._structured import Array
 from myhdl._always import _Always, _get_sigdict
 from myhdl._instance import _getCallInfo
 
@@ -69,15 +70,19 @@ def always_seq(edge, reset):
         reset._read = True
         reset._used = True
         sigargs.append(reset)
+
     sigdict = _get_sigdict(sigargs, callinfo.symdict)
 
     def _always_seq_decorator(func):
         if not isinstance(func, FunctionType):
             raise AlwaysSeqError(_error.ArgType)
+
         if _isGenFunc(func):
             raise AlwaysSeqError(_error.ArgType)
+
         if func.__code__.co_argcount > 0:
             raise AlwaysSeqError(_error.NrOfArgs)
+
         return _AlwaysSeq(func, edge, reset, callinfo=callinfo, sigdict=sigdict)
 
     return _always_seq_decorator
@@ -117,6 +122,9 @@ class _AlwaysSeq(_Always):
                 sigregs.append(reg)
             elif isinstance(reg, intbv):
                 varregs.append((n, reg, int(reg)))
+            elif isinstance(reg, Array):
+                for e in reg._array:
+                    sigregs.append(e)
             else:
                 assert _isListOfSigs(reg)
                 for e in reg:

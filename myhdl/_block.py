@@ -37,6 +37,7 @@ from myhdl._extractHierarchy import (_makeMemInfo,
                                      _UserVerilogCode, _UserVhdlCode,
                                      _UserVerilogInstance, _UserVhdlInstance)
 from myhdl._Signal import _Signal, _isListOfSigs
+from myhdl._structured import Array
 from myhdl._misc import isboundmethod, updatesymdict, getsymdict
 from myhdl._hdlclass import HdlClass
 
@@ -47,7 +48,7 @@ class _error:
     pass
 
 
-_error.ArgType = "%s: A block should return block or instantiator objects"
+_error.ArgType = "%s: A block should return block or instantiator objects (forgot `return instances()`?)"
 _error.InstanceError = "%s: subblock %s should be encapsulated in a block decorator"
 
 
@@ -215,7 +216,7 @@ class block(object):
 class _Block(object):
 
     def __init__(self, func, deco, name, srcfile, srcline, *args, **kwargs):
-        # ic(func, deco, name)
+        ic(func, deco, name, args, kwargs)
         # calls = deco.calls
 
         self.func = func
@@ -256,6 +257,9 @@ class _Block(object):
         self.name = self.__name__ = name
 
         # ic(func, deco, name, self.args, self.kwargs, self.callername)
+        # this likely the best place to intercept 'ListOfSignals' object
+        # and promote them to 'mem' objects
+        # but this requires that we 'backtrack' and replace the object ...
 
         # flatten, but keep BlockInstance objects
         # self.subs = _flatten(func(*args, **kwargs))
@@ -335,7 +339,7 @@ class _Block(object):
 
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
         for n, v in self.symdict.items():
-            if isinstance(v, _Signal):
+            if isinstance(v, (_Signal, Array)):
                 self.sigdict[n] = v
                 if n in usedsigdict:
                     v._markUsed()
@@ -350,10 +354,11 @@ class _Block(object):
 
     def _inferInterface(self, hdl):
         from myhdl.conversion._analyze import _analyzeTopFunc
-        # ic(self.args)
+        ic(self.args)
         intf = _analyzeTopFunc(self.func, hdl, *self.args, **self.kwargs)
         self.argnames = intf.argnames
         self.argdict = intf.argdict
+        ic(self.argnames, self.argdict)
 
     # Public methods
     # The puropse now is to define the API, optimizations later

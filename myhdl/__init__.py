@@ -50,6 +50,7 @@
     OpenPort       --  a MyHDL object to 'terminate' unused outputs of a module/block
     Constant       --  a MyHDL object
     HdlClass       -- Abstract Base Class to build Class based structural designs
+    Array          -- A replacement for Lis of Signals and more, dimensions ...
 
 """
 __version__ = "0.12.1"
@@ -181,43 +182,46 @@ from ._traceSignals import traceSignals
 from ._openport import OpenPort
 from ._hdlclass import HdlClass
 from ._fixbv import fixbv
+from ._structured import Array
 
 from myhdl import conversion
 from ._tristate import Tristate
 
-__all__ = ["bin",
-           "concat",
-           "intbv",
-           "modbv",
-           "join",
-           "posedge",
-           "negedge",
-           "Signal",
-           "SignalType",
-           "Constant",
-           "Parameter",
-           "ConcatSignal",
-           "TristateSignal",
-           "now",
-           "delay",
-           "downrange",
-           "StopSimulation",
-           "Cosimulation",
-           "Simulation",
-           "instances",
-           "instance",
-           "block",
+__all__ = [
+           "always",
            "always_comb",
            "always_seq",
-           "ResetSignal",
-           "always",
+           "Array",
+           "bin",
+           "block",
+           "concat",
+           "conversion",
+           "ConcatSignal",
+           "Constant",
+           "Cosimulation",
+           "delay",
+           "downrange",
            "enum",
            "EnumType",
            "EnumItemType",
-           "traceSignals",
-           "conversion",
-           "Tristate",
-           "OpenPort",
+           "fixbv",
            "HdlClass",
-           "fixbv"
+           "instance",
+           "instances",
+           "intbv",
+           "join",
+           "modbv",
+           "negedge",
+           "now",
+           "OpenPort",
+           "posedge",
+           "Parameter",
+           "ResetSignal",
+           "Signal",
+           "SignalType",
+           "StopSimulation",
+           "Simulation",
+           "traceSignals",
+           "Tristate",
+           "TristateSignal",
            ]

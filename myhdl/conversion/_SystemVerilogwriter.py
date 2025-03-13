@@ -49,6 +49,7 @@ from myhdl import ToSystemVerilogError, ToSystemVerilogWarning
 from myhdl import __version__ as myhdlversion
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
+from myhdl._structured import Array
 from myhdl._concat import concat
 from myhdl._delay import delay
 from myhdl._enum import EnumItemType, EnumType
@@ -142,6 +143,20 @@ class SystemVerilogWriter(object):
         print("`timescale {}".format(self.timescale), file=self.file)
         print(file=self.file)
 
+    def _sigorportdecl(self, name, sigorport):
+        ic(sigorport, type(sigorport))
+        r = _getRangeString(sigorport)
+        p = _getSignString(sigorport)
+        if isinstance(sigorport, Array):
+            n = _getSizes(sigorport)
+            return f"logic {p}{r}{name} {n}"
+
+        elif isinstance(sigorport, _TristateSignal):
+            return f"wire {p}{r}{name}"
+
+        else:
+            return f"logic {p}{r}{name}"
+
     def writeModuleHeader(self, intf, sourcepath):
         ic(intf.name, intf.argnames, intf.argdict, intf.sigdict)
         self.sourcepath = sourcepath
@@ -173,20 +188,21 @@ class SystemVerilogWriter(object):
         # ANSI-style module declaration
         for portname in intf.argnames:
             s = intf.argdict[portname]
-
-            if isinstance(s, _Signal):
+            if isinstance(s, (_Signal, Array)):
+                ic(s._info)
                 if s._name is None:
                     raise ToSystemVerilogError(_error.ShadowingSignal, portname)
 
-                if s._inList:
+                if  isinstance(s, _Signal) and s._inList:
                     raise ToSystemVerilogError(_error.PortInList, portname)
 
                 if isinstance(s, (OpenPort, Parameter)):
                     continue
 
                 s._name = portname
-                r = _getRangeString(s)
-                p = _getSignString(s)
+                # r = _getRangeString(s)
+                # p = _getSignString(s)
+                sigdecl = self._sigorportdecl(portname, s)
 
                 # TODO: refactor this code to _converter.py
                 # but do not update the _driven there
@@ -208,29 +224,30 @@ class SystemVerilogWriter(object):
 
                 if sigdriven:
                     if isinstance(s, _TristateSignal):
-                        d = 'inout'
+                        d = 'inout '
                     else:
                         d = 'output'
 
-                    print(f'    {d} logic {p} {r} {portname},', file=b)
+                    print(f'    {d} {sigdecl},', file=b)
 
                 else:
                     if s._read:
                         if len(s._readers):
                             ic(intf.name, s._info)
                             if  intf.name in s._readers:
-                                print(f'    input {p} {r} {portname},', file=b)
+                                print(f'    input  {sigdecl},', file=b)
                                 # a top level input may have ShadowSignals
                                 # which have not been processed by _analyzeSigs
                                 for sl in s._slicesigs:
                                     sl._setName('Verilog')
                         else:
                             # s._readers.append(intf.name)
-                            print(f'    input {p} {r} {portname},', file=b)
+                            print(f'    input  {sigdecl},', file=b)
                             # a top level input may have ShadowSignals
                             # which have not been processed by _analyzeSigs
-                            for sl in s._slicesigs:
-                                sl._setName('Verilog')
+                            if isinstance(s, _Signal):
+                                for sl in s._slicesigs:
+                                    sl._setName('Verilog')
 
                     elif s._used:
                         # TODO:
@@ -241,12 +258,16 @@ class SystemVerilogWriter(object):
                         # and not when simply converting
                         # ... where is the difference?
                         # found it: `enable` is also used in other `block`s ...
-                        print(f'    input {p} {r} {portname},', file=b)
+                        print(f'    input  {sigdecl},', file=b)
 
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
                         warnings.warn(f"{intf.name}: {_error.UnusedPort}: {repr(s)}", category=ToSystemVerilogWarning)
+
+            # elif isinstance(s, StructType):
+            #     pass
+
             elif _isMem(s):
                 m = _getMemInfo(s)
                 ic(m._info)
@@ -312,7 +333,7 @@ class SystemVerilogWriter(object):
 
         for i, arg in enumerate(sub.argnames):
             signame = f'{sub.sigdict[i]}'
-            if isinstance(sub.sigdict[i], _Signal):
+            if isinstance(sub.sigdict[i], (_Signal, Array)):
                 # this will cover OpenPort, Constant, Parameter too
                 sig = sub.sigdict[i]
                 # ic(i, arg, signame)
@@ -320,7 +341,7 @@ class SystemVerilogWriter(object):
                     pass
                 elif isinstance(sig, Parameter):
                     pass
-                elif isinstance(sig, _Signal):
+                elif isinstance(sig, (_Signal, Array)):
                     if sig._used:
                         if sig._driven:
                             args.append(f"\n        .{arg}({signame})")
@@ -358,80 +379,90 @@ class SystemVerilogWriter(object):
             if signame in intf.argnames:
                 continue
 
-            r = _getRangeString(s)
-            p = _getSignString(s)
-            if s._driven:
-                if not s._read and not isinstance(s, _TristateDriver):
-                    warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToSystemVerilogWarning)
-                k = 'wire'
-                if s._driven == 'reg':
-                    k = 'logic'
-                # the following line implements initial value assignments
-                # don't initial value "wire", inital assignment to a wire
-                # equates to a continuous assignment [reference]
-                if not self.initial_values or k == 'wire':
-                    print(f"    {k} {p}{r}{signame};", file=self.file)
-                else:
-                    if isinstance(s._init, EnumItemType):
-                        print(f"    {k} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
-                    else:
-                        print(f"    {k} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
-
-            elif s._read:
-                if isinstance(s, Constant):
-                    c = int(s.val)
-                    c_len = s._nrbits
-                    c_str = f"{c}"
-                    # iverilog doesn't handle `const` ... (bummer)
-                    if isinstance(s.val, bool):
-                        # print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                        print(f"    localparam  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                    elif isinstance(s.val, int):
-                        # print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
-                        print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
-                    elif isinstance(s.val, float):
-                        # print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
-                        print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
-                    else:
-                        # intbv
-                        # print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
-                        print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
-
-                else:
-                    # the original exception
-                    # raise ToVerilogError(_error.UndrivenSignal, signame)
-                    # changed to a warning and a continuous assignment to a wire
-                    warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToSystemVerilogWarning)
-                    constwires.append(s)
-                    ic(s._info)
-                    print(f"    logic {r}{signame};", file=self.file)
+            if isinstance(s, Array):
+                r = _getRangeString(s)
+                p = _getSignString(s)
+                n = _getSizes(s)
+                if s._driven:
+                    if not self.initial_values:
+                        print(f"    logic {p}{r}{signame} {n};", file=self.file)
 
             else:
-                # _used but not _driven and not _read
-                # ???
-                ic(s._info)
-                # if self.hierarchical:
-                if isinstance(s, Constant):
-                    c = int(s.val)
-                    c_len = s._nrbits
-                    c_str = f"{c}"
-                    if isinstance(s.val, bool):
-                        print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                    elif isinstance(s.val, int):
-                        print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
-                    elif isinstance(s.val, float):
-                        print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
-                    else:
-                        # intbv
-                        print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
-                else:
-                    if not self.initial_values:
-                        print(f"    logic {p}{r}{signame};", file=self.file)
+                r = _getRangeString(s)
+                p = _getSignString(s)
+                if s._driven:
+                    if not s._read and not isinstance(s, _TristateDriver):
+                        warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToSystemVerilogWarning)
+                    k = 'wire'
+                    if s._driven == 'reg':
+                        # default to single driver type only
+                        k = 'logic'
+                    # the following line implements initial value assignments
+                    # don't initial value "wire", inital assignment to a wire
+                    # equates to a continuous assignment [reference]
+                    if not self.initial_values or k == 'wire':
+                        print(f"    {k} {p}{r}{signame};", file=self.file)
                     else:
                         if isinstance(s._init, EnumItemType):
-                            print(f"    logic {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                            print(f"    {k} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
                         else:
-                            print(f"    logic {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
+                            print(f"    {k} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
+
+                elif s._read:
+                    if isinstance(s, Constant):
+                        c = int(s.val)
+                        c_len = s._nrbits
+                        c_str = f"{c}"
+                        # iverilog doesn't handle `const` ... (bummer)
+                        if isinstance(s.val, bool):
+                            # print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
+                            print(f"    localparam  {r}{s} = {c_len}'b{c_str};", file=self.file)
+                        elif isinstance(s.val, int):
+                            # print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
+                            print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
+                        elif isinstance(s.val, float):
+                            # print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
+                            print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
+                        else:
+                            # intbv
+                            # print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+
+                    else:
+                        # the original exception
+                        # raise ToVerilogError(_error.UndrivenSignal, signame)
+                        # changed to a warning and a continuous assignment to a wire
+                        warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToSystemVerilogWarning)
+                        constwires.append(s)
+                        ic(s._info)
+                        print(f"    logic {r}{signame};", file=self.file)
+
+                else:
+                    # _used but not _driven and not _read
+                    # ???
+                    ic(s._info)
+                    # if self.hierarchical:
+                    if isinstance(s, Constant):
+                        c = int(s.val)
+                        c_len = s._nrbits
+                        c_str = f"{c}"
+                        if isinstance(s.val, bool):
+                            print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
+                        elif isinstance(s.val, int):
+                            print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
+                        elif isinstance(s.val, float):
+                            print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
+                        else:
+                            # intbv
+                            print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                    else:
+                        if not self.initial_values:
+                            print(f"    logic {p}{r}{signame};", file=self.file)
+                        else:
+                            if isinstance(s._init, EnumItemType):
+                                print(f"    logic {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                            else:
+                                print(f"    logic {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
 
         for m in memlist:
             if not m._used:
@@ -1079,7 +1110,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         else:  # downrange
             cmp = '>='
             op = '-'
-            oneoff = '-1'
+            oneoff = ' - 1'
             if len(args) == 1:
                 start, stop, step = args[0], None, None
             elif len(args) == 2:
@@ -1089,17 +1120,17 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if node.breakLabel.isActive:
             self.write("begin: {}".format(node.breakLabel))
             self.writeline()
-        self.write("for ({}=".format(var))
+        self.write("for ({} = ".format(var))
         if start is None:
             self.write("0")
         else:
             self.visit(start)
-        self.write("{}; {}{}".format(oneoff, var, cmp))
+        self.write("{}; {} {} ".format(oneoff, var, cmp))
         if stop is None:
             self.write("0")
         else:
             self.visit(stop)
-        self.write("; {}={}{}".format(var, var, op))
+        self.write("; {} = {} {} ".format(var, var, op))
         if step is None:
             self.write("1")
         else:
@@ -1332,7 +1363,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             # elif isinstance(obj, _SliceSignal):
             #     addSignBit = isMixedExpr
             #     s = obj._name
-            elif isinstance(obj, _Signal):
+            elif isinstance(obj, (_Signal, Array)):
                 addSignBit = isMixedExpr
                 s = str(obj)
             elif _isMem(obj):
@@ -1817,20 +1848,29 @@ myhdl_header = """\
 
 
 def _getRangeString(s):
-    if s._type is bool:
+    obj = s._dtype if isinstance(s, Array) else s
+    if obj._type is bool:
         return ''
-    elif s._nrbits is not None:
-        nrbits = s._nrbits
-        return "[{}:0] ".format(nrbits - 1)
+    elif obj._nrbits is not None:
+        nrbits = obj._nrbits
+        return f"[{nrbits} - 1:0] "
     else:
         raise AssertionError
 
 
 def _getSignString(s):
-    if s._min is not None and s._min < 0:
+    obj = s._dtype if isinstance(s, Array) else s
+    if obj._min is not None and obj._min < 0:
         return "signed "
     else:
         return ''
+
+
+def _getSizes(a):
+    ss = []
+    for n in a.shape:
+        ss.append(f'[0:{n} - 1]')
+    return ''.join(ss)
 
 
 def _getArraySize(m):

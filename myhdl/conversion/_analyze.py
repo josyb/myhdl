@@ -44,6 +44,7 @@ from myhdl._always_seq import _AlwaysSeq
 from myhdl._always import _Always
 from myhdl._extractHierarchy import _isMem, _getMemInfo, _UserCode
 from myhdl._Signal import _Signal, _WaiterList, Constant
+from myhdl._structured import Array
 from myhdl._ShadowSignal import _ShadowSignal, _SliceSignal, _TristateDriver
 from myhdl._util import _isTupleOfInts
 from myhdl._util import _makeAST
@@ -115,16 +116,16 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 continue
 
             s._name = _makeName(n, prefixes, namedict)
-            if isinstance(s, Constant):
+            if isinstance(s, (Constant, Array)):
                 pass
             else:
                 if not s._nrbits:
                     raise ConversionError(_error.UndefinedBitWidth, s._name)
 
-            # slice signals
-            # ic(s._slicesigs)
-            for sl in s._slicesigs:
-                sl._setName(hdl)
+                # slice signals
+                # ic(s._slicesigs)
+                for sl in s._slicesigs:
+                    sl._setName(hdl)
 
             siglist.append(s)
 
@@ -195,10 +196,14 @@ def _analyzeGens(top, absnames):
                         tree.nonlocaldict[n] = obj
             # tree.name = absnames.get(id(g), str(_Label("BLOCK"))).upper()
             tree.name = absnames.get(id(g), str(_Label("BLOCK"))).lower()
+
+            # we only need _AttrRefTransformer to 'support' 'interface's
             v = _AttrRefTransformer(tree)
             v.visit(tree)
+
             v = _FirstPassVisitor(tree)
             v.visit(tree)
+
             if isinstance(g, _AlwaysComb):
                 v = _AnalyzeAlwaysCombVisitor(tree, g.senslist)
             elif isinstance(g, _AlwaysSeq):
@@ -218,10 +223,14 @@ def _analyzeGens(top, absnames):
             tree.callstack = []
             # tree.name = absnames.get(id(g), str(_Label("BLOCK"))).upper()
             tree.name = absnames.get(id(g), str(_Label("BLOCK"))).lower()
+
+            # we only need _AttrRefTransformer to 'support' 'interface's
             v = _AttrRefTransformer(tree)
             v.visit(tree)
+
             v = _FirstPassVisitor(tree)
             v.visit(tree)
+
             v = _AnalyzeBlockVisitor(tree)
             v.visit(tree)
 
@@ -1235,7 +1244,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
     def __init__(self, tree):
         _AnalyzeVisitor.__init__(self, tree)
         for n, v in self.tree.symdict.items():
-            if isinstance(v, _Signal):
+            if isinstance(v, (_Signal, Array)):
                 self.tree.sigdict[n] = v
 
     def visit_FunctionDef(self, node):
@@ -1405,7 +1414,7 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
             self.tree.argnames.append(n)
 
         for n, v in self.tree.symdict.items():
-            if isinstance(v, (_Signal, intbv)):
+            if isinstance(v, (_Signal, Array, intbv)):
                 self.tree.sigdict[n] = v
 
         for stmt in node.body:
@@ -1491,6 +1500,9 @@ def _analyzeTopFunc(func, hdl, *args, **kwargs):
     # now expand the interface objects
     # ic(objs)
     for name, obj in objs:
+        if isinstance(obj, Array):
+            continue
+
         if hasattr(obj, '__dict__'):
             # must be an interface object (probably ...?)
             expandinterface(v, name, obj)
@@ -1548,8 +1560,9 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         i = -1
         for i, arg in enumerate(self.args):
             n = self.argnames[i]
+            ic(n, arg)
             self.fullargdict[n] = arg
-            if isinstance(arg, _Signal) or _isMem(arg):
+            if isinstance(arg, (_Signal, Array)) or _isMem(arg):
                 self.argdict[n] = arg
 
         for n in self.argnames[i + 1:]:
@@ -1560,3 +1573,4 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                     self.argdict[n] = arg
 
         self.argnames = [n for n in self.argnames if n in self.argdict]
+        ic(self.argdict, self.argnames)

@@ -49,6 +49,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
 from myhdl._Signal import _Signal
+from myhdl._structured import Array
 from myhdl._block import _Block
 from myhdl._extractHierarchy import _isMem, _getMemInfo
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
@@ -255,12 +256,15 @@ class Converter(object):
                     ### clean-up properly ###
                     # self._cleanup(siglist, memlist)
                     for sig in siglist:
-                        # sig._clear()
                         sig._name = None
-                        sig._inList = False
-                        for sl in sig._slicesigs:
-                            sl._name = None
-                            sl._inList = False
+                        if isinstance(sig, _Signal):
+                            # sig._clear()
+                            sig._inList = False
+                            for sl in sig._slicesigs:
+                                sl._name = None
+                                sl._inList = False
+                        elif isinstance(sig, Array):
+                            pass
 
                     for mem in memlist:
                         mem.name = None

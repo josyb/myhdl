@@ -184,6 +184,11 @@ class _Signal(object):
             else:
                 self._printVcd = self._printVcdHex
 
+        elif isinstance(val, float):
+            self._type = float
+            self._setNextVal = self._setNextNonmutable
+            self._printVcd = self._printVcdFloat
+
         else:
             self._type = type(val)
             if isinstance(val, EnumItemType):
@@ -388,6 +393,9 @@ class _Signal(object):
     def _printVcdFixbv(self):
         print(f"r{self._fval} {self._code[1]}", file=sim._tf)
         print(f"b{bin(self._val.ord, self._wl)} {self._code[0]}", file=sim._tf)
+
+    def _printVcdFloat(self):
+        print(f"r{self._val} {self._code}", file=sim._tf)
 
     def _printVcdBit(self):
         if self._val is None:

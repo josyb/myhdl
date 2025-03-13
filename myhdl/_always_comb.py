@@ -20,8 +20,14 @@
 """ Module with the always_comb function. """
 from types import FunctionType
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl import AlwaysCombError
 from myhdl._Signal import _Signal, _isListOfSigs, Constant
+from myhdl._structured import Array
 from myhdl._util import _isGenFunc
 from myhdl._instance import _getCallInfo
 from myhdl._always import _Always
@@ -60,15 +66,21 @@ class _AlwaysComb(_Always):
         if self.embedded_func:
             raise AlwaysCombError(_error.EmbeddedFunction)
 
+        ic(self.inputs)
         for n in self.inputs:
             s = self.symdict[n]
             if isinstance(s, _Signal) and not isinstance(s, Constant):
                 senslist.append(s)
             elif _isListOfSigs(s) and not isinstance(s[0], Constant):
                 senslist.extend(s)
+            elif isinstance(s, Array) and not isinstance(s._dtype, Constant):
+                ic(s)
+                senslist.extend(s._array)
+
         self.senslist = tuple(senslist)
         if len(self.senslist) == 0:
             raise AlwaysCombError(_error.EmptySensitivityList)
+        ic(self.senslist)
 
     def genfunc(self):
         senslist = self.senslist

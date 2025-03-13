@@ -10,6 +10,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 from myhdl._util import _flatten
 from myhdl._enum import EnumType
 from myhdl._Signal import SignalType
+from myhdl._structured import Array
 
 
 class Data():
@@ -63,9 +64,15 @@ class _AttrRefTransformer(ast.NodeTransformer):
         # Don't handle enums and functions, handle signals as long as it is a new attribute
         if isinstance(obj, (EnumType, FunctionType)):
             return node
+
         elif isinstance(obj, SignalType):
             if hasattr(SignalType, node.attr):
                 return node
+
+# TODO: may have to resolve down ...
+        elif isinstance(obj, Array):
+#             print(obj, node.attr)
+            return node
 
         attrobj = getattr(obj, node.attr)
         orig_name = node.value.id + '.' + node.attr

@@ -9,6 +9,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 from myhdl._intbv import intbv
 from myhdl._Signal import _Signal, _isListOfSigs
+from myhdl._structured import Array
 
 
 class _SigNameVisitor(ast.NodeVisitor):
@@ -48,7 +49,7 @@ class _SigNameVisitor(ast.NodeVisitor):
         if n not in self.symdict:
             return
         s = self.symdict[n]
-        if isinstance(s, (_Signal, intbv)) or _isListOfSigs(s):
+        if isinstance(s, (_Signal, Array, intbv)) or _isListOfSigs(s):
             if self.context == 'input':
                 self.inputs.add(n)
             elif self.context == 'output':
@@ -60,8 +61,10 @@ class _SigNameVisitor(ast.NodeVisitor):
             else:
                 print(self.context)
                 raise AssertionError("bug in _SigNameVisitor")
-        if isinstance(s, _Signal):
+
+        if isinstance(s, (_Signal, Array)):
             self.sigdict[n] = s
+
         elif _isListOfSigs(s):
             # ic(n, s)
             self.losdict[n] = s
