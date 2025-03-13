@@ -60,6 +60,37 @@ def always_comb(func):
 class _AlwaysComb(_Always):
 
     def __init__(self, func, callinfo):
+
+        def senslistexpand(senslist, reg):
+            if isinstance(reg, _Signal):
+                senslist.append(reg)
+
+            # elif isinstance(reg, StructType):
+            #     refs = vars(reg)
+            #     for k in refs:
+            #         if isinstance(refs[k], _Signal):
+            #             senslist.append(refs[k])
+            #         elif isinstance(refs[k], (list, Array)):
+            #             if len(refs[k]) != 0:
+            #                 senslistexpand(senslist, refs[k])
+            #         elif isinstance(refs[k], StructType):
+            #             senslistexpand(senslist, refs[k])
+            #         else:
+            #             pass
+
+            elif isinstance(reg, (list, Array)):
+                if isinstance(reg[0], (list, Array)):
+                    for r in reg:
+                        senslistexpand(senslist, r)
+
+                else:
+                    # if isinstance(reg[0], StructType):
+                    #     for rr in reg:
+                    #         senslistexpand(senslist, rr)
+                    # el
+                    if isinstance(reg[0], _Signal):
+                        senslist.extend(reg)
+
         senslist = []
         super(_AlwaysComb, self).__init__(func, senslist, callinfo=callinfo)
 
@@ -69,13 +100,14 @@ class _AlwaysComb(_Always):
         ic(self.inputs)
         for n in self.inputs:
             s = self.symdict[n]
-            if isinstance(s, _Signal) and not isinstance(s, Constant):
-                senslist.append(s)
-            elif _isListOfSigs(s) and not isinstance(s[0], Constant):
-                senslist.extend(s)
-            elif isinstance(s, Array) and not isinstance(s._dtype, Constant):
-                ic(s)
-                senslist.extend(s._array)
+            # if isinstance(s, _Signal) and not isinstance(s, Constant):
+            #     senslist.append(s)
+            # elif _isListOfSigs(s) and not isinstance(s[0], Constant):
+            #     senslist.extend(s)
+            # elif isinstance(s, Array) and not isinstance(s._dtype, Constant):
+            #     ic(s)
+            #     senslist.extend(s._array)
+            senslistexpand(senslist, s)
 
         self.senslist = tuple(senslist)
         if len(self.senslist) == 0:
