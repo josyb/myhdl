@@ -131,7 +131,7 @@ class _Signal(object):
                  '_code', '_tracing', '_nrbits', '_checkVal',
                  '_setNextVal', '_printVcd', '_driven', '_driver',
                  '_read', '_readers', '_name', '_used', '_inList', '_waiter',
-                 'toVHDL', 'toVerilog', '_slicesigs',
+                 'toVHDL', 'toVerilog', '_slicesigs', '_tracename',
                  )
 
     def __init__(self, val=None):
@@ -153,6 +153,7 @@ class _Signal(object):
         self._used = False
         self._inList = False
         self._nrbits = 0
+        self._tracename = None
         self._printVcd = self._printVcdStr
         if isinstance(val, bool):
             self._type = bool

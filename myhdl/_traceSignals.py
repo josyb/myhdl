@@ -206,14 +206,14 @@ def _writeVcdSigs(f, hierarchy, tracelists):
 
     def expandstructuredsigs(signame, mem, memindex, level=0):
         if isinstance(mem, (list, Array)):
-            ic(signame, mem, memindex, level)
+            # ic(signame, mem, memindex, level)
             assert len(mem), f"empty list or Array: {signame}"
             if isinstance(mem[0], (list, Array)):
                 for idx, mmm in enumerate(mem):
                     nextname = f'{signame}({idx})'
                     expandstructuredsigs(nextname, mmm, memindex, level + 1)
             else:
-                ic(signame, mem, memindex, level)
+                # ic(signame, mem, memindex, level)
                 # lowest (= last) level of m1D
                 # but the 'element' may be an interface ...
                 for idx, obj in enumerate(mem):
@@ -238,14 +238,14 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                 sig._tracing = 1
                 if isinstance(sig.val, fixbv):
                     # we need two symbols, one for the real and the other for the integer part
-                    sig._code = (next(namegen), next(namegen))
+                    sig._code = (next(codegen), next(codegen))
                 else:
-                    sig._code = next(namegen)
+                    sig._code = next(codegen)
 
                 # ic(repr(sig), sig.val, sig._code)
                 siglist.append(sig)
 
-            ic(sig, signame, memindex, level)
+            # ic(sig, signame, memindex, level)
 
             w = sig._nrbits
             signame = signame.replace('self_', '')
@@ -253,7 +253,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                 signame = f'{signame}({memindex})'
             fullpathname = '_'.join((fullpathprefix, signame))
             # ic(fullpathname, fullpathnames)
-
+            sig._tracename = fullpathname
             if fullpathname not in fullpathnames:
                 fullpathnames.append(fullpathname)
                 if w:
@@ -280,7 +280,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                     print(f"{' '*indent}$var {vcdtype} {ww} {sig._code} {signame} $end", file=f)
 
     previouslevel = 0
-    namegen = _genNameCode()
+    codegen = _genNameCode()
     siglist = []
     indent = 2
     upscopestack = []
@@ -294,7 +294,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
         memdict = inst.memdict
         delta = previouslevel - level
         previouslevel = level
-        ic(level, name, sigdict, memdict, delta)
+        # ic(level, name, sigdict, memdict, delta)
 
         if name is None:
             # an @block(skipname=True) has been applied for this 'inst'
@@ -322,7 +322,7 @@ def _writeVcdSigs(f, hierarchy, tracelists):
 
             elif isinstance(s, Array):
                 # this may be a multidimensional thing ...
-                ic(n, s)
+                # ic(n, s)
                 print(f"{' '*indent}$scope module {n} $end", file=f)
                 indent += 2
                 expandstructuredsigs(n, s._array, 0)
@@ -349,9 +349,9 @@ def _writeVcdSigs(f, hierarchy, tracelists):
 #                             s._tracing = 1
 #                             if isinstance(s.val, fixbv):
 #                                 # we need two symbols, one for the real and the other for the integer part
-#                                 s._code = (next(namegen), next(namegen))
+#                                 s._code = (next(codegen), next(codegen))
 #                             else:
-#                                 s._code = next(namegen)
+#                                 s._code = next(codegen)
 #
 #                             # ic(repr(s), s.val, s._code)
 #                             siglist.append(s)

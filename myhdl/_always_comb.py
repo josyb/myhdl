@@ -97,7 +97,7 @@ class _AlwaysComb(_Always):
         if self.embedded_func:
             raise AlwaysCombError(_error.EmbeddedFunction)
 
-        ic(self.inputs)
+        # ic(self.inputs)
         for n in self.inputs:
             s = self.symdict[n]
             # if isinstance(s, _Signal) and not isinstance(s, Constant):
@@ -112,7 +112,7 @@ class _AlwaysComb(_Always):
         self.senslist = tuple(senslist)
         if len(self.senslist) == 0:
             raise AlwaysCombError(_error.EmptySensitivityList)
-        ic(self.senslist)
+        # ic(self.senslist)
 
     def genfunc(self):
         senslist = self.senslist

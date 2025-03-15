@@ -118,6 +118,8 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
             s._name = _makeName(n, prefixes, namedict)
             if isinstance(s, (Constant, Array)):
                 pass
+            elif isinstance(s, _Signal) and s._type is float:
+                pass
             else:
                 if not s._nrbits:
                     raise ConversionError(_error.UndefinedBitWidth, s._name)
@@ -1560,7 +1562,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
         i = -1
         for i, arg in enumerate(self.args):
             n = self.argnames[i]
-            ic(n, arg)
+            # ic(n, arg)
             self.fullargdict[n] = arg
             if isinstance(arg, (_Signal, Array)) or _isMem(arg):
                 self.argdict[n] = arg
@@ -1573,4 +1575,4 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                     self.argdict[n] = arg
 
         self.argnames = [n for n in self.argnames if n in self.argdict]
-        ic(self.argdict, self.argnames)
+        # ic(self.argdict, self.argnames)

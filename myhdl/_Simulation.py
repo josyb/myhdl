@@ -22,10 +22,15 @@ import os
 from operator import itemgetter
 from types import GeneratorType
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl import StopSimulation, _SuspendSimulation
 from myhdl import _simulator, SimulationError
 from myhdl._Cosimulation import Cosimulation
-from myhdl._simulator import _signals, _siglist, _futureEvents
+from myhdl._simulator import _signals, _siglist, _futureEvents, _time
 from myhdl._Waiter import _Waiter
 from myhdl._Waiter import _inferWaiter
 from myhdl._Waiter import _SignalTupleWaiter
@@ -43,7 +48,7 @@ class _error:
 _error.ArgType = "Inappriopriate argument type"
 _error.MultipleCosim = "Only a single cosimulator argument allowed"
 _error.DuplicatedArg = "Duplicated argument"
-
+_error.CombinatorialLoopDetected = "Combinatorial Loop detected"
 # flatten Block objects out
 
 
@@ -139,18 +144,29 @@ class Simulation(object):
         _pop = waiters.pop
         _append = waiters.append
         _extend = waiters.extend
-
+        delta = 0
         while 1:
             try:
+                # ic(_simulator._time, delta)
+                delta += 1
+                # TODO:  perhaps make this limit 'programmable'
+                if delta >= 10000:
+                    # probably caught a combinatorial loop, how come?
+                    # give out a clue ...
+                    raise SimulationError(_error.CombinatorialLoopDetected,
+                                          f'{_siglist[0]._tracename}' if _simulator._tracing else
+                                          ' Enable tracing, `dft.config_sim(trace=True, ...)`, and rerun the simulation to find the culprit')
 
                 for s in _siglist:
                     _extend(s._update())
+
                 del _siglist[:]
 
                 while waiters:
                     waiter = _pop()
                     try:
                         waiter.next(waiters, actives, exc)
+
                     except StopIteration:
                         continue
 
@@ -159,8 +175,10 @@ class Simulation(object):
                     for cosim in cosims:
                         any_cosim_changes = \
                             any_cosim_changes or cosim._hasChange
+
                     for cosim in cosims:
                         cosim._get()
+
                     if _siglist or any_cosim_changes:
                         # It should be safe to _put a cosim with no changes
                         # because _put with the same values should be
@@ -169,12 +187,14 @@ class Simulation(object):
                         for cosim in cosims:
                             cosim._put(t)
                         continue
+
                 elif _siglist:
                     continue
 
                 if actives:
                     for wl in actives.values():
                         wl.purge()
+
                     actives = {}
 
                 # at this point it is safe to potentially suspend a simulation
@@ -184,15 +204,18 @@ class Simulation(object):
                 # future events
                 if _futureEvents:
                     if t == maxTime:
-                        raise _SuspendSimulation(
-                            "Simulated %s timesteps" % duration)
+                        raise _SuspendSimulation("Simulated %s timesteps" % duration)
+
                     _futureEvents.sort(key=itemgetter(0))
                     t = _simulator._time = _futureEvents[0][0]
+                    delta = 0
                     if tracing:
                         print("#%s" % t, file=tracefile)
+
                     if cosims:
                         for cosim in cosims:
                             cosim._put(t)
+
                     while _futureEvents:
                         newt, event = _futureEvents[0]
                         if newt == t:
@@ -201,21 +224,26 @@ class Simulation(object):
                             else:
                                 _extend(event.apply())
                             del _futureEvents[0]
+
                         else:
                             break
+
                 else:
                     raise StopSimulation("No more events")
 
             except _SuspendSimulation:
                 if not quiet:
                     _printExcInfo()
+
                 if tracing:
                     tracefile.flush()
+
                 return 1
 
             except StopSimulation:
                 if not quiet:
                     _printExcInfo()
+
                 self._finalize()
                 self._finished = True
                 return 0
@@ -223,11 +251,13 @@ class Simulation(object):
             except Exception as e:
                 if tracing:
                     tracefile.flush()
+
                 # if the exception came from a yield, make sure we can resume
                 if exc and e is exc[0]:
                     pass  # don't finalize
                 else:
                     self._finalize()
+
                 # now reraise the exepction
                 raise
 
@@ -239,22 +269,29 @@ def _makeWaiters(arglist):
     for arg in arglist:
         if isinstance(arg, GeneratorType):
             waiters.append(_inferWaiter(arg))
+
         elif isinstance(arg, _Instantiator):
             waiters.append(arg.waiter)
+
         elif isinstance(arg, Cosimulation):
             cosims.append(arg)
             waiters.append(_SignalTupleWaiter(arg._waiter()))
+
         elif isinstance(arg, _Waiter):
             waiters.append(arg)
+
         elif arg == True:
             pass
         else:
             raise SimulationError(_error.ArgType, str(type(arg)))
+
         if id(arg) in ids:
             raise SimulationError(_error.DuplicatedArg)
+
         ids.add(id(arg))
     # add waiters for shadow signals
     for sig in _signals:
         if hasattr(sig, '_waiter'):
             waiters.append(sig._waiter)
+
     return waiters, cosims

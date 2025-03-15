@@ -144,21 +144,27 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def _sigorportdecl(self, name, sigorport):
-        ic(sigorport, type(sigorport))
+        # ic(sigorport, type(sigorport))
         r = _getRangeString(sigorport)
         p = _getSignString(sigorport)
         if isinstance(sigorport, Array):
             n = _getSizes(sigorport)
-            return f"logic {p}{r}{name} {n}"
+            if sigorport._dtype._type is float:
+                return f"real  {p}{r}{name} {n}"
+            else:
+                return f"logic {p}{r}{name} {n}"
 
         elif isinstance(sigorport, _TristateSignal):
             return f"wire {p}{r}{name}"
+
+        elif sigorport._type is float:
+            return f"real  {p}{r}{name}"
 
         else:
             return f"logic {p}{r}{name}"
 
     def writeModuleHeader(self, intf, sourcepath):
-        ic(intf.name, intf.argnames, intf.argdict, intf.sigdict)
+        # ic(intf.name, intf.argnames, intf.argdict, intf.sigdict)
         self.sourcepath = sourcepath
         self.writeFileHeader(sourcepath)
         doc = _makeDoc(inspect.getdoc(intf), self.comment)
@@ -189,7 +195,7 @@ class SystemVerilogWriter(object):
         for portname in intf.argnames:
             s = intf.argdict[portname]
             if isinstance(s, (_Signal, Array)):
-                ic(s._info)
+                # ic(s._info)
                 if s._name is None:
                     raise ToSystemVerilogError(_error.ShadowingSignal, portname)
 
@@ -363,7 +369,7 @@ class SystemVerilogWriter(object):
         return "".join((s, ",".join(args), "\n        );\n\n"))
 
     def writeDecls(self, intf, siglist, memlist):
-        ic(intf.name, siglist, memlist)
+        # ic(intf.name, siglist, memlist)
         constwires = []
         for s in siglist:
             # ic(s._info)
@@ -380,33 +386,37 @@ class SystemVerilogWriter(object):
                 continue
 
             if isinstance(s, Array):
+                t = _getTypeNetString(s)
                 r = _getRangeString(s)
                 p = _getSignString(s)
                 n = _getSizes(s)
                 if s._driven:
                     if not self.initial_values:
-                        print(f"    logic {p}{r}{signame} {n};", file=self.file)
+                        print(f"    {t} {p}{r}{signame} {n};", file=self.file)
+                    else:
+                        raise NotImplementedError('Must add initialistion of Array')
 
             else:
+                t = _getTypeNetString(s)
                 r = _getRangeString(s)
                 p = _getSignString(s)
                 if s._driven:
                     if not s._read and not isinstance(s, _TristateDriver):
                         warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToSystemVerilogWarning)
-                    k = 'wire'
-                    if s._driven == 'reg':
-                        # default to single driver type only
-                        k = 'logic'
+                    # k = 'wire'
+                    # if s._driven == 'reg':
+                    #     # default to single driver type only
+                    #     k = 'logic'
                     # the following line implements initial value assignments
                     # don't initial value "wire", inital assignment to a wire
                     # equates to a continuous assignment [reference]
-                    if not self.initial_values or k == 'wire':
-                        print(f"    {k} {p}{r}{signame};", file=self.file)
+                    if not self.initial_values or t == 'wire ':
+                        print(f"    {t} {p}{r}{signame};", file=self.file)
                     else:
                         if isinstance(s._init, EnumItemType):
-                            print(f"    {k} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                            print(f"    {t} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
                         else:
-                            print(f"    {k} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
+                            print(f"    {t} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
 
                 elif s._read:
                     if isinstance(s, Constant):
@@ -1849,7 +1859,7 @@ myhdl_header = """\
 
 def _getRangeString(s):
     obj = s._dtype if isinstance(s, Array) else s
-    if obj._type is bool:
+    if obj._type is bool or obj._type is float:
         return ''
     elif obj._nrbits is not None:
         nrbits = obj._nrbits
@@ -1864,6 +1874,14 @@ def _getSignString(s):
         return "signed "
     else:
         return ''
+
+
+def _getTypeNetString(s):
+    if isinstance(s, Array):
+        return 'real '  if s._dtype._type is float else 'logic'
+    else:
+        # must be a signal
+        return 'logic'  if s._driven == 'reg' else 'wire '
 
 
 def _getSizes(a):

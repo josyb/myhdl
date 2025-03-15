@@ -110,7 +110,7 @@ class Converter(object):
         if self.name is None:
             self.name = func.func.__name__
 
-        ic(self.name)
+        # ic(self.name)
 
         try:
             h = _getHierarchy(self.name, func)
@@ -293,7 +293,7 @@ class Converter(object):
 
         else:
             # TODO: check if we can refactor this code into the 'generic hierachical' branch
-            ic('We flatten the design')
+            # ic('We flatten the design')
 
             arglist = _flattenhierarchy(self.hdl, h.top)
             _checkArgs(arglist)

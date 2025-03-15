@@ -216,7 +216,7 @@ class block(object):
 class _Block(object):
 
     def __init__(self, func, deco, name, srcfile, srcline, *args, **kwargs):
-        ic(func, deco, name, args, kwargs)
+        # ic(func, deco, name, args, kwargs)
         # calls = deco.calls
 
         self.func = func
@@ -354,11 +354,11 @@ class _Block(object):
 
     def _inferInterface(self, hdl):
         from myhdl.conversion._analyze import _analyzeTopFunc
-        ic(self.args)
+        # ic(self.args)
         intf = _analyzeTopFunc(self.func, hdl, *self.args, **self.kwargs)
         self.argnames = intf.argnames
         self.argdict = intf.argdict
-        ic(self.argnames, self.argdict)
+        # ic(self.argnames, self.argdict)
 
     # Public methods
     # The puropse now is to define the API, optimizations later
