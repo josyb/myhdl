@@ -60,7 +60,7 @@ _memInfoMap = {}
 
 
 class _MemInfo(object):
-    __slots__ = ['mem', 'name', 'elObj', 'depth', '_used', '_driven', '_read']
+    __slots__ = ['mem', 'name', 'elObj', 'depth', '_used', '_driven', '_read', '_readers']
 
     def __init__(self, mem):
         self.mem = mem
@@ -70,6 +70,7 @@ class _MemInfo(object):
         self._used = False
         self._driven = None
         self._read = None
+        self._readers = []
 
     def __repr__(self):
         if self.name:

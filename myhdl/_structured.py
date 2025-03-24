@@ -26,7 +26,8 @@ inspired by previous work starting in 2015
 
 import math
 
-from myhdl._Signal import _isListOfSigs, _Signal
+from myhdl._Signal import _isListOfSigs, _Signal, Signal
+from myhdl._intbv import intbv
 from myhdl._simulator import _siglist
 
 
@@ -41,24 +42,27 @@ def setnext(obj, value):
         if isinstance(value, int):
             for i, item in enumerate(obj):
                 setnext(item, value)
+
         else:
             for i, item in enumerate(obj):
                 setnext(item, value[i])
-    # elif isinstance(obj, StructType):
-    #     if isinstance(value, StructType):
-    #         # assume the objects are of the same type ...
-    #         dests = vars(obj)
-    #         srcs = vars(value)
-    #         for key in dests:
-    #             setnext(dests[key], srcs[key])
-    #     else:
-    #         # the values are a collection of integers...
-    #         # use the sequencelist to enumerate the value
-    #         idx = 0
-    #         for key in obj.sequencelist:
-    #             if hasattr(obj, key):
-    #                 setnext(vars(obj)[key], value[idx])
-    #                 idx += 1
+
+    elif isinstance(obj, StructType):
+        if isinstance(value, StructType):
+            # assume the objects are of the same type ...
+            dests = vars(obj)
+            srcs = vars(value)
+            for key in dests:
+                setnext(dests[key], srcs[key])
+
+        else:
+            # the values are a collection of integers...
+            # use the sequencelist to enumerate the value
+            idx = 0
+            for key in obj.sequencelist:
+                if hasattr(obj, key):
+                    setnext(vars(obj)[key], value[idx])
+                    idx += 1
 
     elif isinstance(obj, _Signal):
         if isinstance(value, _Signal):
@@ -75,6 +79,8 @@ class Array(object):
         
         10-03-205: initially we want to restrict this to be an alternative to the list of Signals
         later we will accept StructType, and Array itself ...
+        
+        Note that multi-dimensional Arrays ar e not yet fully tested or convertible?
     '''
 
     def __init__(self, *args):
@@ -95,7 +101,6 @@ class Array(object):
         self._read = False
         self._readers = []
         self._used = False
-
         self._shape = None
         self._size = None
         self._dtype = None
@@ -164,6 +169,24 @@ class Array(object):
             return self._name + '= ' + rval
         else:
             return rval
+
+    def ref(self):
+        ''' return a nice reference name for the object '''
+        obj = self.element._val if isinstance(self.element, _Signal) else self.element
+
+        if isinstance(obj, intbv):
+            basetype = '{}{}'.format('s' if obj._min < 0 else 'u', self.element._nrbits)
+        elif isinstance(obj, bool):
+            basetype = 'b'
+        elif isinstance(obj, StructType):
+            basetype = obj.ref()
+        else:
+            raise AssertionError
+
+        for _, dim in enumerate(reversed(self.shape)):
+            basetype = f'a{dim}_{basetype}'
+
+        return basetype
 
     def duplicate(self):
         return Array(self._shape, self._dtype)
@@ -332,3 +355,167 @@ class Array(object):
 #
 #     def __init__(self, array, left=None, right=None):
 #         self._parent = array
+
+
+class StructType(object):
+    ''' a base class
+        makes sure we can discriminate between our 'Struct' type and the 'interface' type
+        provides the methods
+    '''
+
+    def __init__(self):
+        '''
+            create the object
+        '''
+        self._name = None
+        self._driven = None
+        self._driver = None
+        self._read = False
+        self._used = False
+        self._size = None
+
+        self._slicesigs = []
+
+    def __repr__(self):
+        rval = f'StructType {self.__class__.__name__} {vars(self)}'
+        if self._name is None:
+            return rval
+        else:
+            return f'{self._name}: {rval}'
+
+    def duplicate(self):
+        ''' return a new object '''
+        # we build a new object
+        nobj = StructType()
+        # inherit the class name
+        nobj.__class__ = self.__class__
+        srcvars = vars(self)
+        for var in srcvars:
+            obj = srcvars[var]
+            if isinstance(obj, _Signal):
+                nobj.__setattr__(var, Signal(obj._val))
+
+            elif isinstance(obj, (StructType, Array)):
+                nobj.__setattr__(var, obj.copy())
+
+            elif isinstance(obj, list):
+                # List of anything
+                # presumably Signal
+                # but anything goes?
+                if len(obj) and isinstance(obj[0], (_Signal, Array, StructType)):
+                    siglist = []
+                    for sig in obj:
+                        siglist.append(sig.copy())
+                    nobj.__setattr__(var, siglist)
+
+                else:
+                    nobj.__setattr__(var, copy.deepcopy(obj))
+
+            else:
+                # fall back for others
+                nobj.__setattr__(var, copy.deepcopy(obj))
+
+    def _setNextVal(self, val):
+        refs = vars(self)
+        if isinstance(val, StructType):
+            vargs = vars(val)
+            for key in refs:
+                dst = refs[key]
+                if isinstance(dst, _Signal):
+                    src = vargs[key]
+                    if key in self.reversedirections:
+                        src._setNextVal(dst._val)
+                    else:
+                        if isinstance(src, _Signal):
+                            dst._setNextVal(src._val)
+                        else:
+                            dst._setNextVal(src)
+
+                elif isinstance(dst, (Array, StructType)):
+                    dst._setNextVal(vargs[key])
+
+        elif isinstance(val, tuple):
+            idx = 0
+            for key in self.sequencelist:
+                # do not process the 'None' in the tuple
+                if val[idx] is not None:
+                    obj = vars(self)[key]
+                    obj._setNextVal(val[idx])
+
+                idx += 1
+
+        elif isinstance(val, int):
+            pass
+
+    def _update(self):
+        ''' collect the waiters for all object in the current StructType
+            eventually delegating to Signal
+        '''
+        waiters = []
+        refs = vars(self)
+        for key in refs:
+            obj = refs[key]
+            if isinstance(obj, (_Signal, StructType, Array)):
+                waiters.extend(obj._update())
+            elif isinstance(obj, list):
+                for lobj in obj:
+                    if isinstance(lobj, (_Signal, Array, StructType)):
+                        waiters.extend(lobj._update())
+
+        return waiters
+
+    def ref(self):
+        ''' returns a condensed name representing the contents of the StructType, starting with the __class__ name'''
+        retval = 'r_{}'.format(self.__class__.__name__)
+        # should be in order of the sequencelist, if any
+        for key in vars(self).keys():
+            obj = vars(self)[key]
+            if isinstance(obj, _Signal):
+                if isinstance(obj._val, intbv):
+                    retval += '_{}{}'.format('s' if obj._min <
+                                             0 else 'u', obj._nrbits)
+                else:
+                    retval += '_b'
+
+            elif isinstance(obj, Array):
+                retval += '_' + obj.ref()
+
+            elif isinstance(obj, StructType):
+                retval += '_' + obj.ref() + '_j'
+
+            elif isinstance(obj, integer_types):
+                pass
+
+            else:
+                pass
+
+        return retval
+
+    # support for the 'next' attribute
+    @property
+    def next(self):
+        # this is only a placeholder
+        pass
+
+    @next.setter
+    def next(self, val):
+        self._setNextVal(val)
+        _siglist.append(self)
+
+    # support for the 'driven' attribute
+    @property
+    def driven(self):
+        if self._driven:
+            return self._driven
+        refs = vars(self)
+        for key in refs:
+            obj = refs[key]
+            if isinstance(obj, (_Signal, Array, StructType)):
+                return obj.driven
+        return False
+
+    @driven.setter
+    def driven(self, val):
+        if not val in ("reg", "wire", True):
+            raise ValueError('Expected value "reg", "wire", or True, got "%s"' % val)
+        self._driven = val

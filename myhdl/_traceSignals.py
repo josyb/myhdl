@@ -90,6 +90,7 @@ class _TraceSignalsClass(object):
         #         sys.setprofile(None)
 
         # from myhdl.conversion import _toVerilog
+        # TODO: check
         # if _toVerilog._converting:
         #     raise TraceSignalsError("Cannot use traceSignals while converting to Verilog")
 

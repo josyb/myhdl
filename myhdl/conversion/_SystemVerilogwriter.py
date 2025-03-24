@@ -42,14 +42,16 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 try:
     from astpretty import pformat as astdump
 except ImportError:
-    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+    def astdump(*args, **kwargs):
+        pass
 
 from myhdl import  ConversionError
 from myhdl import ToSystemVerilogError, ToSystemVerilogWarning
 from myhdl import __version__ as myhdlversion
 from myhdl._ShadowSignal import _TristateSignal, _TristateDriver
 from myhdl._Signal import Constant, _Signal, posedge, negedge
-from myhdl._structured import Array
+from myhdl._structured import Array, StructType
 from myhdl._concat import concat
 from myhdl._delay import delay
 from myhdl._enum import EnumItemType, EnumType
@@ -147,6 +149,7 @@ class SystemVerilogWriter(object):
         # ic(sigorport, type(sigorport))
         r = _getRangeString(sigorport)
         p = _getSignString(sigorport)
+        # t = _getPortTypeSytring(sigorport)
         if isinstance(sigorport, Array):
             n = _getSizes(sigorport)
             if sigorport._dtype._type is float:
@@ -193,6 +196,7 @@ class SystemVerilogWriter(object):
 
         # ANSI-style module declaration
         for portname in intf.argnames:
+            # ic(s._info)
             s = intf.argdict[portname]
             if isinstance(s, (_Signal, Array)):
                 # ic(s._info)
@@ -237,10 +241,11 @@ class SystemVerilogWriter(object):
                     print(f'    {d} {sigdecl},', file=b)
 
                 else:
+                    # ic(s, s._info)
                     if s._read:
                         if len(s._readers):
-                            ic(intf.name, s._info)
-                            if  intf.name in s._readers:
+                            # ic(intf.name, s._info)
+                            if intf.name in s._readers:
                                 print(f'    input  {sigdecl},', file=b)
                                 # a top level input may have ShadowSignals
                                 # which have not been processed by _analyzeSigs
@@ -255,24 +260,25 @@ class SystemVerilogWriter(object):
                                 for sl in s._slicesigs:
                                     sl._setName('Verilog')
 
-                    elif s._used:
-                        # TODO:
-                        # hack to pick up free variables when using functions
-                        # look in test_dec.py: decTaskFreeVar()
-                        # 'enable' is only read in a function and hasn't got `_read` set
-                        # BUT this hack only seems to work when running py.test
-                        # and not when simply converting
-                        # ... where is the difference?
-                        # found it: `enable` is also used in other `block`s ...
-                        print(f'    input  {sigdecl},', file=b)
+                    # TODO:
+                    # elif s._used:
+                    #     # hack to pick up free variables when using functions
+                    #     # look in test_dec.py: decTaskFreeVar()
+                    #     # 'enable' is only read in a function and hasn't got `_read` set
+                    #     # BUT this hack only seems to work when running py.test
+                    #     # and not when simply converting
+                    #     # ... where is the difference?
+                    #     # found it: `enable` is also used in other `block`s ...
+                    #     # We must change the code so that the 'function' sets the `_read` attribute
+                    #     print(f'    input  {sigdecl},', file=b)
 
                     else:
                         # not s._used and not s._read ...
                         # or we could go silent on this?
                         warnings.warn(f"{intf.name}: {_error.UnusedPort}: {repr(s)}", category=ToSystemVerilogWarning)
 
-            # elif isinstance(s, StructType):
-            #     pass
+            elif isinstance(s, StructType):
+                pass
 
             elif _isMem(s):
                 m = _getMemInfo(s)
@@ -313,7 +319,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def hierarchicalinstance(self, sub):
-        ic(sub.name, sub.argnames, sub.sigdict)
+        # ic(sub.name, sub.argnames, sub.sigdict)
         args = []
         # first look for parameters
         parameters = []
@@ -345,18 +351,20 @@ class SystemVerilogWriter(object):
                 # ic(i, arg, signame)
                 if isinstance(sig, OpenPort):
                     pass
+
                 elif isinstance(sig, Parameter):
                     pass
+
                 elif isinstance(sig, (_Signal, Array)):
                     if sig._used:
                         if sig._driven:
                             args.append(f"\n        .{arg}({signame})")
                         elif sig._read:
-                            ic(sig._info)
+                            # ic(sig._info)
                             if len(sig._readers):
-                                ic(sub.name, sig._info, repr(sig._readers))
+                                # ic(sub.name, sig._info, repr(sig._readers))
                                 if sub.name in sig._readers:
-                                    ic('Gotcha?')
+                                    # ic('Gotcha?', signame)
                                     args.append(f"\n        .{arg}({signame})")
                             else:
                                 args.append(f"\n        .{arg}({signame})")
@@ -667,6 +675,7 @@ class SystemVerilogWriter(object):
 class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def __init__(self, tree, buf, writer):
+        ic(self, tree)
         self.tree = tree
         self.buf = buf
         self.returnLabel = tree.name
@@ -676,6 +685,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack = []
         self.context = _context.UNKNOWN
         self.writer = writer
+        self.lhsfixbv = None
 
     def raiseError(self, node, kind, msg=""):
         lineno = self.getLineNo(node)
@@ -921,6 +931,10 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                         # this doesn't seem to work?
                         # self.buf.seek(-1, os.SEEK_END)
                         return
+                    elif isinstance(obj._val, fixbv):
+                        # we may have to shift left some things ...
+                        # ic(obj._info, astdump(node, show_offsets=False), (vars(node)))
+                        self.lhsfixbv = obj
 
             self.visit(node.targets[0])
             if isinstance(node.targets[0], ast.Attribute) and isinstance(node.value, ast.Constant):
@@ -933,6 +947,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.visit(node.value)
             self.write(';')
             self.writer.emitline()
+            # make sure
+            self.lhsfixbv = None
 
     def visit_AugAssign(self, node, *args):
         # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
@@ -951,6 +967,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visit_Call(self, node):
+        ic(node)
         # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.context = None
         fn = node.func
@@ -1357,35 +1374,49 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if n in self.tree.vardict:
             addSignBit = isMixedExpr
             s = n
+
         elif n in self.tree.argnames:
             assert n in self.tree.symdict
             addSignBit = isMixedExpr
             s = n
+
         elif n in self.tree.symdict:
             obj = self.tree.symdict[n]
             # ic(type(obj), repr(obj))
             if isinstance(obj, bool):
                 s = "1'b{}".format(int(obj))
+
             elif isinstance(obj, int):
                 s = self.IntRepr(obj)
+
             elif isinstance(obj, tuple):  # Python3.9+ ast.Index replacement serves a tuple
                 s = n
+
             # elif isinstance(obj, _SliceSignal):
             #     addSignBit = isMixedExpr
             #     s = obj._name
-            elif isinstance(obj, (_Signal, Array)):
+
+            elif isinstance(obj, _Signal):
                 addSignBit = isMixedExpr
                 s = str(obj)
+
+            elif isinstance(obj, Array):
+                s = obj._name
+
             elif _isMem(obj):
                 m = _getMemInfo(obj)
                 assert m.name
                 s = m.name
+
             elif isinstance(obj, EnumItemType):
                 s = obj._toVerilog()
+
             elif (type(obj) in (type,)) and issubclass(obj, Exception):
                 s = n
+
             else:
                 self.raiseError(node, _error.UnsupportedType, "{}, {} {}".format(n, type(obj), obj))
+
         else:
             raise AssertionError("name ref: {}".format(n))
 
@@ -1719,6 +1750,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         sigregs = self.tree.sigregs
         varregs = self.tree.varregs
         if reset is not None:
+            # ic(sigregs)
             self.writeline()
             self.write("if ({} == {}) begin".format(reset, int(reset.active)))
             self.indent()
@@ -1755,6 +1787,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         else:
             assert isinstance(reg, intbv)
             tipe = intbv
+
         if tipe is bool:
             v = '1' if init else '0'
         elif tipe is fixbv:
@@ -1763,9 +1796,13 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         elif tipe is intbv:
             init = int(init)  # int representation
             v = "{}".format(init) if init is not None else "'bz"
-        else:
-            assert isinstance(init, EnumItemType), '<> {}'.format(repr(init))
+        elif isinstance(init, EnumItemType):
             v = init._toVerilog()
+
+        else:
+            # TODO: replace with ConversionError?
+            raise ValueError(f" don't know how to handle {repr(reg)} -> {repr(init)}")
+
         return v
 
 
@@ -1857,6 +1894,39 @@ myhdl_header = """\
 """
 
 
+def _getPortStrings(s):
+    obj = s._dtype if isinstance(s, Array) else s
+    if isinstance(obj, Constant):
+        t = 'parameter'
+    elif isinstance(obj, fixbv):
+        pass
+    elif isinstance(obj, intbv):
+        pass
+    elif isinstance(obj, bool):
+        pass
+    elif isinstance(obj, int):
+        pass
+    else:
+        if isinstance(obj._val, float):
+            pass
+        elif isinstance(obj._val, bool):
+            pass
+        elif isinstance(obj._val, int):
+            pass
+        elif isinstance(obj._val, intbv):
+            pass
+
+
+    #
+    #     r = '' if (obj._type is bool or obj._type is float) else return f"[{obj_nrbits} - 1:0] "
+    #     s = 'signed' if obj._min is not None and obj._min < 0: else ''
+    #     if isinstance(s, Array):
+    #         t = 'real '  if s._dtype._type is float else 'logic'
+    #     else:
+    #         # must be a signal
+    #         t = 'logic'  if s._driven == 'reg' else 'wire '
+    #
+    # return t,r,s
 def _getRangeString(s):
     obj = s._dtype if isinstance(s, Array) else s
     if obj._type is bool or obj._type is float:
@@ -1874,6 +1944,13 @@ def _getSignString(s):
         return "signed "
     else:
         return ''
+
+# def _getPortTypeSytring(s):
+#     obj = s._dtype if isinstance(s, Array) else s
+#     if isinstance(s._val, float):
+#         return 'real '
+#     elif isinstance(s._val, int):
+#         return
 
 
 def _getTypeNetString(s):

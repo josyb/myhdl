@@ -183,9 +183,9 @@ from ._openport import OpenPort
 from ._hdlclass import HdlClass
 from ._fixbv import fixbv
 from ._structured import Array
+from ._tristate import Tristate
 
 from myhdl import conversion
-from ._tristate import Tristate
 
 __all__ = [
            "always",

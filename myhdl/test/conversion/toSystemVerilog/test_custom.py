@@ -166,7 +166,7 @@ def inc_seq(count, nextCount, enable, clock, reset):
 
     count.driven = "reg"
     nextCount.read = True
-
+    enable.read = True
     inc_seq.verilog_code = \
 """
 always @(posedge $clock, negedge $reset) begin

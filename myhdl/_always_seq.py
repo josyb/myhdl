@@ -120,11 +120,14 @@ class _AlwaysSeq(_Always):
             reg = self.symdict[n]
             if isinstance(reg, _Signal):
                 sigregs.append(reg)
+
             elif isinstance(reg, intbv):
                 varregs.append((n, reg, int(reg)))
+
             elif isinstance(reg, Array):
                 for e in reg._array:
                     sigregs.append(e)
+
             else:
                 assert _isListOfSigs(reg)
                 for e in reg:

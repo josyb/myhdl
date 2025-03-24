@@ -154,7 +154,7 @@ class Simulation(object):
                     # probably caught a combinatorial loop, how come?
                     # give out a clue ...
                     raise SimulationError(_error.CombinatorialLoopDetected,
-                                          f'{_siglist[0]._tracename}' if _simulator._tracing else
+                                          f'clue: <{_siglist[0]._tracename}>' if _simulator._tracing else
                                           ' Enable tracing, `dft.config_sim(trace=True, ...)`, and rerun the simulation to find the culprit')
 
                 for s in _siglist:

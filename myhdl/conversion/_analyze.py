@@ -35,7 +35,10 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 try:
     from astpretty import pformat as astdump
 except ImportError:
-    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+    # astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+    def astdump(*args, **kwargs):
+        pass
 
 import myhdl
 from myhdl import ConversionError
@@ -47,7 +50,7 @@ from myhdl._Signal import _Signal, _WaiterList, Constant
 from myhdl._structured import Array
 from myhdl._ShadowSignal import _ShadowSignal, _SliceSignal, _TristateDriver
 from myhdl._util import _isTupleOfInts
-from myhdl._util import _makeAST
+from myhdl._util import _makeAST, _flatten
 from myhdl._resolverefs import _AttrRefTransformer
 from myhdl._intbv import intbv
 from myhdl._modbv import modbv
@@ -116,10 +119,19 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 continue
 
             s._name = _makeName(n, prefixes, namedict)
-            if isinstance(s, (Constant, Array)):
+            if isinstance(s, Constant):
                 pass
+
             elif isinstance(s, _Signal) and s._type is float:
                 pass
+
+            elif isinstance(s, Array):
+                for i, ss in enumerate(s._array):
+                    if hdl == 'VHDL':
+                        ss._name = f"{s._name}({i})"
+                    else:
+                        ss._name = f"{s._name}[{i}]"
+
             else:
                 if not s._nrbits:
                     raise ConversionError(_error.UndefinedBitWidth, s._name)
@@ -206,6 +218,9 @@ def _analyzeGens(top, absnames):
             v = _FirstPassVisitor(tree)
             v.visit(tree)
 
+            v = _FixbvAstTransformer(tree)
+            v.visit(tree)
+
             if isinstance(g, _AlwaysComb):
                 v = _AnalyzeAlwaysCombVisitor(tree, g.senslist)
             elif isinstance(g, _AlwaysSeq):
@@ -231,6 +246,9 @@ def _analyzeGens(top, absnames):
             v.visit(tree)
 
             v = _FirstPassVisitor(tree)
+            v.visit(tree)
+
+            v = _FixbvAstTransformer(tree)
             v.visit(tree)
 
             v = _AnalyzeBlockVisitor(tree)
@@ -324,6 +342,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
 
     def visit_Call(self, node):
+        ic(node)
         # ast.Call signature changed in python 3.5
         # http://greentreesnakes.readthedocs.org/en/latest/nodes.html#Call
         starargs = any(isinstance(arg, ast.Starred) for arg in node.args)
@@ -341,6 +360,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
+        # ic(node)
         if node.args.vararg or node.args.kwarg:
             self.raiseError(node, _error.NotSupported, "extra positional or named arguments")
         if not self.toplevel:
@@ -529,6 +549,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             self.setAttr(node)
         else:
             self.getAttr(node)
+
         if node.attr == 'next':
             if isinstance(node.value, ast.Name):
                 n = node.value.id
@@ -658,6 +679,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack[-2].isActive = True
 
     def visit_Call(self, node):
+        ic(node, self.tree.inputs)
         self.visit(node.func)
         f = self.getObj(node.func)
         node.obj = None
@@ -749,20 +771,38 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
             node.obj = tree.returnObj
             node.tree = tree
             tree.argnames = argnames = _get_argnames(tree.body[0])
-            ic(vars(tree))
+            # ic(vars(tree))
             # extend argument list with keyword arguments on the correct position
             node.args.extend([None] * len(node.keywords))
             for kw in node.keywords:
                 node.args[argnames.index(kw.arg)] = kw.value
 
-            for n, arg in zip(argnames, node.args):
-                if n in tree.outputs:
-                    self.access = _access.OUTPUT
-                    self.visit(arg)
-                    self.access = _access.INPUT
+            ic(argnames, node.args, tree.outputs, tree.inputs)
+            # TODO: note that a function call without args (nor kwargs) relies
+            # on using Signals from the outer level
+            # in this case both argnames and node.args will be empty
+            # and as a consequence a top level input which is only used in this
+            # task will not be processed as the next for loop is empty
+            if len(argnames):
+                # we have arguments
+                for n, arg in zip(argnames, node.args):
+                    if n in tree.outputs:
+                        self.access = _access.OUTPUT
+                        self.visit(arg)
+                        self.access = _access.INPUT
 
-                if n in tree.inputs:
-                    self.visit(arg)
+                    if n in tree.inputs:
+                        self.visit(arg)
+            else:
+                # hacking it?
+                ic(tree.sigdict)
+                for n in tree.inputs:
+                    sig = tree.sigdict[n]
+                    ic(n, sig._info)
+                    if not sig._used:
+                        sig._used = sig._read = True
+                    elif not sig._driven:
+                        sig._read = True
 
         elif type(f) is MethodType:
             self.raiseError(node, _error.NotSupported, "method call: '%s'" % f.__name__)
@@ -985,6 +1025,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # ic(astdump(node, show_offsets=False), (vars(node)))
         # ic(astdump(node, show_offsets=False), self.tree.sigdict, self.access)
         n = node.id
+        # ic(node, self.access, n)
         node.obj = None
         if n not in self.refStack:
             if (n in self.tree.vardict) and (n not in self.tree.nonlocaldict):
@@ -1071,6 +1112,8 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
 
         else:
             self.raiseError(node, _error.UnboundLocal, n)
+
+        # ic(self.tree.inputs)
 
     def visit_Return(self, node):
         # ic(astdump(node, show_offsets=False))
@@ -1178,12 +1221,16 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.raiseError(node, _error.ListElementAssign)
             else:
                 node.obj = node.value.obj.elObj
+
         elif _isMem(node.value.obj):
             node.obj = node.value.obj[0]
+
         elif isinstance(node.value.obj, _Rom):
             node.obj = int(-1)
+
         elif isinstance(node.value.obj, intbv):
             node.obj = bool()
+
         else:
             node.obj = bool()  # XXX default
 
@@ -1231,12 +1278,16 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 if not isinstance(n.obj, (_Signal, _WaiterList)):
                     self.raiseError(node, _error.UnsupportedYield)
                 senslist.append(n.obj)
+
         elif isinstance(n.obj, (_Signal, _WaiterList, delay)):
             senslist = [n.obj]
+
         elif _isMem(n.obj):
             senslist = n.obj
+
         else:
             self.raiseError(node, _error.UnsupportedYield)
+
         node.senslist = senslist
         # ic.dedent()
 
@@ -1251,7 +1302,7 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
 
     def visit_FunctionDef(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
+        # ic(astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1283,10 +1334,10 @@ class _AnalyzeBlockVisitor(_AnalyzeVisitor):
             s._driven = "reg"
             s._driver = 'driven'
 
+        # ic(self.tree.inputs)
         for n in self.tree.inputs:
             s = self.tree.sigdict[n]
             s._markRead()
-            # s._readers.append('read')
         # ic.dedent()
 
     def visit_Return(self, node):
@@ -1402,7 +1453,7 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
 
     def visit_FunctionDef(self, node):
         # ic.indent()
-        ic(astdump(node, show_offsets=False))
+        # ic(astdump(node, show_offsets=False))
         self.refStack.push()
         argnames = _get_argnames(node)
         for i, arg in enumerate(self.args):
@@ -1439,21 +1490,28 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
 
     def visit_Return(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False))
+        ic(vars(node), astdump(node, show_offsets=False))
         self.kind = _kind.DECLARATION
+
         if node.value is not None:
             self.visit(node.value)
+
         self.kind = _kind.NORMAL
         if node.value is None:
             obj = None
         elif isinstance(node.value, ast.Name) and node.value.id == 'None':
             obj = None
+        # elif isinstance(node.value, ast.IfExp):
+        #     # must have a valid obj!
+        #     obj = None
         elif node.value.obj is not None:
             obj = node.value.obj
         else:
             self.raiseError(node, _error.ReturnTypeInfer)
+
         if isinstance(obj, intbv) and len(obj) == 0:
             self.raiseError(node, _error.ReturnIntbvBitWidth)
+
         if self.tree.hasReturn:
             returnObj = self.tree.returnObj
             if isinstance(obj, type(returnObj)):
@@ -1468,6 +1526,109 @@ class _AnalyzeFuncVisitor(_AnalyzeVisitor):
             self.tree.returnObj = obj
             self.tree.hasReturn = True
         # ic.dedent()
+
+
+class _FixbvAstTransformer(ast.NodeTransformer):
+
+    def __init__(self, tree):
+        ''' here we keep state '''
+        self.tree = tree
+        self.inAssign = False
+        self.lhsisfixbv = False
+        self.isBinOP = False
+        self.lhs = None
+        self.left = None
+        self.right = None
+        self.op = None
+
+    def visit_FunctionDef(self, node):
+        ic(node, vars(node), astdump(node, show_offsets=False))
+        nodes = _flatten(node.body, node.args)
+        for n in nodes:
+            self.visit(n)
+        return node
+
+    def visit_Assign(self, node):
+        ic(node, vars(node), astdump(node, show_offsets=False))
+        lhs, value = node.targets[0], node.value
+        if isinstance(lhs, ast.Attribute):
+            self.inAssign = True
+            self.visit(lhs)
+            self.visit(value)
+
+        ic(self.inAssign, self.lhsisfixbv, self.isBinOP, self.lhs, self.left, self.op, self.right)
+        if self.inAssign and self.lhsisfixbv and self.isBinOP:
+            # we can now 're-write' this section of the AST
+            ic(astdump(node, show_offsets=False))
+
+        self.inAssign = False
+        self.lhsisfixbv = False
+        self.isBinOP = False
+
+        return  node
+
+    def visit_Attribute(self, node):
+        ic(node, vars(node), astdump(node, show_offsets=False))
+        if node.attr == 'next':
+            if isinstance(node.value, ast.Name):
+                n = node.value
+                # now find the Signal
+                obj = self.tree.symdict[n.id]
+                ic(n.id, obj)
+                if isinstance(obj, _Signal) and isinstance(obj._val, fixbv):
+                    self.lhsisfixbv = True
+                    self.lhs = obj
+        return  node
+
+    def visit_BinOp(self, node):
+        if self.lhsisfixbv:
+            # we are only interested in assignments to a fixbv
+            left = node.left
+            right = node.right
+            ic(node, vars(node), astdump(node, show_offsets=False), left, node.op, right)
+            if isinstance(left, ast.Name) and \
+                isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv)) and \
+                isinstance(right, ast.Name):
+                ic(vars(left), astdump(left, show_offsets=False), vars(right), astdump(right, show_offsets=False))
+                nl = node.left.id
+                nr = node.right.id
+                objl = self.tree.symdict[nl]
+                objr = self.tree.symdict[nr]
+                if (isinstance(objl, _Signal) and isinstance(objl._val, fixbv)) and \
+                   (isinstance(objr, _Signal) and isinstance(objr._val, fixbv)):
+                    # we have a clear assignment
+                    self.isBinOP = True
+                    self.left = objl
+                    self.right = objr
+                    self.op = node.op
+                    lhsfr = self.lhs.fractionalbits
+                    lfr = self.left.fractionalbits
+                    rfr = self.right.fractionalbits
+                    if isinstance(node.op, (ast.Add, ast.Sub)):
+                        rhsfr = max(lfr, rfr)
+                        if lhsfr < rhsfr:
+                            raise ValueError(f'`fixbv` assignment: addition/subtraction:lhs has fewer fractional bits {lhsfr} than rhs arguments {rhsfr}')
+                        # add shiftleft?
+                        if lfr < lhsfr:
+                            node.left = ast.copy_location(ast.BinOp(left=ast.Name(id=nl, ctx=ast.Load()),
+                                                          op=ast.LShift(),
+                                                          right=ast.Constant(value=lhsfr - lfr, kind=None)
+                                                          ), left)
+                        if rfr < lhsfr:
+                            node.right = ast.copy_location(ast.BinOp(left=ast.Name(id=nr, ctx=ast.Load()),
+                                                  op=ast.LShift(),
+                                                  right=ast.Constant(value=lhsfr - rfr, kind=None)
+                                                  ), right)
+                    elif isinstance(node.op, ast.Mult):
+                        rhsfr = lfr + rfr
+                        if lhsfr < rhsfr:
+                            raise ValueError(f'`fixbv` assignment: multiplication: lhs has fewer fractional bits {lhsfr} than rhs arguments {rhsfr}')
+
+                    elif isinstance(node.op, (ast.Div, ast.FloorDiv)):
+                        # raise ConversionError(kind, msg, info)
+                        raise NotImplementedError('Conversion of fixbv `Div` and `FloorDiv` not implemented')
+
+        return  node
 
 
 # a local function to drill down to the last interface
@@ -1535,7 +1696,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
                 for arg in self.args:
                     # be selective
                     # TODO: interfaces?
-                    if isinstance(arg, _Signal):
+                    if isinstance(arg, (_Signal, Array)):
                         self.argnames.append(arg._name)
 
                     elif _isMem(arg):

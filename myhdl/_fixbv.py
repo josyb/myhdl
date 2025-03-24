@@ -44,18 +44,45 @@ re_str = re.compile(r"[+ | -]*[0 | 1 | _]*\.[0 | 1 | _]+")
 
 class _FixbvResult(object):
 
-    def __init__(self, real=None, vector=None):
+    def __init__(self, real=None, vector=None, fractionalbits=0):
         self.real = real
         self.vector = vector
+        self.fractionalbits = fractionalbits
 
     def __repr__(self):
-        return f"_FixbvResult(real={self.real}, vector={self.vector})"
+        return f"_FixbvResult(real={self.real}, vector={self.vector} with fractionalbits={self.fractionalbits})"
 
     def __add__(self, other):
         assert isinstance(other, _FixbvResult)
         return _FixbvResult(self.real + other.real, self.vector + other.vector)
 
     __radd__ = __add__
+
+
+def mkival(fval, fractionalbits):
+    ''' make the `vector` part of a `fixbv` '''
+
+    ifval = fval * (2 ** fractionalbits)
+    # TODO: check int() operation ... to assure it truncates
+    # yes, it effectively *discards* the fractional part
+    ival = int(ifval)
+    # apply *Convergent Rounding*
+    # https://nl.mathworks.com/help/fixedpoint/ug/rounding-mode-convergent.html
+    # https://nl.mathworks.com/help/fixedpoint/ref/convergent.html
+    # https://en.wikipedia.org/wiki/Rounding
+    ifvalfrac = abs(ifval - ival)
+    s = -1 if ifval < 0 else +1
+    if ifvalfrac > 0.5:
+        ival += s
+    elif ifvalfrac == 0.5:
+        # exactly 0.5, round to nearest *even* integer
+        if abs(ival) & 1:
+            ival += s
+    else:
+        # ifvalfrac < 0.5, keep
+        pass
+
+    return ival
 
 
 class fixbv(intbv):
@@ -260,7 +287,19 @@ class fixbv(intbv):
                 fmin = float(-2 ** (wi - 1) if signed else 0)
                 fmax = float(2 ** (wi - 1) if signed else 2 ** wi)
 
-        ival = int(fval * (2 ** wf))
+        # ifval = fval * (2 ** wf)
+        # ival = int(ifval)
+        # ifvalfrac = abs(ifval - ival)
+        # s = -1 if ifval < 0 else +1
+        # if ifvalfrac > 0.5:
+        #     ival += s
+        # elif ifvalfrac == 0.5:
+        #     if abs(ival) & 1:
+        #         ival += s
+        # else:
+        #     pass
+        ival = mkival(fval, wf)
+
         imin = -2 ** (wl - 1) if signed else 0
         imax = 2 ** (wl - 1)  if signed else 2 ** wl
 
@@ -276,30 +315,34 @@ class fixbv(intbv):
         self._SCALE = 2 ** self._wf
 
         # we must call upon our parent - which is not modbv but intbv
+        # this will set up the `vector` part
         super(fixbv, self).__init__(ival, imin, imax)
 
     def _hasFullRange(self):
         return True  # by design
 
     def _handleBounds(self):
-        # copied over from modbv
-        # the vector part wraps around
-        lo, hi, val = self._min, self._max, self._val
-        if lo is not None:
-            if val < lo or val >= hi:
-                self._val = (val - lo) % (hi - lo) + lo
-
-        # but we check on the `float` limits
-        if self._fmax is not None:
-            if self._fval >= self._fmax:
-                raise ValueError(f"intbv value {self._fval} >= maximum {self._fmax}")
-        if self._fmin is not None:
-            if self._fval < self._fmin:
-                raise ValueError(f"intbv value {self._fval} < minimum {self._fmin}")
-
-        # checking?
+        # # copied over from modbv
+        # # the vector part wraps around
+        # # TODO: is this OK?
+        # lo, hi, val = self._min, self._max, self._val
+        # if lo is not None:
+        #     if val < lo or val >= hi:
+        #         self._val = (val - lo) % (hi - lo) + lo
+        #
+        # # but we check on the `float` limits
+        # if self._fmax is not None:
+        #     if self._fval >= self._fmax:
+        #         raise ValueError(f"intbv value {self._fval} >= maximum {self._fmax}")
+        # if self._fmin is not None:
+        #     if self._fval < self._fmin:
+        #         raise ValueError(f"intbv value {self._fval} < minimum {self._fmin}")
+        # deleagte to intbv first fot the `vector` parrt
+        super(fixbv, self)._handleBounds()
+        # ao we need to check the difference with the `real`
         if self._delta:
             if  abs(self._fval - self._val / self._SCALE) > self._delta:
+                # raise a warning, not an exception!
                 warnings.warn(
                         f"\n    fixbv: difference between real({self.real}) and integer({self._val / (2**self._wf)} > {self._delta} ",
                         category=UserWarning,
@@ -320,15 +363,11 @@ class fixbv(intbv):
         return (f"fixbv: fval={self._fval}, fmin={self._fmin}, fmax={self._fmax}, fractionalbits={self._wf}, intbits={self._wi},"
                 f"val={self._val}, min={self._min}, max={self._max}, nrbits={self._nrbits}")
 
-    # def __int__(self):
-    #     ''' this complies with intbv '''
-    #     return self._val
-
     def __float__(self):
-        return self._fval
+        return float(self._val) / self._SCALE
 
     @property
-    def float(self):
+    def fval(self):
         return self._fval
 
     @property
@@ -416,7 +455,7 @@ class fixbv(intbv):
             # same applies when adding two fixbv, the `float` part will always be correct
             if key < 0:
                 key += self._wl
-            return _FixbvResult(0.0, (self._val >> int(key)) & 0x1)
+            return _FixbvResult(0.0, (self._val >> int(key)) & 0x1, fractionalbits=0)
 
     def __setitem__(self, key, val):
         raise NotImplementedError(f"{repr(self)}[{key}] = {val}: cannot set bits in the bitvector " \
@@ -425,102 +464,140 @@ class fixbv(intbv):
     # integer-like methods
     def _addsubvalidate(self, other):
         ''' helper: validate the other to comply for addition or subtraction '''
+        # if isinstance(other)
         if isinstance(other, fixbv):
-            if other._wf < self._wf:
-                return _FixbvResult(other._fval, other._val << (self._wf - other._wf))
-            elif other._wf > self._wf:
-                return _FixbvResult(other._fval, other._val >> (other._wf - self._wf))
+            # the `real` doesn't change
+            r = _FixbvResult(real=other._fval)
+            # we extend the fractional bits to the largest
+            r.fractionalbits = max(self._wf, other._wf)
+            # and now adjust
+            if other._wf != r.fractionalbits:
+                # other has the smallest fractional width
+                r.vector = other._val << (r.fractionalbits - other._wf)
             else:
-                return _FixbvResult(other._fval, other._val)
+                # else it is the larger of the two
+                r.vector = other._val
+            return r
 
         elif isinstance(other, intbv):
-            return _FixbvResult(float(other._val), other._val)
+            # this is a hard choice
+            # to shift or not to shift?
+            return _FixbvResult(float(other._val), other._val, self.fractionalbits)
 
         elif isinstance(other, bool):
             bi = int(other)
-            return _FixbvResult(float(bi), bi)
+            return _FixbvResult(float(bi), bi << self.fractionalbits, self.fractionalbits)
 
         elif isinstance(other, int):
-            return _FixbvResult(float(other), other)
+            return _FixbvResult(float(other), other << self.fractionalbits, self.fractionalbits)
+
         elif isinstance(other, float):
-            return _FixbvResult(other, int(other * self._SCALE))
+            return _FixbvResult(other, int(other * self._SCALE), self.fractionalbits)
+
         elif isinstance(other, _FixbvResult):
-            return other
+            # concatenated math operation(s)
+            r = _FixbvResult(real=other._fval)
+            r.fractionalbits = max(self._wf, other.fractionalbits)
+            if other._wf != r.fractionalbits:
+                r.vector = other._val << (r.fractionalbits - other.fractionalbits)
+            else:
+                r.vector = other._val
+            return r
+
         else:
             raise ValueError(f"Cannot handle {repr(other)} for fixbv `add` or `sub` operation")
 
     def __add__(self, other):
-        rr = self._addsubvalidate(other)
-        return _FixbvResult(self._fval + rr.real, self._val + rr.vector)
+        ro = self._addsubvalidate(other)
+        if ro.fractionalbits == self.fractionalbits:
+            return _FixbvResult(self._fval + ro.real, self._val + ro.vector, self.fractionalbits)
+        else:
+            return _FixbvResult(self._fval + ro.real, (self._val << (ro.fractionalbits - self.fractionalbits)) + ro.vector, ro.fractionalbits)
 
-    __radd__ = __add__
+    def __radd__(self, other):
+        return other + self._val
 
     def __sub__(self, other):
-        rr = self._addsubvalidate(other)
-        return _FixbvResult(self._fval - rr.real, self._val - rr.vector)
+        ro = self._addsubvalidate(other)
+        if ro.fractionalbits == self.fractionalbits:
+            return _FixbvResult(self._fval - ro.real, self._val - ro.vector, self.fractionalbits)
+        else:
+            return _FixbvResult(self._fval - ro.real, (self._val << (ro.fractionalbits - self.fractionalbits)) - ro.vector, ro.fractionalbits)
 
     def __rsub__(self, other):
-        rr = self._addsubvalidate(other)
-        return _FixbvResult(rr.real - self._fval, rr.vector - self._val)
+        ro = self._addsubvalidate(other)
+        if ro.fractionalbits == self.fractionalbits:
+            return _FixbvResult(ro.real - self._fval, ro.vector - self._val, self.fractionalbits)
+        else:
+            return _FixbvResult(ro.real - self._fval, ro.vector - (self._val << (ro.fractionalbits - self.fractionalbits)), self.fractionalbits)
 
     def _muldivvalidate(self, other):
         ''' helper: validate the other to comply for multiplication (or division too?) '''
         if isinstance(other, fixbv):
-            return _FixbvResult(other._fval, other._val)
+            return _FixbvResult(other._fval, other._val, other.fractionalbits)
 
         elif isinstance(other, intbv):
-            return _FixbvResult(float(other._val), other._val)
+            return _FixbvResult(float(other._val), other._val, self.fractionalbits)
 
         elif isinstance(other, bool):
             bi = int(other)
-            return _FixbvResult(float(bi), bi)
+            return _FixbvResult(float(bi), bi, 0)
 
         elif isinstance(other, int):
-            return _FixbvResult(float(other), other * self._SCALE)
+            return _FixbvResult(float(other), other * self._SCALE, self.fractionalbits)
+
         elif isinstance(other, float):
-            return _FixbvResult(other, int(other * self._SCALE))
+            return _FixbvResult(other, int(other * self._SCALE), self.fractionalbits)
+
         elif isinstance(other, _FixbvResult):
             return other
+
         else:
             raise ValueError(f"Cannot handle {repr(other)} for fixbv `mul` or `div` operation")
 
     def __mul__(self, other):
         rr = self._muldivvalidate(other)
-        return _FixbvResult(self._fval * rr.real, self._val * rr.vector)
+        return _FixbvResult(self._fval * rr.real, self._val * rr.vector, self.fractionalbits + other.fractionalbits)
 
     __rmul__ = __mul__
 
     def __truediv__(self, other):
         rr = self._muldivvalidate(other)
-        return _FixbvResult(self._fval / rr.real, int(self._SCALE * self._val / rr.vector))
+        return _FixbvResult(self._fval / rr.real, int(self._SCALE * self._val / rr.vector), self.fractionalbits - other.fractionalbits)
 
     def __rtruediv__(self, other):
         rr = self._muldivvalidate(other)
-        return _FixbvResult(rr.real / self._fval, int(self._SCALE * rr.vector / self._val))
+        return _FixbvResult(rr.real / self._fval, int(self._SCALE * rr.vector / self._val), -self.fractionalbits + other.fractionalbits)
 
     def __floordiv__(self, other):
         rr = self._muldivvalidate(other)
-        return _FixbvResult(self._fval / rr.real, int(self._SCALE * self._val // rr.vector))
+        return _FixbvResult(self._fval // rr.real, int(self._SCALE * self._val // rr.vector), self.fractionalbits - other.fractionalbits)
 
     def __rfloordiv__(self, other):
         rr = self._muldivvalidate(other)
-        return _FixbvResult(rr.real // self._fval, int(self._SCALE * rr.vector // self._val))
+        return _FixbvResult(rr.real // self._fval, int(self._SCALE * rr.vector // self._val), -self.fractionalbits + other.fractionalbits)
 
     def __mod__(self, other):
-        rr = self._muldivvalidate(other)
-        return _FixbvResult(self._fval % rr.real, self._val % rr.vector)
+        raise ArithmeticError(f"Do not support `mod` operation for fixbv")
 
-    def rmod(self, other):
-        rr = self._muldivvalidate(other)
-        return _FixbvResult(rr.real % self._fval, rr.vector % self._val)
+    __rmod__ = __mod__
+
+    #     rr = self._muldivvalidate(other)
+    #     return _FixbvResult(self._fval % rr.real, self._val % rr.vector)
+    #
+    # def rmod(self, other):
+    #     rr = self._muldivvalidate(other)
+    #     return _FixbvResult(rr.real % self._fval, rr.vector % self._val)
 
     def __pow__(self, other):
         raise ArithmeticError(f"Do not support `pow` operation for fixbv")
 
     __rpow__ = __pow__
 
+    # TODO:
     # we leave the comparison, shift and logical operations to our `intbv` 'base' class
     # assuming that the  result will NOT be assigned to a fixbv type ...
+    # but ...
 
 
 if __name__ == '__main__':
@@ -531,73 +608,78 @@ if __name__ == '__main__':
         print(f'Exception: {e}')
 
     t0 = fixbv(math.pi, spec='2.16')
-    t1 = fixbv(math.pi, spec='0.2.16')
-    t2 = fixbv(-math.pi, spec='1.2.15')
-    t3 = fixbv(-math.pi, spec='Q3.15')
-    t4 = fixbv(math.pi, spec='UQ3.15')
-    t5 = fixbv('-11.001_0010_0001_1111')
-    t6 = fixbv('11.0010_0100_0011_1111')
-    t7 = fixbv(0.0, -0.99, 0.99, 16)
-    t9 = fixbv('.0010_0100_0011_1111')
-    t10 = fixbv('.0010_0100_0011_1111', fmin=-0.5, fmax=0.8)
-    t11 = fixbv(math.pi, fmin=-8, fmax=8, fractionalbits=12)
-    t12 = fixbv(0.0, fmin=-0.99, fmax=sys.float_info.epsilon, fractionalbits=16)
-    t13 = fixbv((-1 + math.sqrt(5)) / 2, spec='UQ0.18')
-    t14 = fixbv(1.0, spec='1.17')
-    ic(t0, repr(t0), isinstance(t0, fixbv))
-    ic(t0 * t1)
-    ic(t0 / t1)
-    ic(t0 / 2)
-    ic(t0 // 2)
-    ic(1 / t0)
-    ic(t14 / t0)
-    ic(repr(t13), t13._val)
-    ic((1 / t13) - t13)
-    ic((1 / t13) * t13)
-    ic(t6, t6.integer, t6.fractional, t6.ord)
-    ic(t5, t5.integer)
-    ic(t0 == t1, t0 == t2, t0 > t2, t1 + t2, t2 + t1, t0 + 1, 1 + t0, 12.34 + t0)
-
-    s0 = Signal(t0)
-    ic(s0, s0._type)
-    s1 = Signal(intbv(0, _nrbits=16))
-    ic(s1)
-
-    # this doesn't seem to work, but does if executed in a console ...
-    # s0.next = 6.0
-    # ic(s0, s0.next)
-    # s0.update()
-    # ic(s0)
-    ic(t0, t0.ord, t0[:1], t0[-1:], t0[17:], t0[:-17])
-    ic(t2, t2.ord, t2[:1], t2[-1:], t2[-1])
-    try:
-        t2[6:] = 42
-    except NotImplementedError as e:
-        printexception(e)
-
-    try:
-        t14[5] = 0
-    except NotImplementedError as e:
-        printexception(e)
-
-    t15 = fixbv(1.234, -1.0, 2.0, 16)
-    t16 = fixbv(1.234, -2.0, 4.0, 16)
-    t18 = fixbv(1.0, 0.0, 5.0, 14)
-    t20 = fixbv(-1.0, -2.0, -0.5, 12)
-    ic(t15, t16, t18, t20)
-    ic(fixbv((t15, '*', t16)))
-    ic(fixbv((t15, '*', t18)))
-    ic(fixbv((t18, '*', t20)))
-    t21 = fixbv((t18, '+', t20))
-    ic(t21, t21._wi, t21._wf)
-    ic((t22 := fixbv((t15, '+', t16))), t22._wi, t22._wf)
-    ic(t22.info)
-
-    t23 = fixbv(0.0, -5.0, 1.0, 16)
-    t24 = fixbv(0.0, -8.0, 8.0, 16)
-    ic(t23.info, t24.info)
-
-    try:
-        t25 = fixbv(8.0, -8.0, 8.0, 16)
-    except ValueError as e:
-        printexception(e)
+    t1 = fixbv(math.pi, spec='0.3.8')
+    t01 = Signal(fixbv((t0, '+', t1)))
+    ic(t0, t1, t01)
+    t01.next = t0 + t1
+    t01.update()
+    ic(t01)
+    # t2 = fixbv(-math.pi, spec='1.2.15')
+    # t3 = fixbv(-math.pi, spec='Q3.15')
+    # t4 = fixbv(math.pi, spec='UQ3.15')
+    # t5 = fixbv('-11.001_0010_0001_1111')
+    # t6 = fixbv('11.0010_0100_0011_1111')
+    # t7 = fixbv(0.0, -0.99, 0.99, 16)
+    # t9 = fixbv('.0010_0100_0011_1111')
+    # t10 = fixbv('.0010_0100_0011_1111', fmin=-0.5, fmax=0.8)
+    # t11 = fixbv(math.pi, fmin=-8, fmax=8, fractionalbits=12)
+    # t12 = fixbv(0.0, fmin=-0.99, fmax=sys.float_info.epsilon, fractionalbits=16)
+    # t13 = fixbv((-1 + math.sqrt(5)) / 2, spec='UQ0.18')
+    # t14 = fixbv(1.0, spec='1.17')
+    # ic(t0, repr(t0), isinstance(t0, fixbv))
+    # ic(t0 * t1)
+    # ic(t0 / t1)
+    # ic(t0 / 2)
+    # ic(t0 // 2)
+    # ic(1 / t0)
+    # ic(t14 / t0)
+    # ic(repr(t13), t13._val)
+    # ic((1 / t13) - t13)
+    # ic((1 / t13) * t13)
+    # ic(t6, t6.integer, t6.fractional, t6.ord)
+    # ic(t5, t5.integer)
+    # ic(t0 == t1, t0 == t2, t0 > t2, t1 + t2, t2 + t1, t0 + 1, 1 + t0, 12.34 + t0)
+    #
+    # s0 = Signal(t0)
+    # ic(s0, s0._type)
+    # s1 = Signal(intbv(0, _nrbits=16))
+    # ic(s1)
+    #
+    # # this doesn't seem to work, but does if executed in a console ...
+    # # s0.next = 6.0
+    # # ic(s0, s0.next)
+    # # s0.update()
+    # # ic(s0)
+    # ic(t0, t0.ord, t0[:1], t0[-1:], t0[17:], t0[:-17])
+    # ic(t2, t2.ord, t2[:1], t2[-1:], t2[-1])
+    # try:
+    #     t2[6:] = 42
+    # except NotImplementedError as e:
+    #     printexception(e)
+    #
+    # try:
+    #     t14[5] = 0
+    # except NotImplementedError as e:
+    #     printexception(e)
+    #
+    # t15 = fixbv(1.234, -1.0, 2.0, 16)
+    # t16 = fixbv(1.234, -2.0, 4.0, 16)
+    # t18 = fixbv(1.0, 0.0, 5.0, 14)
+    # t20 = fixbv(-1.0, -2.0, -0.5, 12)
+    # ic(t15, t16, t18, t20)
+    # ic(fixbv((t15, '*', t16)))
+    # ic(fixbv((t15, '*', t18)))
+    # ic(fixbv((t18, '*', t20)))
+    # t21 = fixbv((t18, '+', t20))
+    # ic(t21, t21._wi, t21._wf)
+    # ic((t22 := fixbv((t15, '+', t16))), t22._wi, t22._wf)
+    # ic(t22.info)
+    #
+    # t23 = fixbv(0.0, -5.0, 1.0, 16)
+    # t24 = fixbv(0.0, -8.0, 8.0, 16)
+    # ic(t23.info, t24.info)
+    #
+    # try:
+    #     t25 = fixbv(8.0, -8.0, 8.0, 16)
+    # except ValueError as e:
+    #     printexception(e)

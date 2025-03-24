@@ -39,7 +39,7 @@ from myhdl._block import _Block
 # from myhdl._extractHierarchy import  _userCodeMap, _UserCode, _isMem, _getMemInfo
 from myhdl._extractHierarchy import  _UserCode, _isMem, _getMemInfo
 from myhdl._Signal import _Signal
-from myhdl._util import _flatten
+from myhdl._structured import Array
 from myhdl.conversion._misc import _error
 
 # LevelInfo = namedtuple('LevelInfo', ['modulename', 'instancename', 'blocksubs' , 'gens'])
@@ -149,35 +149,36 @@ def gethierarchicalmodulenames(hierarchy):
     # ic(fl)
     return [item.instancename for item in fl]
 
-
-class _HierarchicalPort(object):
-
-    def __init__(self, obj):
-        self.obj = obj
-        self._used = obj._used
-        self._driven = obj._driven
-        self._driver = obj._driver
-        self._read = obj._read
-
-    def __repr__(self):
-        return f"_HierarchicalPort({repr(self.obj)}"
-
-    @property
-    def _info(self):
-        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read} '
+# class _HierarchicalPort(object):
+#
+#     def __init__(self, obj):
+#         self.obj = obj
+#         self._used = obj._used
+#         self._driven = obj._driven
+#         self._driver = obj._driver
+#         self._read = obj._read
+#         self._readers = obj._readers
+#
+#     def __repr__(self):
+#         return f"_HierarchicalPort({repr(self.obj)}"
+#
+#     @property
+#     def _info(self):
+#         return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
 
 
 class _HierarchicalInstance(object):
     # __slots__ = ['hdlwriter', 'name', 'namespace', 'funcname', 'func', 'sourcefile', 'sourceline']
 
     # def __init__(self, hdlwriter, code, namespace, funcname, func, sourcefile, sourceline):
-    def __init__(self, hdlwriter, name, argnames, argsigs, argports):
+    def __init__(self, hdlwriter, name, argnames, argsigs, argoutports, arginports):
         # ic(name, argnames, argsigs)
         self.hdlwriter = hdlwriter
         self.name = name
         self.argnames = argnames
         self.sigdict = argsigs
-        self.argports = argports
+        self.argoutports = argoutports
+        self.arginports = arginports
         # self.sourcefile = sourcefile
         # self.func = func
         # self.funcname = funcname
@@ -189,7 +190,7 @@ class _HierarchicalInstance(object):
     def __repr__(self):
         siginfo = []
         for sig in self.sigdict:
-            if isinstance(sig, _Signal):
+            if isinstance(sig, (_Signal, Array)):
                 siginfo.append(sig._info)
             elif _isMem(sig):
                 m = _getMemInfo(sig)

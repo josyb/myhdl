@@ -83,6 +83,7 @@ def inc(count, enable, clock, reset, n):
                 count.next = (count + 1) % n
 
     count.driven = "reg"
+    enable.read = True
 
     inc.verilog_code = \
 """

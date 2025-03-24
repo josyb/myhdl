@@ -28,8 +28,8 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 from myhdl import AlwaysError
 from myhdl._util import _isGenFunc
 from myhdl._delay import delay
-from myhdl._Signal import _Signal
-from myhdl._Signal import _WaiterList
+from myhdl._Signal import _Signal, _WaiterList
+from myhdl._structured import Array
 from myhdl._Waiter import _Waiter, _SignalWaiter, _SignalTupleWaiter, \
     _DelayWaiter, _EdgeWaiter, _EdgeTupleWaiter
 from myhdl._instance import _Instantiator, _getCallInfo
@@ -68,7 +68,7 @@ def always(*args):
     callinfo = _getCallInfo()
     sigargs = []
     for arg in args:
-        if isinstance(arg, _Signal):
+        if isinstance(arg, (_Signal, Array)):
             arg._read = True
             arg._used = True
             sigargs.append(arg)
@@ -77,8 +77,10 @@ def always(*args):
             arg.sig._read = True
             arg.sig._used = True
             sigargs.append(arg.sig)
+
         elif not isinstance(arg, delay):
             raise AlwaysError(_error.DecArgType)
+
     sigdict = _get_sigdict(sigargs, callinfo.symdict)
     # ic(args, sigdict)
 

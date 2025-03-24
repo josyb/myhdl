@@ -38,10 +38,8 @@ from myhdl._simulator import _futureEvents
 from myhdl._simulator import _siglist
 from myhdl._simulator import _signals
 from myhdl._intbv import intbv
-from myhdl._fixbv import fixbv, _FixbvResult
+from myhdl._fixbv import fixbv, _FixbvResult, mkival
 from myhdl._bin import bin
-
-# from myhdl._enum import EnumItemType
 
 _schedule = _futureEvents.append
 
@@ -210,7 +208,7 @@ class _Signal(object):
     @property
     def _info(self):
         ''' as we have `slots` we need some way to inspect what we have '''
-        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
+        return f'{id(self)} {repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
 
     def _clear(self):
         del self._eventWaiters[:]
@@ -242,8 +240,16 @@ class _Signal(object):
                 self._val = None
 
             elif isinstance(val, fixbv):
-                self._val._val = nextval._val
                 self._val._fval = nextval._fval
+                # the `vector` part may need aligning ...
+                fd = self._val.fractionalbits
+                fs = nextval.fractionalbits
+                if fd == fs:
+                    self._val._val = nextval._val
+                elif fd > fs:
+                    self._val._val = nextval._val << (fd - fs)
+                else:
+                    self._val._val = nextval._val >> (fs - fd)
 
             elif isinstance(val, intbv):
                 self._val._val = nextval._val
@@ -345,31 +351,42 @@ class _Signal(object):
 
     def _setNextIntbv(self, val):
         if isinstance(val, intbv):
-            val = val._val
+            nval = val._val
         elif isinstance(val, _FixbvResult):
-            val = val.vector
-        elif not isinstance(val, int):
-            raise TypeError(f"Expected int or intbv,  got {type(val)}")
-        self._next._val = val
+            nval = val.vector
+        else:
+            nval = val
+
+        if not isinstance(nval, int):
+            raise TypeError(f"_setNextIntbv {repr(self)} Expected int or intbv,  got {repr(val)}")
+
+        self._next._val = nval
         self._next._handleBounds()
 
     def _setNextFixbv(self, val):
+        # aligning the point if necessary
         if isinstance(val, float):
-            nval = _FixbvResult(val, int(val * self._val._SCALE))
+            nval = _FixbvResult(val, mkival(val, self.fractionalbits), self.fractionalbits)
+
         elif isinstance(val, int):
-            nval = _FixbvResult(float(val) / self._val._SCALE, val)
+            nval = _FixbvResult(float(val), val, self.fractionalbits)
+
         elif isinstance(val, fixbv):
-            nval = _FixbvResult(val._fval, val._val)
+                nval = _FixbvResult(val._fval, val._val, self.fractionalbits)
+
         elif isinstance(val, _FixbvResult):
-            # correct format
-            nval = val
+                nval = val
+
+        # check intbv last!
         elif isinstance(val, intbv):
-            nval = _FixbvResult(float(val._val) / self._val._SCALE, val._val)
+            nval = _FixbvResult(float(val._val), val._val, self.fractionalbits)
+
         else:
             raise ValueError(f"_setNextFixbv: received {repr(val)} : unhandled")
 
         self._next._val = nval.vector
         self._next._fval = nval.real
+        self._next._handleBounds()
 
     def _setNextNonmutable(self, val):
         if not isinstance(val, self._type):

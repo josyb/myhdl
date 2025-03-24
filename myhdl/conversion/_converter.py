@@ -48,13 +48,13 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 
 from myhdl import  ConversionError
 from myhdl._getHierarchy import _getHierarchy
-from myhdl._Signal import _Signal
+from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._structured import Array
 from myhdl._block import _Block
 from myhdl._extractHierarchy import _isMem, _getMemInfo
 from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
 from myhdl.conversion._hierarchical import (collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs,
-                                            _HierarchicalPort, gethierarchicalmodulenames)
+                                            gethierarchicalmodulenames)
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
 from myhdl.conversion._annotate import _annotateTypes
 from myhdl.conversion._VHDLwriter import VhdlWriter
@@ -93,7 +93,8 @@ class Converter(object):
 
     def __call__(self, func, *args, **kwargs):
 
-# TODO: check whether _converting and _tracing have any effect
+        # TODO: check whether _converting and _tracing have any effect
+
         global _converting
         if _converting:
             # NOTE _block.py calls us with empty args and empty kwargs ...
@@ -112,14 +113,17 @@ class Converter(object):
 
         # ic(self.name)
 
-        try:
-            h = _getHierarchy(self.name, func)
-        finally:
-            _converting = 0
-            pass
+        # try:
+        #     h = _getHierarchy(self.name, func)
+        # finally:
+        #     _converting = 0
+        #     pass
+        # it will always work, no?
+        h = _getHierarchy(self.name, func)
+        _converting = 0
 
         # report the hierarchy
-        # ic(h, h.top, h.hierarchy, h.absnames)
+        ic(h, h.top, h.hierarchy, h.absnames)
 
         ### initialize properly ###
         _genUniqueSuffix.reset()
@@ -150,34 +154,43 @@ class Converter(object):
             for ll in range(startlevel, -1, -1):
                 # ic(ll, (ha[ll]))
                 for bb in ha[ll]:
+                    target = bb.blocksubs
+                    # ic(target.name, vars(target))
                     # ic('======================================', bb)
                     # we normally only need one level of hierarchy
                     # unless we choose to flatten a part of the code
-                    # ic(vars(bb.blocksubs))
-                    # for ssub in bb.blocksubs.subs:
+                    # ic(vars(target))
+                    # for ssub in target.subs:
                     #     ic(ssub, vars(ssub))
-                    # if bb.blocksubs.hdlclass is not None:
-                    #     ic(bb.blocksubs.hdlclass)
+                    # if target.hdlclass is not None:
+                    #     ic(target.hdlclass)
 
-                    # ic(bb.instancename, bb.blocksubs, bb.blocksubs.endhierarchy)
-                    bbh = _getHierarchy(bb.instancename, bb.blocksubs, descend=bb.blocksubs.endhierarchy or (ll == startlevel))
+                    # ic(bb.instancename, target, target.endhierarchy)
+                    bbh = _getHierarchy(bb.instancename, target, descend=target.endhierarchy or (ll == startlevel))
                     # ic(bbh, bbh.top, bbh.hierarchy, bb.gens)
 
                     genlist = _analyzeGens(bb.gens, bbh.absnames)
-                    # ic(genlist, bb.blocksubs, len(bb.blocksubs.subs), bb.blocksubs.subs,
-                    #    bb.blocksubs.args, bb.blocksubs.kwargs, bb.blocksubs.sigdict)
+                    # ic(genlist, target, len(target.subs), target.subs,
+                    #    target.args, target.kwargs, target.sigdict)
 
                     # see if we have an already generated file for this block
                     subsoutputports = []
-                    for sub in bb.blocksubs.subs:
+                    subsinputports = {}
+                    for sub in target.subs:
                         if sub.name in modules:
                             # ic(f'{ll} found {sub.name} in generated modules', repr(modules[sub.name]))
-                            # ic(vars(sub))
                             # add the found generated module to the list
                             genlist.insert(0, modules[sub.name])
                             # add all output ports to a
-                            for port in modules[sub.name].argports:
-                                subsoutputports.append(modules[sub.name].argports[port])
+                            for port in modules[sub.name].argoutports:
+                                subsoutputports.append(modules[sub.name].argoutports[port])
+
+                            # ic(sub.name, modules[sub.name].arginports)
+                            for port in modules[sub.name].arginports:
+                                aip = modules[sub.name].arginports[port]
+                                # ic(port, aip._info, subsinputports)
+                                # if aip not in subsinputports:
+                                subsinputports[id(aip)] = aip
 
                     # ic(genlist, subsoutputports)
 
@@ -187,32 +200,7 @@ class Converter(object):
                     # which has been generated/treated by another module and also have the _driven attribute set
                     # in which case this signal gets flagged as an output
                     # so whave to reset the ._driven for these specific signals only
-                    # ic((bb.blocksubs.sigdict))
-                    for __, s in bb.blocksubs.sigdict.items():
-                        # ic(ll, s._info)
-                        # s._name = None
-                        if ll:
-                            if s._driver == 'driven':
-                                s._driver = bb.instancename
-
-                            # if s._read:
-                            #     if len(s._readers):
-                            #         if s._readers[-1] == 'read':
-                            #             s._readers[-1] = bb.instancename
-                            #
-                            #         else:
-                            #             s._readers.append(bb.instancename)
-                            #
-                            #     else:
-                            #         s._readers.append(bb.instancename)
-
-                        else:
-                            # if s._read:
-                            #     s._readers = []
-
-                            if s._driver is not None:
-                                s._driver = 'driven'
-                        # ic(ll, s._info)
+                    # ic((target.sigdict))
 
                     siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
                     # info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
@@ -220,38 +208,60 @@ class Converter(object):
 
                     _annotateTypes(self.hdl, genlist)
                     # siglistinfo = [ sig._info for sig in siglist]
-                    # ic(ll, bb.instancename, siglistinfo, bb.blocksubs, bb.blocksubs)
+                    # ic(ll, bb.instancename, siglistinfo, target, target)
+
+                    for __, s in target.sigdict.items():
+                        if ll:
+                            if s._driver == 'driven':
+                                s._driver = bb.instancename
+
+                            if s._read:
+                                s._readers.append(bb.instancename)
+
+                        else:
+                            if s._driver is not None:
+                                s._driver = 'driven'
+                        # ic(ll, s._info)
 
                     if ll == 0:
                         bb.instancename = self.name
-                    res = self._convert(ll, bb.instancename, bbh, bb.blocksubs, siglist, memlist, genlist, subsoutputports)
+
+                    # ic(ll, bb.instancename, bbh, target, siglist, memlist, genlist, subsoutputports, subsinputports)
+                    res = self._convert(ll, bb.instancename, bbh, target, siglist, memlist, genlist, subsoutputports, subsinputports)
                     # build the 'placeholder' information for this block
                     # as it may be called upon by the next higher code level
                     # save the converted block information
                     sl = []
-                    argports = {}
+                    argoutports = {}
+                    arginports = {}
+                    # ic(res.argnames, res.argdict, res.sigdict)
                     for argname in res.argnames:
                         s = res.argdict[argname]
                         sl.append(s)
-                        if isinstance(s, _Signal):
+                        if isinstance(s, (_Signal, Array)):
                             if s._driven:
-                                argports[argname] = _HierarchicalPort(s)
+                                argoutports[argname] = s
+                            elif s._read:
+                                arginports[argname] = s
                         elif _isMem(s):
                             m = _getMemInfo(s)
                             if m._driven:
-                                argports[argname] = _HierarchicalPort(s)
+                                argoutports[argname] = s
+                            elif m._read:
+                                arginports[argname] = s
                     # !!! the cleanup later will 'destroy' some of the information on the signals
                     # which we need ...
                     # else there will be no output ports ...
                     # so we have to keep a deepcopy' instead
                     # or perhaps make a new class?
-                    # ic( bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl)
-                    argportsinfo = []
-                    for arg in argports:
-                        argportsinfo.append(argports[arg]._info)
+                    # argportsinfo = []
+                    # for arg in argoutports:
+                    #     argportsinfo.append(argoutports[arg]._info)
                     # ic(argportsinfo)
-
-                    modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argports)
+                    # ic(argnames, sl, argoutports)
+                    if ll:
+                        ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
+                        modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argoutports, arginports)
 
                     ### clean-up properly ###
                     # self._cleanup(siglist, memlist)
@@ -276,20 +286,19 @@ class Converter(object):
                                 sl._name = None
                                 sl._inList = False
 
-                    argportsinfo = []
-                    for arg in argports:
-                        argportsinfo.append(argports[arg]._info)
+                    # argportsinfo = []
+                    # for arg in argoutports:
+                    #     argportsinfo.append(argoutports[arg]._info)
                     # ic(argportsinfo)
                     # ic(modules)
+
             # we sould return something useful
             # e.g.: the collected subs?
-            # ic(ha)
-            res = gethierarchicalmodulenames(ha)
-            # ic(res)
-            # we need to return the block object ...
-            # but we also need the information on all generate modules (HDL files)
+            # but we need to return the block object ...
+            # but we also need the information on all generated modules (HDL files)
+            # to build the compilation list for Cosimulation
             # python allows us to add attributes at run-time, without a whisper ...
-            h.top.modules = res
+            h.top.modules = gethierarchicalmodulenames(ha)
 
         else:
             # TODO: check if we can refactor this code into the 'generic hierachical' branch
@@ -298,16 +307,19 @@ class Converter(object):
             arglist = _flattenhierarchy(self.hdl, h.top)
             _checkArgs(arglist)
             genlist = _analyzeGens(arglist, h.absnames)
+            ic(genlist)
             siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
+            ic(siglist, memlist)
             # ic(h, h.top, h.hierarchy)
             # generic annotate for 'all' target HDLs
             _annotateTypes(self.hdl, genlist)
 
             self._convert(0, self.name, h, func, siglist, memlist, genlist)
 
+        _converting = 0
         return h.top
 
-    def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None):
+    def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None, subsinputports=None):
 
         # ic(level, name, h, func, func.args, siglist, memlist, genlist)
         # finally
@@ -345,12 +357,54 @@ class Converter(object):
         intf = func
         intf.name = name
 
-        if self.hierarchical:
+        # for n, s in intf.argdict.items():
+        #     # ic(ll, s._info)
+        #     # s._name = None
+        #     if level:
+        #         if s._driver == 'driven':
+        #             s._driver = intf.name
+        #
+        #         if s._read:
+        #             if n in intf.sigdict:
+        #                 s._readers.append(intf.name)
+        #
+        #     else:
+        #         s._driver = 'driven'
+        #         # if s._read:
+        #         #     s._readers = []
+
+        if self.hierarchical and level == 0:
+            for __, arg in intf.argdict.items():
+                # TODO: ListOfSignals will be deprecated
+                if _isListOfSigs(arg):
+                    m = _getMemInfo(arg)
+                    if m.name in intf.argdict:
+                        m._readers.append(intf.name)
+                else:
+                    arg._readers.append(intf.name)
+
+        if self.hierarchical and level != 0:
             # update the ports as their _driven and _read atributes have been reset after the submodule generation
             # which will default (some) ports to input iso output
+            ic(intf.argnames, intf.argdict, intf.sigdict, subsoutputports, subsinputports)
+            # si = []
+            # for port in subsinputports:
+            #     si.append(port._info)
+            # ic(si)
             for subport in subsoutputports:
-                if subport.obj._name in intf.argdict:
-                    intf.argdict[subport.obj._name]._driven = subport._driven
+                if subport._name in intf.argdict:
+                    intf.argdict[subport._name]._driven = subport._driven
+
+            # some modules pass input signals to lower modules
+            # add this levels to the readers list
+            for __, subport in subsinputports.items():
+                if _isListOfSigs(subport):
+                    m = _getMemInfo(subport)
+                    if m.name in intf.argdict:
+                        m._readers.append(intf.name)
+
+                elif subport._name in intf.argdict:
+                    subport._readers.append(intf.name)
 
         # start the output file, only when the analysis/annotation process passes
         self.writer.openfile(name, self.directory)

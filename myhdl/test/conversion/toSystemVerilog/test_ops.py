@@ -432,38 +432,56 @@ def augmOps(
         while 1:
             yield left, right
             var1[:] = left
-            var1 &= right
+            # NOTE:
+            # originally this was coded as:
+            # `var1 &= right`
+            # which raised an error in the test:
+            # TypeError: _setNextIntbv Signal(intbv(0)[4:]) Expected int or intbv,  got intbv(intbv(1))[64:]
+            # Note that this test is copied over from test/conversion/toVerilog
+            # which seems to pass the test for the 'main' branch
+            # IMO that test should have failed?
+            # To Be Revisited?
+            var1[:] &= right
             Bitand.next = var1
+
             var1[:] = left
-            var1 |= right
+            var1[:] |= right
             Bitor.next = var1
+
             var1[:] = left
-            var1 ^= left
+            var1[:] ^= left
             Bitxor.next = var1
+
             if right != 0:
                 var1[:] = left
-                var1 //= right
+                var1[:] //= right
                 FloorDiv.next = var1
+
             if left < 256 and right < 40:
                 var1[:] = left
-                var1 <<= right
+                var1[:] <<= right
                 LeftShift.next = var1
+
             if right != 0:
                 var1[:] = left
-                var1 %= right
+                var1[:] %= right
                 Mod.next = var1
+
             var1[:] = left
-            var1 *= right
+            var1[:] *= right
             Mul.next = var1
+
             var1[:] = left
-            var1 >>= right
+            var1[:] >>= right
             RightShift.next = var1
+
             if left >= right:
                 var1[:] = left
-                var1 -= right
+                var1[:] -= right
                 Sub.next = var1
+
             var1[:] = left
-            var1 += right
+            var1[:] += right
             Sum.next = var1
 
     return comb
