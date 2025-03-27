@@ -123,7 +123,7 @@ class Converter(object):
         _converting = 0
 
         # report the hierarchy
-        ic(h, h.top, h.hierarchy, h.absnames)
+        # ic(h, h.top, h.hierarchy, h.absnames)
 
         ### initialize properly ###
         _genUniqueSuffix.reset()
@@ -260,7 +260,7 @@ class Converter(object):
                     # ic(argportsinfo)
                     # ic(argnames, sl, argoutports)
                     if ll:
-                        ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
+                        # ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
                         modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argoutports, arginports)
 
                     ### clean-up properly ###
@@ -307,9 +307,9 @@ class Converter(object):
             arglist = _flattenhierarchy(self.hdl, h.top)
             _checkArgs(arglist)
             genlist = _analyzeGens(arglist, h.absnames)
-            ic(genlist)
+            # ic(genlist)
             siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
-            ic(siglist, memlist)
+            # ic(siglist, memlist)
             # ic(h, h.top, h.hierarchy)
             # generic annotate for 'all' target HDLs
             _annotateTypes(self.hdl, genlist)
@@ -386,7 +386,7 @@ class Converter(object):
         if self.hierarchical and level != 0:
             # update the ports as their _driven and _read atributes have been reset after the submodule generation
             # which will default (some) ports to input iso output
-            ic(intf.argnames, intf.argdict, intf.sigdict, subsoutputports, subsinputports)
+            # ic(intf.argnames, intf.argdict, intf.sigdict, subsoutputports, subsinputports)
             # si = []
             # for port in subsinputports:
             #     si.append(port._info)

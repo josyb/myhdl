@@ -25,6 +25,12 @@ inspired by previous work starting in 2015
 #  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 import math
+import copy
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl._Signal import _isListOfSigs, _Signal, Signal
 from myhdl._intbv import intbv
@@ -71,6 +77,23 @@ def setnext(obj, value):
             obj._setNextVal(value)
 
 
+def m1Dinfo(l):
+    ''' determine the properties of a (multi-dimensional) list '''
+    if len(l):
+        element = l[0]
+        totalelements = len(l)
+        levels = 1
+        sizes = [len(l)]
+        while isinstance(element, list):
+            sizes.append(len(element))
+            totalelements *= len(element)
+            element = element[0]
+            levels += 1
+        return levels, tuple(sizes), totalelements, element
+    else:
+        return None, None, None, None
+
+
 class Array(object):
     '''
         it would be better if we could derive this from a
@@ -93,7 +116,7 @@ class Array(object):
                (kind like numpy arrays)
                b = Array(shape, element)
                with shape: a tuple of dimensions, 3 maximum!
-               and element: a MyHDLobject , Signal, intbv, ...
+               and element: a MyHDLobject, Signal, intbv, ...
         '''
         self._name = None
         self._driven = None
@@ -105,10 +128,22 @@ class Array(object):
         self._size = None
         self._dtype = None
         self._array = None
-
+        self._isslice = None
         self._slicesigs = []
 
+        # if len(args) == 0:
+        #     return
+
         if len(args) == 2:
+            # if isinstance(args[0], list) and isinstance(args[1], Array):
+            #     # we wraaping a __getitem__ result
+            #     self._dtype = args[1]._dtype
+            #     self._driven = args[1]._driven
+            #     self._read = args[1]._read
+            #     self._name = args[1].name
+            #     __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
+            #     self._array = args[0]
+
             # shape
             if isinstance(args[0], int):
                 self._shape = (args[0],)
@@ -129,7 +164,7 @@ class Array(object):
             self._dtype = args[1]
             # we build it
             # create a list of list of ..
-            # this let's us delegate indexing and slicing to Python's methods
+            # this lets us delegate indexing and slicing to Python's methods
             if len(self._shape) == 3:
                 self._array = [[[self._dtype.duplicate()
                                  for __ in range(self.shape[2])]
@@ -143,11 +178,10 @@ class Array(object):
                 self._array = [self._dtype.duplicate()
                                for __ in range(self.shape[0])]
 
-        elif _isListOfSigs(args[0]):
+        elif isinstance(args[0], list):
+            # the list can be multidimensional!
             # wrap it in a nicer package :)
-            self._shape = (len(args[0]),)
-            self._size = len(args[0])
-            self._dtype = args[0][0]
+            __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
             self._array = args[0]
 
         else:
@@ -155,7 +189,7 @@ class Array(object):
 
     @property
     def _info(self):
-        return f'{repr(self)} used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
+        return f'{repr(self)} isslice {repr(self._isslice)}, used {self._used}, driven {self._driven}, driver {self._driver}, read {self._read}, readers {self._readers} '
 
     def __str__(self):
         if self._name:
@@ -169,6 +203,23 @@ class Array(object):
             return self._name + '= ' + rval
         else:
             return rval
+
+    def _check(self):
+
+        # infer _driven, _read from embedded objects
+        def __check(l):
+            if isinstance(l[0], list):
+                for ll in l:
+                    __check(ll)
+            else:
+                for obj in l:
+                    if self._driven is None:
+                        if obj._driven is not None:
+                            self._driven = obj._driven
+                    if not self._read:
+                        self._read = obj._read
+
+        __check(self._array)
 
     def ref(self):
         ''' return a nice reference name for the object '''
@@ -187,6 +238,39 @@ class Array(object):
             basetype = f'a{dim}_{basetype}'
 
         return basetype
+
+    def _makesubnames(self, hdl):
+
+        def _names(t, name):
+            for i, ss in enumerate(t):
+                if isinstance(ss, list):
+                    if hdl == 'VHDL':
+                        _names(ss, f'{name}({i})')
+                    else:
+                        _names(ss, f'{name}[{i}]')
+                else:
+                    if hdl == 'VHDL':
+                        ss._name = f"{name}({i})"
+                    else:
+                        ss._name = f"{name}[{i}]"
+
+        _names(self._array, self._name)
+
+    def _makeslicename(self, hdl):
+        # s._name = f'{s._isslice[0]._name}[{s._isslice[1]}]'
+        if self._isslice is not None:
+            indexes = []
+            t = self._isslice
+            ic(self._info, t[0], t[1])
+            while 1:
+                indexes.append(f'({t[1]})' if hdl == 'VHDL' else f'[{t[1]}]')
+                if isinstance(t[0], tuple):
+                    t = t[0]
+                else:
+                    break
+            return f"{t[0]._name}{''.join(reversed(indexes))}"
+        else:
+            return self._name
 
     def duplicate(self):
         return Array(self._shape, self._dtype)
@@ -329,15 +413,87 @@ class Array(object):
         self._used = True
 
     def __getitem__(self, key):
-        # delegate to Python's list
+        # delegate to Python's list (as a bonus: Python handles negative indexes ...
         # TODO:
-        # note that this either returns a list of ListofSignals, a ListofSignals or a single Signal (rahter object)
+        # note that this either returns a list of ListofSignals, a ListofSignals or a single Signal (rather object)
         # this complicates forwarding parts of an array to a sub-module
         # perhaps we have to create ShadowArrays?
-        return self._array[key]
+        # or possibly encapsulate the result into an array?
+        item = self._array[key]
+        # ic(key, item)
+        if isinstance(item, list):
+            # must wrap it in an Array, inheriting some (or more) attributes ...
+            # ic(self, key, item)
+            r = Array(item)
+            if self._isslice is None:
+                r._isslice = (self, key)
+            else:
+                # concatenate
+                r._isslice = (self._isslice, key)
+            # ic(r._info)
+            return r
+        else:
+            # it is a single MyHDL object
+            return item
+
+        # item = self._array[key]
+        # if isinstance(key, slice):
+        #     r = Array(item)
+        #     # ic(r._info)
+        #     return r
+        # else:
+        #     if isinstance(item, list):
+        #         # must wrap it in an Array, inheriting some (or more) attributes ...
+        #         # must deal with negative index
+        #         idx = int(key)
+        #         if idx < 0:
+        #             idx += len(self._array)
+        #         r = _subArray(item, self, idx)
+        #     else:
+        #         # it is a single MyHDL object
+        #         return item
+
+        # return item
 
     def __setitem__(self, key, val):
         raise TypeError("Array object doesn't support item/slice assignment")
+
+    # def __call__(self, start, end=None):
+    #     ''' make a shadow Array '''
+    #
+    #     # need a local recursive function
+    #     def makenext(obj, top):
+    #         ''' a local function to do the work, recursively '''
+    #         if isinstance(obj[0], (list, Array)):
+    #             for item in obj:
+    #                 lower = []
+    #                 makenext(item, lower)
+    #                 top.append(lower)
+    #         else:
+    #             # lowest level
+    #             for sig in obj:
+    #                 top.append(sig())
+    #
+    #     if isinstance(self.element, _Signal):
+    #         top = []
+    #
+    #         if end is not None:
+    #             makenext(self[start:end], top)
+    #         else:
+    #             makenext(self[start:], top)
+    #
+    #         r = Array(top, None)
+    #         r._isshadow = True
+    #         return r
+    #     else:
+    #         if start is None:
+    #             top = []
+    #             makenext(self, top)
+    #             r = Array(top, None)
+    #             r._isshadow = True
+    #             return r
+    #         else:
+    #             raise ValueError('Can only slice Signals (for now) <> {}'.format(repr(self.element)))
 
 # TODO: do we need ShadowArray?
 #     ### use call interface for shadow signals ###
@@ -356,6 +512,19 @@ class Array(object):
 #     def __init__(self, array, left=None, right=None):
 #         self._parent = array
 
+# class _subArray(Array):
+#
+#     def __init__(self, l, parent, idx):
+#         super(_subArray, self).__init__()
+#         if parent._name is not None:
+#             # TODO: hdl dependent!!!
+#             self._name = f'{parent._name}[{idx}]'
+#         self._driven = parent._driven
+#         self._read = parent._read
+#         __, self._shape, self._size, self._dtype = m1Dinfo(l)
+#         self._array = l
+#         ic(parent._info, self._info)
+
 
 class StructType(object):
     ''' a base class
@@ -373,8 +542,6 @@ class StructType(object):
         self._read = False
         self._used = False
         self._size = None
-
-        self._slicesigs = []
 
     def __repr__(self):
         rval = f'StructType {self.__class__.__name__} {vars(self)}'
@@ -483,7 +650,7 @@ class StructType(object):
             elif isinstance(obj, StructType):
                 retval += '_' + obj.ref() + '_j'
 
-            elif isinstance(obj, integer_types):
+            elif isinstance(obj, int):
                 pass
 
             else:

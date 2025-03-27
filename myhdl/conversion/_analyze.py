@@ -87,7 +87,7 @@ def _makeName(n, prefixes, namedict):
     return name.replace('self_', '')
 
 
-def _analyzeSigs(hierarchy, hdl='Verilog'):
+def _analyzeSigs(hierarchy, hdl):
     curlevel = 0
     siglist = []
     memlist = []
@@ -98,7 +98,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         name = inst.name
         sigdict = inst.sigdict
         memdict = inst.memdict
-        # ic(level, name, sigdict, memdict)
+        ic(level, name, sigdict, memdict)
         namedict = dict(chain(sigdict.items(), memdict.items()))
         delta = curlevel - level
         curlevel = level
@@ -111,7 +111,6 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         #    continue
         prefixes.append(name)
         for n, s in sigdict.items():
-            # ic(n, s._info)
             if s._name is not None:
                 continue
 
@@ -119,6 +118,8 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 continue
 
             s._name = _makeName(n, prefixes, namedict)
+            ic(n, s._info)
+
             if isinstance(s, Constant):
                 pass
 
@@ -126,11 +127,19 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
                 pass
 
             elif isinstance(s, Array):
-                for i, ss in enumerate(s._array):
-                    if hdl == 'VHDL':
-                        ss._name = f"{s._name}({i})"
-                    else:
-                        ss._name = f"{s._name}[{i}]"
+                # delegate to _structured.py
+                if s._isslice is None:
+                    s._makesubnames(hdl)
+                else:
+                    # TODO: this is hdl dependent!
+                    # TODO: revisit code for higher multidimensional Arrays, as then we will have nested indexing
+                    # s._name = f'{s._isslice[0]._name}[{s._isslice[1]}]'
+                    s._name = s._makeslicename(hdl)
+                # for i, ss in enumerate(s._array):
+                #     if hdl == 'VHDL':
+                #         ss._name = f"{s._name}({i})"
+                #     else:
+                #         ss._name = f"{s._name}[{i}]"
 
             else:
                 if not s._nrbits:
@@ -195,9 +204,9 @@ def _analyzeGens(top, absnames):
         elif isinstance(g, (_AlwaysComb, _AlwaysSeq, _Always)):
             f = g.func
             tree = g.ast
-            # ic((vars(tree)))
             # tree.symdict = f.__globals__.copy()
             tree.symdict = getsymdict(f.__globals__)
+            # ic(f, tree, tree.symdict)
             tree.callstack = []
             # handle free variables
             tree.nonlocaldict = {}
@@ -342,7 +351,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         self.visit(node.value)
 
     def visit_Call(self, node):
-        ic(node)
+        # ic(node)
         # ast.Call signature changed in python 3.5
         # http://greentreesnakes.readthedocs.org/en/latest/nodes.html#Call
         starargs = any(isinstance(arg, ast.Starred) for arg in node.args)
@@ -679,7 +688,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack[-2].isActive = True
 
     def visit_Call(self, node):
-        ic(node, self.tree.inputs)
+        # ic(node, self.tree.inputs)
         self.visit(node.func)
         f = self.getObj(node.func)
         node.obj = None
@@ -1413,7 +1422,7 @@ class _AnalyzeAlwaysSeqVisitor(_AnalyzeBlockVisitor):
 
     def visit_FunctionDef(self, node):
         # ic.indent()
-        # ic(astdump(node, show_offsets=False))
+        # ic(self.tree, astdump(node, show_offsets=False))
         self.refStack.push()
         for n in node.body:
             self.visit(n)
@@ -1542,24 +1551,24 @@ class _FixbvAstTransformer(ast.NodeTransformer):
         self.op = None
 
     def visit_FunctionDef(self, node):
-        ic(node, vars(node), astdump(node, show_offsets=False))
+        # ic(node, vars(node), astdump(node, show_offsets=False))
         nodes = _flatten(node.body, node.args)
         for n in nodes:
             self.visit(n)
         return node
 
     def visit_Assign(self, node):
-        ic(node, vars(node), astdump(node, show_offsets=False))
+        # ic(node, vars(node), astdump(node, show_offsets=False))
         lhs, value = node.targets[0], node.value
         if isinstance(lhs, ast.Attribute):
             self.inAssign = True
             self.visit(lhs)
             self.visit(value)
 
-        ic(self.inAssign, self.lhsisfixbv, self.isBinOP, self.lhs, self.left, self.op, self.right)
-        if self.inAssign and self.lhsisfixbv and self.isBinOP:
-            # we can now 're-write' this section of the AST
-            ic(astdump(node, show_offsets=False))
+        # ic(self.inAssign, self.lhsisfixbv, self.isBinOP, self.lhs, self.left, self.op, self.right)
+        # if self.inAssign and self.lhsisfixbv and self.isBinOP:
+        #     # we can now 're-write' this section of the AST
+        #     ic(astdump(node, show_offsets=False))
 
         self.inAssign = False
         self.lhsisfixbv = False
@@ -1568,13 +1577,13 @@ class _FixbvAstTransformer(ast.NodeTransformer):
         return  node
 
     def visit_Attribute(self, node):
-        ic(node, vars(node), astdump(node, show_offsets=False))
+        # ic(node, vars(node), astdump(node, show_offsets=False))
         if node.attr == 'next':
             if isinstance(node.value, ast.Name):
                 n = node.value
                 # now find the Signal
                 obj = self.tree.symdict[n.id]
-                ic(n.id, obj)
+                # ic(n.id, obj)
                 if isinstance(obj, _Signal) and isinstance(obj._val, fixbv):
                     self.lhsisfixbv = True
                     self.lhs = obj

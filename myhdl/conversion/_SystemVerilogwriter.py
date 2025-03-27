@@ -282,7 +282,7 @@ class SystemVerilogWriter(object):
 
             elif _isMem(s):
                 m = _getMemInfo(s)
-                ic(m._info)
+                # ic(m._info)
                 m.name = portname
                 r = _getRangeString(m.elObj)
                 p = _getSignString(m.elObj)
@@ -319,7 +319,7 @@ class SystemVerilogWriter(object):
         print(file=self.file)
 
     def hierarchicalinstance(self, sub):
-        # ic(sub.name, sub.argnames, sub.sigdict)
+        ic(sub.name, sub.argnames, sub.sigdict)
         args = []
         # first look for parameters
         parameters = []
@@ -344,26 +344,31 @@ class SystemVerilogWriter(object):
             s = f"    {sub.name} {sub.name}_inst("  # % (sub.func.__name__, sub.name)
 
         for i, arg in enumerate(sub.argnames):
-            signame = f'{sub.sigdict[i]}'
-            if isinstance(sub.sigdict[i], (_Signal, Array)):
+            obj = sub.sigdict[i]
+
+            # signame = f'{sub.sigdict[i]}'
+            if isinstance(obj, (_Signal, Array)):
+                ic(i, arg, obj._info)
+                if isinstance(obj, _Signal):
+                    signame = f'{sub.sigdict[i]}'
+                else:
+                    signame = obj._makeslicename(self.hdl)
                 # this will cover OpenPort, Constant, Parameter too
-                sig = sub.sigdict[i]
-                # ic(i, arg, signame)
-                if isinstance(sig, OpenPort):
+                if isinstance(obj, OpenPort):
                     pass
 
-                elif isinstance(sig, Parameter):
+                elif isinstance(obj, Parameter):
                     pass
 
-                elif isinstance(sig, (_Signal, Array)):
-                    if sig._used:
-                        if sig._driven:
+                elif isinstance(obj, (_Signal, Array)):
+                    if obj._used:
+                        if obj._driven:
                             args.append(f"\n        .{arg}({signame})")
-                        elif sig._read:
+                        elif obj._read:
                             # ic(sig._info)
-                            if len(sig._readers):
+                            if len(obj._readers):
                                 # ic(sub.name, sig._info, repr(sig._readers))
-                                if sub.name in sig._readers:
+                                if sub.name in obj._readers:
                                     # ic('Gotcha?', signame)
                                     args.append(f"\n        .{arg}({signame})")
                             else:
@@ -394,6 +399,14 @@ class SystemVerilogWriter(object):
                 continue
 
             if isinstance(s, Array):
+                ic(signame, s._info)
+                s._check()
+                # for s in m.mem:
+                #     if not m._driven and s._driven:
+                #         m._driven = s._driven
+                #     if not m._read and s._read:
+                #         m._read = s._read
+
                 t = _getTypeNetString(s)
                 r = _getRangeString(s)
                 p = _getSignString(s)
@@ -675,7 +688,7 @@ class SystemVerilogWriter(object):
 class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def __init__(self, tree, buf, writer):
-        ic(self, tree)
+        # ic(self, tree)
         self.tree = tree
         self.buf = buf
         self.returnLabel = tree.name
@@ -701,7 +714,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def writeDoc(self, node):
         assert hasattr(node, 'doc')
-        doc = _makeDoc(node.doc, '// ', self.ind)
+        # doc = _makeDoc(node.doc, '// ', self.ind)
+        doc = _makeDoc(node.doc, '// ')
         self.write(doc)
         self.writeline()
 
@@ -931,6 +945,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                         # this doesn't seem to work?
                         # self.buf.seek(-1, os.SEEK_END)
                         return
+                    elif isinstance(obj, Array):
+                        pass
                     elif isinstance(obj._val, fixbv):
                         # we may have to shift left some things ...
                         # ic(obj._info, astdump(node, show_offsets=False), (vars(node)))
@@ -1415,6 +1431,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 s = n
 
             else:
+                ic(self.tree.symdict)
                 self.raiseError(node, _error.UnsupportedType, "{}, {} {}".format(n, type(obj), obj))
 
         else:
