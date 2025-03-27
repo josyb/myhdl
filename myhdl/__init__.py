@@ -186,6 +186,7 @@ from ._structured import Array
 from ._tristate import Tristate
 
 from myhdl import conversion
+from myhdl.conversion.cosimulation._cosimulation import setupcosimobject, getcosimkwargs
 
 __all__ = [
            "always",
@@ -205,6 +206,7 @@ __all__ = [
            "EnumType",
            "EnumItemType",
            "fixbv",
+           "getcosimkwargs",
            "HdlClass",
            "instance",
            "instances",
@@ -217,6 +219,7 @@ __all__ = [
            "posedge",
            "Parameter",
            "ResetSignal",
+           "setupcosimobject",
            "Signal",
            "SignalType",
            "StopSimulation",

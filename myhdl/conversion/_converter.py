@@ -42,7 +42,7 @@ try:
     ic.configureOutput(argToStringFunction=pp.pformat, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
     ic.lineWrapWidth = preferredWidth
-    ic.disable()
+    # ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
@@ -76,12 +76,8 @@ class Converter(object):
         self.hierarchical = kwargs.get('hierarchical', 0)
         self.trace = kwargs.get('trace', False)
         self.sourcepath = kwargs.get('sourcepath', '')
-        # for key, value in kwargs.items():
-        #     if key in ['name', 'directory', 'hierarchical', 'no_testbench', 'trace', 'sourcepath']:
-        #         setattr(self, key, value)
-
         # select the appropriate HDL Writer
-        # and apply the (remaining) kwargs
+        # and have it apply the (remaining) kwargs
         if hdl == 'VHDL':
             self.writer = VhdlWriter(**kwargs)
         elif hdl == 'Verilog':
@@ -94,8 +90,8 @@ class Converter(object):
     def __call__(self, func, *args, **kwargs):
 
         # TODO: check whether _converting and _tracing have any effect
-
         global _converting
+
         if _converting:
             # NOTE _block.py calls us with empty args and empty kwargs ...
             return func(*args, **kwargs)  # skip
@@ -121,9 +117,6 @@ class Converter(object):
         # it will always work, no?
         h = _getHierarchy(self.name, func)
         _converting = 0
-
-        # report the hierarchy
-        # ic(h, h.top, h.hierarchy, h.absnames)
 
         ### initialize properly ###
         _genUniqueSuffix.reset()
@@ -155,7 +148,7 @@ class Converter(object):
                 # ic(ll, (ha[ll]))
                 for bb in ha[ll]:
                     target = bb.blocksubs
-                    # ic(target.name, vars(target))
+                    ic(target.name, vars(target))
                     # ic('======================================', bb)
                     # we normally only need one level of hierarchy
                     # unless we choose to flatten a part of the code
@@ -210,17 +203,20 @@ class Converter(object):
                     # siglistinfo = [ sig._info for sig in siglist]
                     # ic(ll, bb.instancename, siglistinfo, target, target)
 
-                    for __, s in target.sigdict.items():
+                    for __, obj in target.sigdict.items():
+                        ic(obj._info)
+                        if not obj._used:
+                            continue
                         if ll:
-                            if s._driver == 'driven':
-                                s._driver = bb.instancename
+                            if obj._driver == 'driven':
+                                obj._driver = bb.instancename
 
-                            if s._read:
-                                s._readers.append(bb.instancename)
+                            if obj._read:
+                                obj._readers.append(bb.instancename)
 
                         else:
-                            if s._driver is not None:
-                                s._driver = 'driven'
+                            if obj._driver is not None:
+                                obj._driver = 'driven'
                         # ic(ll, s._info)
 
                     if ll == 0:
@@ -234,7 +230,7 @@ class Converter(object):
                     sl = []
                     argoutports = {}
                     arginports = {}
-                    # ic(res.argnames, res.argdict, res.sigdict)
+                    ic(res.argnames, res.argdict, res.sigdict)
                     for argname in res.argnames:
                         s = res.argdict[argname]
                         sl.append(s)
@@ -260,7 +256,7 @@ class Converter(object):
                     # ic(argportsinfo)
                     # ic(argnames, sl, argoutports)
                     if ll:
-                        # ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
+                        ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
                         modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argoutports, arginports)
 
                     ### clean-up properly ###
@@ -357,54 +353,34 @@ class Converter(object):
         intf = func
         intf.name = name
 
-        # for n, s in intf.argdict.items():
-        #     # ic(ll, s._info)
-        #     # s._name = None
-        #     if level:
-        #         if s._driver == 'driven':
-        #             s._driver = intf.name
-        #
-        #         if s._read:
-        #             if n in intf.sigdict:
-        #                 s._readers.append(intf.name)
-        #
-        #     else:
-        #         s._driver = 'driven'
-        #         # if s._read:
-        #         #     s._readers = []
+        if self.hierarchical:
+            if  level == 0 or level == self.hierarchical or intf.endhierarchy:
+                for __, arg in intf.argdict.items():
+                    # TODO: ListOfSignals will be deprecated
+                    if _isListOfSigs(arg):
+                        m = _getMemInfo(arg)
+                        if m.name in intf.argdict:
+                            m._readers.append(intf.name)
+                    else:
+                        arg._readers.append(intf.name)
+            else:
+            # if self.hierarchical and level != 0:
+                # update the ports as their _driven and _read atributes have been reset after the submodule generation
+                # which will default (some) ports to input iso output
+                for subport in subsoutputports:
+                    if subport._name in intf.argdict:
+                        intf.argdict[subport._name]._driven = subport._driven
 
-        if self.hierarchical and level == 0:
-            for __, arg in intf.argdict.items():
-                # TODO: ListOfSignals will be deprecated
-                if _isListOfSigs(arg):
-                    m = _getMemInfo(arg)
-                    if m.name in intf.argdict:
-                        m._readers.append(intf.name)
-                else:
-                    arg._readers.append(intf.name)
+                # some modules pass input signals to lower modules
+                # add this levels to the readers list
+                for __, subport in subsinputports.items():
+                    if _isListOfSigs(subport):
+                        m = _getMemInfo(subport)
+                        if m.name in intf.argdict:
+                            m._readers.append(intf.name)
 
-        if self.hierarchical and level != 0:
-            # update the ports as their _driven and _read atributes have been reset after the submodule generation
-            # which will default (some) ports to input iso output
-            # ic(intf.argnames, intf.argdict, intf.sigdict, subsoutputports, subsinputports)
-            # si = []
-            # for port in subsinputports:
-            #     si.append(port._info)
-            # ic(si)
-            for subport in subsoutputports:
-                if subport._name in intf.argdict:
-                    intf.argdict[subport._name]._driven = subport._driven
-
-            # some modules pass input signals to lower modules
-            # add this levels to the readers list
-            for __, subport in subsinputports.items():
-                if _isListOfSigs(subport):
-                    m = _getMemInfo(subport)
-                    if m.name in intf.argdict:
-                        m._readers.append(intf.name)
-
-                elif subport._name in intf.argdict:
-                    subport._readers.append(intf.name)
+                    elif subport._name in intf.argdict:
+                        subport._readers.append(intf.name)
 
         # start the output file, only when the analysis/annotation process passes
         self.writer.openfile(name, self.directory)

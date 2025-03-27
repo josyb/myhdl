@@ -252,7 +252,6 @@ class SystemVerilogWriter(object):
                                 for sl in s._slicesigs:
                                     sl._setName('Verilog')
                         else:
-                            # s._readers.append(intf.name)
                             print(f'    input  {sigdecl},', file=b)
                             # a top level input may have ShadowSignals
                             # which have not been processed by _analyzeSigs
