@@ -383,48 +383,64 @@ class SystemVerilogWriter(object):
     def writeDecls(self, intf, siglist, memlist):
         # ic(intf.name, siglist, memlist)
         constwires = []
-        for s in siglist:
-            # ic(s._info)
-            if not s._used:
+        for obj in siglist:
+            # ic(obj._info)
+            if not obj._used:
                 continue
 
-            if isinstance(s, OpenPort):
+            if isinstance(obj, OpenPort):
                 # do not write a signal declaration
                 continue
             else:
-                signame = s._name
+                signame = obj._name
 
             if signame in intf.argnames:
                 continue
 
-            if isinstance(s, Array):
-                ic(signame, s._info)
-                s._check()
-                # for s in m.mem:
-                #     if not m._driven and s._driven:
-                #         m._driven = s._driven
-                #     if not m._read and s._read:
-                #         m._read = s._read
+            if isinstance(obj, Array):
+                # TODO: format long initialisation strings over multiple lines
+                # perhaps observing a maximum line length of ... chars
+                # perhaps at the same time aligning the separator commas (',')
+                # ic(signame, obj._info)
+                obj._check()
+                # for obj in m.mem:
+                #     if not m._driven and obj._driven:
+                #         m._driven = obj._driven
+                #     if not m._read and obj._read:
+                #         m._read = obj._read
 
-                t = _getTypeNetString(s)
-                r = _getRangeString(s)
-                p = _getSignString(s)
-                n = _getSizes(s)
-                if s._driven:
+                t = _getTypeNetString(obj)
+                r = _getRangeString(obj)
+                p = _getSignString(obj)
+                n = _getSizes(obj)
+                if obj._driven:
                     if not self.initial_values:
                         print(f"    {t} {p}{r}{signame} {n};", file=self.file)
                     else:
                         raise NotImplementedError('Must add initialistion of Array')
 
+                elif not obj._isslice:
+                    # an Aray of Constants ...
+                    # TODO: this will fail for multidimensional Arrays
+                    # vals = [ f"{_intRepr(sobj._init)}" for ss in obj._array]
+                    # print(f"    localparam {p} {r} {obj._name} [0:{obj._size}-1] = '{{{', '.join(vals)}}};", file=self.file)
+                    tvals = _initialvals(obj._array, obj._shape)
+                    # ic(tvals)
+                    print(f"    localparam {p} {r} {obj._name} {n} = {tvals};", file=self.file)
+
+                else:
+                    # discard
+                    pass
             else:
-                t = _getTypeNetString(s)
-                r = _getRangeString(s)
-                p = _getSignString(s)
-                if s._driven:
-                    if not s._read and not isinstance(s, _TristateDriver):
+                # a Signal
+                t = _getTypeNetString(obj)
+                r = _getRangeString(obj)
+                p = _getSignString(obj)
+                if obj._driven:
+                    if not obj._read and not isinstance(obj, _TristateDriver):
                         warnings.warn(f"{_error.UnreadSignal}: {signame}", category=ToSystemVerilogWarning)
                     # k = 'wire'
-                    # if s._driven == 'reg':
+                    # if obj._driven == 'reg':
                     #     # default to single driver type only
                     #     k = 'logic'
                     # the following line implements initial value assignments
@@ -433,66 +449,66 @@ class SystemVerilogWriter(object):
                     if not self.initial_values or t == 'wire ':
                         print(f"    {t} {p}{r}{signame};", file=self.file)
                     else:
-                        if isinstance(s._init, EnumItemType):
-                            print(f"    {t} {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                        if isinstance(obj._init, EnumItemType):
+                            print(f"    {t} {p}{r}{signame} = {obj._init._toVerilog()};", file=self.file)
                         else:
-                            print(f"    {t} {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
+                            print(f"    {t} {p}{r}{signame} = {_intRepr(obj._init)};", file=self.file)
 
-                elif s._read:
-                    if isinstance(s, Constant):
-                        c = int(s.val)
-                        c_len = s._nrbits
+                elif obj._read:
+                    if isinstance(obj, Constant):
+                        c = int(obj.val)
+                        c_len = obj._nrbits
                         c_str = f"{c}"
                         # iverilog doesn't handle `const` ... (bummer)
-                        if isinstance(s.val, bool):
-                            # print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                            print(f"    localparam  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                        elif isinstance(s.val, int):
-                            # print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
-                            print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
-                        elif isinstance(s.val, float):
-                            # print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
-                            print(f"    localparam {s} = {c_str}; // {hex(c)}", file=self.file)
+                        if isinstance(obj.val, bool):
+                            # print(f"    const logic  {r}{obj} = {c_len}'b{c_str};", file=self.file)
+                            print(f"    localparam  {r}{obj} = {c_len}'b{c_str};", file=self.file)
+                        elif isinstance(obj.val, int):
+                            # print(f"    const int {obj} = {c_str}; // {hex(c)}", file=self.file)
+                            print(f"    localparam {obj} = {c_str}; // {hex(c)}", file=self.file)
+                        elif isinstance(obj.val, float):
+                            # print(f"    const real {obj} = {c_str}; // {hex(c)}", file=self.file)
+                            print(f"    localparam {obj} = {c_str}; // {hex(c)}", file=self.file)
                         else:
                             # intbv
-                            # print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
-                            print(f"    localparam {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            # print(f"    const logic {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            print(f"    localparam {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
 
                     else:
                         # the original exception
                         # raise ToVerilogError(_error.UndrivenSignal, signame)
                         # changed to a warning and a continuous assignment to a wire
                         warnings.warn(f"{_error.UndrivenSignal}: {signame}", category=ToSystemVerilogWarning)
-                        constwires.append(s)
-                        ic(s._info)
+                        constwires.append(obj)
+                        ic(obj._info)
                         print(f"    logic {r}{signame};", file=self.file)
 
                 else:
                     # _used but not _driven and not _read
                     # ???
-                    ic(s._info)
+                    ic(obj._info)
                     # if self.hierarchical:
-                    if isinstance(s, Constant):
-                        c = int(s.val)
-                        c_len = s._nrbits
+                    if isinstance(obj, Constant):
+                        c = int(obj.val)
+                        c_len = obj._nrbits
                         c_str = f"{c}"
-                        if isinstance(s.val, bool):
-                            print(f"    const logic  {r}{s} = {c_len}'b{c_str};", file=self.file)
-                        elif isinstance(s.val, int):
-                            print(f"    const int {s} = {c_str}; // {hex(c)}", file=self.file)
-                        elif isinstance(s.val, float):
-                            print(f"    const real {s} = {c_str}; // {hex(c)}", file=self.file)
+                        if isinstance(obj.val, bool):
+                            print(f"    const logic  {r}{obj} = {c_len}'b{c_str};", file=self.file)
+                        elif isinstance(obj.val, int):
+                            print(f"    const int {obj} = {c_str}; // {hex(c)}", file=self.file)
+                        elif isinstance(obj.val, float):
+                            print(f"    const real {obj} = {c_str}; // {hex(c)}", file=self.file)
                         else:
                             # intbv
-                            print(f"    const logic {r}{s} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            print(f"    const logic {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
                     else:
                         if not self.initial_values:
                             print(f"    logic {p}{r}{signame};", file=self.file)
                         else:
-                            if isinstance(s._init, EnumItemType):
-                                print(f"    logic {p}{r}{signame} = {s._init._toVerilog()};", file=self.file)
+                            if isinstance(obj._init, EnumItemType):
+                                print(f"    logic {p}{r}{signame} = {obj._init._toVerilog()};", file=self.file)
                             else:
-                                print(f"    logic {p}{r}{signame} = {_intRepr(s._init)};", file=self.file)
+                                print(f"    logic {p}{r}{signame} = {_intRepr(obj._init)};", file=self.file)
 
         for m in memlist:
             if not m._used:
@@ -507,58 +523,26 @@ class SystemVerilogWriter(object):
                     m._driven = s._driven
                 if not m._read and s._read:
                     m._read = s._read
+
             if not m._driven and not m._read:
                 continue
+
             r = _getRangeString(m.elObj)
             p = _getSignString(m.elObj)
-            # k = 'wire'
-            initial_assignments = None
             if m._driven:
-                # k = m._driven
-
                 if self.initial_values and not m._driven == 'wire':
                     if all([each._init == m.mem[0]._init for each in m.mem]):
-
-                        initialize_block_name = ('INITIALIZE_' + m.name).upper()
-                        _initial_assignments = (
-                            f'''
-                            initial begin: {initialize_block_name}
-                                integer i;
-                                for(i=0; i<{len(m.mem)}; i=i+1) begin
-                                    {m.name}[i] = {_intRepr(m.mem[0]._init)};
-                                end
-                            end
-                            '''
-                            )
-
-                        initial_assignments = (
-                            textwrap.dedent(_initial_assignments))
-
+                        print(f"    logic {p} {r} {m.name} [0:{m.depth}-1] = '{{default: {_intRepr(m.mem[0]._init)}}};", file=self.file)
                     else:
-                        val_assignments = '\n'.join(
-                            [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
-                        initial_assignments = (
-                            'initial begin\n' + val_assignments + '\nend')
-                print(f"    logic {p}{r}{m.name} [0:{m.depth} - 1];", file=self.file)
+                        vals = ', '.join([f'{_intRepr(each._init)};' for n, each in enumerate(m.mem)])
+                        print(f"    logic {p}{r}{m.name} [0:{m.depth} - 1] = {{{vals}}};", file=self.file)
+
             else:
                 # remember for SystemVerilog, later
-                # # can assume it is a localparam array
-                # # build the initial values list
-                # vals = []
-                # w = m.mem[0]._nrbits
-                # for s in m.mem:
-                #     vals.append('{}\'d{}'.format(w, _intRepr(s._init)))
-                #
-                # print('localparam {} {} {} [0:{}-1] = \'{{{}}};'.format(p, r, m.name, m.depth, ', '.join(vals)), file=self.file)
-                print(f'logic {p}{r} {m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
-                val_assignments = '\n'.join(
-                        [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
-
-                initial_assignments = (
-                    f'initial begin\n {val_assignments} \nend')
-
-            if initial_assignments is not None:
-                print(initial_assignments, file=self.file)
+                # can assume it is a localparam array
+                # build the initial values list
+                vals = [ f"{_intRepr(s._init)}" for s in m.mem]
+                print(f"    localparam {p} {r} {m.name} [0:{m.depth}-1] = '{{{', '.join(vals)}}};", file=self.file)
 
         print(file=self.file)
         for s in constwires:
@@ -913,15 +897,14 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 if i == len(rom) - 1:
                     self.write("default: ")
                 else:
-                    self.write("{}: ".format(i))
+                    self.write(f"{i}: ")
                 self.visit(node.targets[0])
                 if self.isSigAss:
                     self.write(' <= ')
                     self.isSigAss = False
                 else:
                     self.write(' = ')
-                s = self.IntRepr(n)
-                self.write("{};".format(s))
+                self.write(f"{self.IntRepr(n)};")
             self.dedent()
             self.writeline()
             self.write("endcase")
@@ -1992,23 +1975,48 @@ def _intRepr(n, radix=''):
     # write size for large integers (beyond 32 bits signed)
     # with some safety margin
     # XXX signed indication 's' ???
+
+    # TODO: delegate this to the object (SIgnal, Array, StructType)?
+    # so we get the correct size and sign
+
     if isinstance(n, EnumItemType):
         return n._toVerilog()
+    elif isinstance(n, int):
+        return str(n)
     else:
         p = abs(n)
         size = ''
-        num = str(p).rstrip('L')
-        if radix == "hex" or p >= 2 ** 30:
-            radix = "'h"
-            num = hex(p)[2:].rstrip('L')
-        if p >= 2 ** 30:
-            size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
-    #            if not radix:
-    #                radix = "'d"
-        r = "{}{}{}".format(size, radix, num)
-        if n < 0:  # add brackets and sign on negative numbers
-            r = "(-{})".format(r)
+        num = str(p)
+        if radix == "hex":
+            radix = "'sh"  if n.min < 0 else "'h"
+            num = hex(p)[2:]
+        else:
+            radix = "'sd"  if n.min < 0 else "'d"
+        # TODO: get size from type?
+        # size = int(math.ceil(math.log(p + 1, 2)))
+        size = ''
+        if isinstance(n, intbv) and n._nrbits:
+            size = f'{n._nrbits}'
+        r = f"{size}{radix}{'-' if n < 0 else ''}{num}"
+        # if n < 0:  # add brackets and sign on negative numbers
+        #     r = f"-({r})"
         return r
+
+
+def _initialvals(l, shape):
+    while len(shape) > 1:
+        s = ','.join([_initialvals(l[i], shape[1:]) for i in range(shape[0])])
+        return f"'{{{s}}}    "
+
+    tt = [_intRepr(l[i]._init) for i in range(shape[0])]
+    tl = []
+    for j in range(0, len(tt), 8):
+        tl.append(', '.join(tt[j:j + 8]))
+    # r = len(tt) % 8
+    # if r:
+    #     tl.append(', '.join(tt[-r:]))
+    s = ',\n    '.join(tl)
+    return f"\n    '{{{s}}}"
 
 
 opmap = {

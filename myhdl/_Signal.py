@@ -458,9 +458,11 @@ class _Signal(object):
         return self._val[key]
 
     def duplicate(self, val=None):
+        # TODO: needs rework to accept float for fixbv
         sig = Signal(self._val)
         if val:
             sig._val._val = val
+            sig._init._val = val
         # ic(self._val, repr(sig))
         return sig
 

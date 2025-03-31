@@ -20,6 +20,11 @@
 """ Module with the always_seq decorator. """
 from types import FunctionType
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl import AlwaysError, intbv
 from myhdl._util import _isGenFunc
 from myhdl._Signal import _Signal, _WaiterList, _isListOfSigs
@@ -91,6 +96,7 @@ def always_seq(edge, reset):
 class _AlwaysSeq(_Always):
 
     def __init__(self, func, edge, reset, callinfo, sigdict):
+        # ic(func, sigdict)
         senslist = [edge]
         self.reset = reset
         if reset is not None:
@@ -118,6 +124,7 @@ class _AlwaysSeq(_Always):
         varregs = self.varregs = []
         for n in self.outputs:
             reg = self.symdict[n]
+            # ic(reg)
             if isinstance(reg, _Signal):
                 sigregs.append(reg)
 

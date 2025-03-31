@@ -42,7 +42,9 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 try:
     from astpretty import pformat as astdump
 except ImportError:
-    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+    def astdump(*args, **kwargs):
+        pass
 
 from myhdl import  ConversionError
 from myhdl import ToVerilogError, ToVerilogWarning

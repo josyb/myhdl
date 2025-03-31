@@ -39,7 +39,9 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
 try:
     from astpretty import pformat as astdump
 except ImportError:
-    astdump = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
+    def astdump(*args, **kwargs):
+        pass
 
 from myhdl import __version__ as myhdlversion
 from myhdl import  ConversionError
@@ -588,6 +590,7 @@ nameconstant_map = {
 class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
 
     def __init__(self, tree, buf, writer):
+        ic(self, tree, buf, writer)
         self.tree = tree
         self.buf = buf
         self.returnLabel = tree.name

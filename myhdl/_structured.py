@@ -94,6 +94,20 @@ def m1Dinfo(l):
         return None, None, None, None
 
 
+def mkarray(shape, element):
+    while len(shape) > 1:
+        return [mkarray(shape[1:], element) for __ in range(shape[0])]
+
+    return [element.duplicate() for __ in range(shape[0])]
+
+
+def mkinitialisedarray(source, shape, element):
+    while len(shape) > 1:
+        return [mkinitialisedarray(source[i], shape[1:], element) for i in range(shape[0])]
+
+    return [element.duplicate(source[j]) for j in range(shape[0])]
+
+
 class Array(object):
     '''
         it would be better if we could derive this from a
@@ -134,16 +148,22 @@ class Array(object):
         # if len(args) == 0:
         #     return
 
-        if len(args) == 2:
-            # if isinstance(args[0], list) and isinstance(args[1], Array):
-            #     # we wraaping a __getitem__ result
-            #     self._dtype = args[1]._dtype
-            #     self._driven = args[1]._driven
-            #     self._read = args[1]._read
-            #     self._name = args[1].name
-            #     __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
-            #     self._array = args[0]
+        if isinstance(args[0], list):
+            # the list can be multidimensional!?
+            # wrap it in a nicer package :)
+            __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
 
+            if _isListOfSigs(args[0]):
+                self._array = args[0]
+            else:
+                assert len(args) == 2
+                # TODO: we received a list of `int` or `float`, later handle `StructType` too
+                # so we must add the 'inmitial' values ...
+                self._dtype = args[1]
+                self._array = mkinitialisedarray(args[0], self._shape, self._dtype)
+                ic(self._info)
+
+        elif len(args) == 2:
             # shape
             if isinstance(args[0], int):
                 self._shape = (args[0],)
@@ -156,33 +176,22 @@ class Array(object):
                 assert len(args[0]) <= 3
                 self._shape = args[0]
                 self._size = math.prod(args[0])
+
+            elif isinstance(args[0], list):
+                # only accept `int`?
+                # assert all([isinstance(each, int) for each in args[0]]), f'Array: Only accept list of ints <> {args[0]}'
+                __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
+
             else:
                 raise ValueError(f'Array: Only handle single `int` or `tuple` of `int` as shape specification')
 
             # _dtype
-            assert isinstance(args[1], _Signal)  # later add StructType etc
+            assert isinstance(args[1], _Signal)  # Includes Constant, later add StructType etc
             self._dtype = args[1]
             # we build it
             # create a list of list of ..
             # this lets us delegate indexing and slicing to Python's methods
-            if len(self._shape) == 3:
-                self._array = [[[self._dtype.duplicate()
-                                 for __ in range(self.shape[2])]
-                                 for __ in range(self.shape[1])]
-                                 for __ in range(self.shape[0])]
-            elif len(self._shape) == 2:
-                self._array = [[self._dtype.duplicate()
-                                for __ in range(self.shape[1])]
-                                for __ in range(self.shape[0])]
-            else:
-                self._array = [self._dtype.duplicate()
-                               for __ in range(self.shape[0])]
-
-        elif isinstance(args[0], list):
-            # the list can be multidimensional!
-            # wrap it in a nicer package :)
-            __, self._shape, self._size, self._dtype = m1Dinfo(args[0])
-            self._array = args[0]
+            self._array = mkarray(self._shape, self._dtype)
 
         else:
             raise ValueError(f'Can not create Array with {args}')

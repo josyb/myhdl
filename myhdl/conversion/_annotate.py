@@ -528,23 +528,22 @@ def _maybeNegative(obj):
 #         return True
 #     return False
 
-
-def _intRepr(n, radix=''):
-    # write size for large integers (beyond 32 bits signed)
-    # with some safety margin
-    # XXX signed indication 's' ???
-    p = abs(n)
-    size = ''
-    num = str(p).rstrip('L')
-    if radix == "hex" or p >= 2 ** 30:
-        radix = "'h"
-        num = hex(p)[2:].rstrip('L')
-    if p >= 2 ** 30:
-        size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
-#            if not radix:
-#                radix = "'d"
-    r = "{}{}{}".format(size, radix, num)
-    if n < 0:  # add brackets and sign on negative numbers
-        r = "(-{})".format(r)
-    return r
+# def _intRepr(n, radix=''):
+#     # write size for large integers (beyond 32 bits signed)
+#     # with some safety margin
+#     # XXX signed indication 's' ???
+#     p = abs(n)
+#     size = ''
+#     num = str(p).rstrip('L')
+#     if radix == "hex" or p >= 2 ** 30:
+#         radix = "'h"
+#         num = hex(p)[2:].rstrip('L')
+#     if p >= 2 ** 30:
+#         size = int(math.ceil(math.log(p + 1, 2))) + 1  # sign bit!
+# #            if not radix:
+# #                radix = "'d"
+#     r = "{}{}{}".format(size, radix, num)
+#     if n < 0:  # add brackets and sign on negative numbers
+#         r = "(-{})".format(r)
+#     return r
 

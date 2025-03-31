@@ -86,4 +86,5 @@ if __name__ == '__main__':
     print('converting bench adapter')
     dfc = bench_adapter()
     # dfc.convert(hdl='Verilog')
-    dfc.convert(hdl='VHDL')
+    dfc.convert(hdl='SystemVerilog')
+    # dfc.convert(hdl='VHDL')

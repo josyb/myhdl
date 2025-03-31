@@ -7,6 +7,13 @@ try:
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
+try:
+    from astpretty import pformat as astdump
+except ImportError:
+
+    def astdump(*args, **kwargs):
+        pass
+
 from myhdl._intbv import intbv
 from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._structured import Array
@@ -26,16 +33,20 @@ class _SigNameVisitor(ast.NodeVisitor):
         self.losdict = {}
 
     def visit_Module(self, node):
+        # ic(node, astdump(node, show_offsets=False))
         for n in node.body:
             self.visit(n)
+        # ic(self.inputs)
 
     def visit_FunctionDef(self, node):
+        # ic(node)
         if self.toplevel:
             self.toplevel = 0  # skip embedded functions
             for n in node.body:
                 self.visit(n)
         else:
             self.embedded_func = node.name
+        # ic(self.inputs)
 
     def visit_If(self, node):
         if not node.orelse:
@@ -45,10 +56,12 @@ class _SigNameVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Name(self, node):
+        # ic(node, astdump(node, show_offsets=False))
         n = node.id
         if n not in self.symdict:
             return
         s = self.symdict[n]
+        # ic(s)
         if isinstance(s, (_Signal, Array, intbv)) or _isListOfSigs(s):
             if self.context == 'input':
                 self.inputs.add(n)
@@ -86,7 +99,10 @@ class _SigNameVisitor(ast.NodeVisitor):
         if fn == "len":
             pass
         else:
+            # ic(node, astdump(node, show_offsets=False))
             self.generic_visit(node)
+
+        # ic(self.inputs)
 
     def visit_Subscript(self, node):
         self.visit(node.value)

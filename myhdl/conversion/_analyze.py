@@ -118,7 +118,7 @@ def _analyzeSigs(hierarchy, hdl):
                 continue
 
             s._name = _makeName(n, prefixes, namedict)
-            ic(n, s._info)
+            # ic(n, s._info)
 
             if isinstance(s, Constant):
                 pass
@@ -1594,11 +1594,11 @@ class _FixbvAstTransformer(ast.NodeTransformer):
             # we are only interested in assignments to a fixbv
             left = node.left
             right = node.right
-            ic(node, vars(node), astdump(node, show_offsets=False), left, node.op, right)
+            # ic(node, vars(node), astdump(node, show_offsets=False), left, node.op, right)
             if isinstance(left, ast.Name) and \
                 isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv)) and \
                 isinstance(right, ast.Name):
-                ic(vars(left), astdump(left, show_offsets=False), vars(right), astdump(right, show_offsets=False))
+                # ic(vars(left), astdump(left, show_offsets=False), vars(right), astdump(right, show_offsets=False))
                 nl = node.left.id
                 nr = node.right.id
                 objl = self.tree.symdict[nl]
