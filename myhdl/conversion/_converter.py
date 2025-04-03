@@ -42,7 +42,7 @@ try:
     ic.configureOutput(argToStringFunction=pp.pformat, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
     ic.lineWrapWidth = preferredWidth
-    # ic.disable()
+    ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 

@@ -147,26 +147,26 @@ def canonical_list_writer(output_signal_list, clk):
             print(str(output_signal_list[i]._val))
 
     canonical_list_writer.verilog_code = '''
-always @(posedge $clk) begin: INITIAL_VALUE_LIST_BENCH_CANONICAL_LIST_WRITER_0_LIST_WRITER
-    integer i;
-    for (i=0; i<10; i=i+1) begin
-        $$write("%h", output_signal_list[i]);
-        $$write("\\n");
+    always @(posedge $clk) begin: INITIAL_VALUE_LIST_BENCH_CANONICAL_LIST_WRITER_0_LIST_WRITER
+        integer i;
+        for (i=0; i<10; i=i+1) begin
+            $$write("%h", output_signal_list[i]);
+            $$write("\\n");
+        end
     end
-end
-'''
+    '''
     canonical_list_writer.vhdl_code = '''
-INITIAL_VALUE_BENCH_OUTPUT_WRITER: process ($clk) is
-    variable L: line;
-begin
-    if rising_edge($clk) then
-        for i in 0 to $signal_list_length-1 loop
-            write(L, to_hstring(unsigned(output_signal_list(i))));
-            writeline(output, L);
-        end loop;
-    end if;
-end process INITIAL_VALUE_BENCH_OUTPUT_WRITER;
-'''
+    INITIAL_VALUE_BENCH_OUTPUT_WRITER: process ($clk) is
+        variable L: line;
+    begin
+        if rising_edge($clk) then
+            for i in 0 to $signal_list_length-1 loop
+                write(L, to_hstring(unsigned(output_signal_list(i))));
+                writeline(output, L);
+            end loop;
+        end if;
+    end process INITIAL_VALUE_BENCH_OUTPUT_WRITER;
+    '''
     return list_writer
 
 
@@ -375,12 +375,11 @@ def memory_init(mem):
 
     return beh_init
 
-
-memory_init.verilog_code = """
-    initial begin
-        $$readmemh("init_file.hex", $mem, $mem_size);
-    end
-"""
+    memory_init.verilog_code = """
+        initial begin
+            $$readmemh("init_file.hex", $mem, $mem_size);
+        end
+    """
 
 
 def runner(initial_val, tb=initial_value_bench, **kwargs):
@@ -688,4 +687,8 @@ def init_reset_tb():
 if __name__ == "__main__":
     # test_unsigned_list()
     # test_signed_list()
-    test_memory_convert()
+    # test_memory_convert()
+    # test_init_used()
+    # test_bool_signals_list2()
+    test_unsigned_list2()
+

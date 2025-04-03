@@ -565,7 +565,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 obj = node.value.obj
                 if isinstance(obj, _Signal):
                     if isinstance(obj._init, modbv) and not obj._init._hasFullRange():
-                        print(obj._init)
+                        print(obj._init)  # giving a clue?
                         self.raiseError(node, _error.ModbvRange, n)
         # ic.dedent()
 

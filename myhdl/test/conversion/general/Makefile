@@ -1,4 +1,5 @@
-all:  ghdl iverilog sverilog 
+#all:  ghdl iverilog sverilog 
+all:  sverilog 
 
 ghdl:
 	py.test --sim ghdl

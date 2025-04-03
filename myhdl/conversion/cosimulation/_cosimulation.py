@@ -88,7 +88,7 @@ def setupcosimobject(**cosimkwargs):
             vpifiles = glob("**/win32/icarus-myhdl.vpi", root_dir='\\')
         else:
             vpifiles = glob("**/myhdl.vpi", recursive=True)
-        print(vpifiles)
+        # print(vpifiles)
         if 1 == len(vpifiles):
             vpifile = f'/{vpifiles[0]}'
         elif sys.platform != "win32":

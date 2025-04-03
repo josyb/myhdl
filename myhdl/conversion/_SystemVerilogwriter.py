@@ -27,7 +27,6 @@ Created on 29 okt. 2023
 import ast
 import inspect
 from io import StringIO
-import math
 import os
 import string
 import sys
@@ -417,7 +416,10 @@ class SystemVerilogWriter(object):
                     if not self.initial_values:
                         print(f"    {t} {p}{r}{signame} {n};", file=self.file)
                     else:
-                        raise NotImplementedError('Must add initialistion of Array')
+                        # raise NotImplementedError('Must add initialistion of Array')
+                        tvals = _initialvals(obj._array, obj._shape)
+                        # ic(tvals)
+                        print(f"    logic {p} {r} {obj._name} {n} = {tvals};", file=self.file)
 
                 elif not obj._isslice:
                     # an Aray of Constants ...
@@ -511,6 +513,7 @@ class SystemVerilogWriter(object):
                                 print(f"    logic {p}{r}{signame} = {_intRepr(obj._init)};", file=self.file)
 
         for m in memlist:
+            ic(m._info)
             if not m._used:
                 continue
 
@@ -529,20 +532,72 @@ class SystemVerilogWriter(object):
 
             r = _getRangeString(m.elObj)
             p = _getSignString(m.elObj)
-            if m._driven:
-                if self.initial_values and not m._driven == 'wire':
-                    if all([each._init == m.mem[0]._init for each in m.mem]):
-                        print(f"    logic {p} {r} {m.name} [0:{m.depth}-1] = '{{default: {_intRepr(m.mem[0]._init)}}};", file=self.file)
+            # TODO: iverilog only has limited support fore  Array assignment
+            if 0:
+                if m._driven:
+                    if self.initial_values and m._driven != 'wire':
+                        # if all([each._init == m.mem[0]._init for each in m.mem]):
+                        #     print(f"    logic {p} {r} {m.name} [0:{m.depth}-1] = '{{default: {_intRepr(m.mem[0]._init)}}};", file=self.file)
+                        # else:
+                        vals = ', '.join([f'{_intRepr(each._init)}' for n, each in enumerate(m.mem)])
+                        print(f"    logic {p}{r}{m.name} [0:{m.depth} - 1] = '{{{vals}}};", file=self.file)
                     else:
-                        vals = ', '.join([f'{_intRepr(each._init)};' for n, each in enumerate(m.mem)])
-                        print(f"    logic {p}{r}{m.name} [0:{m.depth} - 1] = {{{vals}}};", file=self.file)
+                        print(f"    logic {p}{r}{m.name} [0:{m.depth} - 1];", file=self.file)
 
+                else:
+                    # remember for SystemVerilog, later
+                    # can assume it is a localparam array
+                    # build the initial values list
+                    vals = [ f"{_intRepr(s._init)}" for s in m.mem]
+                    print(f"    localparam {p} {r} {m.name} [0:{m.depth}-1] = '{{{', '.join(vals)}}};", file=self.file)
             else:
-                # remember for SystemVerilog, later
-                # can assume it is a localparam array
-                # build the initial values list
-                vals = [ f"{_intRepr(s._init)}" for s in m.mem]
-                print(f"    localparam {p} {r} {m.name} [0:{m.depth}-1] = '{{{', '.join(vals)}}};", file=self.file)
+                initial_assignments = None
+                if m._driven:
+                    k = m._driven
+
+                    if self.initial_values and not k == 'wire':
+                        if all([each._init == m.mem[0]._init for each in m.mem]):
+
+                            initialize_block_name = ('INITIALIZE_' + m.name).upper()
+                            _initial_assignments = (
+                                f'''
+                                initial begin: {initialize_block_name}
+                                    integer i;
+                                    for(i=0; i<{len(m.mem)}; i=i+1) begin
+                                        {m.name}[i] = {_intRepr(m.mem[0]._init)};
+                                    end
+                                end
+                                '''
+                                )
+
+                            initial_assignments = (
+                                textwrap.dedent(_initial_assignments))
+
+                        else:
+                            val_assignments = '\n'.join(
+                                [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
+                            initial_assignments = (
+                                'initial begin\n' + val_assignments + '\nend')
+                    print(f"    {k} {p}{r}{m.name} [0:{m.depth} - 1];", file=self.file)
+                else:
+                    # remember for SystemVerilog, later
+                    # # can assume it is a localparam array
+                    # # build the initial values list
+                    # vals = []
+                    # w = m.mem[0]._nrbits
+                    # for s in m.mem:
+                    #     vals.append('{}\'d{}'.format(w, _intRepr(s._init)))
+                    #
+                    # print('localparam {} {} {} [0:{}-1] = \'{{{}}};'.format(p, r, m.name, m.depth, ', '.join(vals)), file=self.file)
+                    print(f'reg {p}{r} {m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
+                    val_assignments = '\n'.join(
+                            [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
+
+                    initial_assignments = (
+                        f'initial begin\n {val_assignments} \nend')
+
+                if initial_assignments is not None:
+                    print(initial_assignments, file=self.file)
 
         print(file=self.file)
         for s in constwires:
@@ -1981,6 +2036,8 @@ def _intRepr(n, radix=''):
 
     if isinstance(n, EnumItemType):
         return n._toVerilog()
+    elif isinstance(n, bool):
+        return '1' if n else '0'
     elif isinstance(n, int):
         return str(n)
     else:
@@ -1988,16 +2045,18 @@ def _intRepr(n, radix=''):
         size = ''
         num = str(p)
         if radix == "hex":
-            radix = "'sh"  if n.min < 0 else "'h"
+            # radix = "'sh"  if n.min < 0 else "'h"
+            radix = "'h"
             num = hex(p)[2:]
         else:
-            radix = "'sd"  if n.min < 0 else "'d"
+            # radix = "'sd"  if n.min < 0 else "'d"
+            radix = "'d"
         # TODO: get size from type?
         # size = int(math.ceil(math.log(p + 1, 2)))
         size = ''
         if isinstance(n, intbv) and n._nrbits:
             size = f'{n._nrbits}'
-        r = f"{size}{radix}{'-' if n < 0 else ''}{num}"
+        r = f"{'-' if n < 0 else ''}{size}{radix}{num}"
         # if n < 0:  # add brackets and sign on negative numbers
         #     r = f"-({r})"
         return r
