@@ -1020,7 +1020,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.writer.emitline()
 
     def visit_Call(self, node):
-        ic(node)
+        # ic(node)
         # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
         self.context = None
         fn = node.func
@@ -1075,6 +1075,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             opening, closing = ' ', ''
             self.write(f.__name__)
         elif f is concat:
+            ic(astdump(node, show_offsets=False), (vars(node)))
             opening, closing = '{', '}'
         elif f is delay:
             self.visit(node.args[0])
@@ -1111,7 +1112,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.context = None
 
     def visit_Constant(self, node):
-        # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
+        ic(astdump(node, show_offsets=False), (vars(node)))
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
@@ -1124,6 +1125,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             else:
                 if hasattr(node, 'dst') and isinstance(node.dst._val, bool):
                     self.write(nameconstant_map[bool(node.obj)])
+                # elif node.value in (0, 1):
+                #     self.write(nameconstant_map[bool(node.obj)])
                 else:
                     self.write(self.IntRepr(node.value))
         elif isinstance(node.value, str):
@@ -1131,9 +1134,12 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             s = node.value
             if self.context == _context.PRINT:
                 self.write('"{}"' % s)
-            elif len(s) == s.count('0') + s.count('1'):
-                self.write("{}'b{}".format(len(s), s))
+            elif len(s) == s.count('0') + s.count('1') + s.count('_'):
+                v = s.replace('_', '')
+                self.write("{}'b{}".format(len(v), v))
             else:
+                # we perhaps could assume it is an ASCII string
+                # and convert it to 8-bit chars?
                 self.write(s)
 
     def visit_Continue(self, node):

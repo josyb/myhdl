@@ -67,6 +67,12 @@ def concat(base, *args):
         elif isinstance(arg, str):
             w = len(arg)
             v = int(arg, 2)
+        elif isinstance(arg, int):
+            if arg in (0, 1):
+                w = 1
+                v = 1 if arg else 0
+            else:
+                raise TypeError(f"concat: cannot handle unconstrained integer {arg}")
         else:
             raise TypeError("concat: inappropriate argument type: %s"
                             % type(arg))
