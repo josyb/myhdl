@@ -34,6 +34,7 @@ except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
 from myhdl._intbv import intbv
+from myhdl._bin import bin as myhdlbin
 
 re_u1 = re.compile(r"\d+\.\d+\.\d+")
 re_u2 = re.compile(r"\d+\.\d+")
@@ -117,7 +118,7 @@ class fixbv(intbv):
                   str : '-bbb.bbb_bbbb_bbbb_bbbb'
                         with b in [0,1], the minus sign is ofcourse 'optional'
                         a plus sign is also allowed
-                        allowing underscores to increase readabiltiy
+                        allowing underscores to increase readability
                         neither fmin, fmax, fractionalbits  nor 'spec' are needed in this case
                         although fmin and fmax can be specified for simulation purposes
                         
@@ -130,7 +131,7 @@ class fixbv(intbv):
                 '1.i.f' : signed fixed point, width = 1 + i + f
                 or 'None'  : then must/may have to specify min, max and fractionalbits
                 
-            Advance use:
+            Advanced use:
                 we can accept a tuple of two fixbv accompagnied with an operator to create a new fixbv
                 as in e.g.: ( D, '*', K) , (A, '+', B)
         '''
@@ -300,8 +301,11 @@ class fixbv(intbv):
         #     pass
         ival = mkival(fval, wf)
 
-        imin = -2 ** (wl - 1) if signed else 0
-        imax = 2 ** (wl - 1)  if signed else 2 ** wl
+        # imin = -2 ** (wl - 1) if signed else 0
+        # imax = 2 ** (wl - 1)  if signed else 2 ** wl
+
+        imin = mkival(fmin, wf)
+        imax = mkival(fmax, wf)
 
         # add a `real` for simulation
         self._fval = fval
@@ -322,24 +326,9 @@ class fixbv(intbv):
         return True  # by design
 
     def _handleBounds(self):
-        # # copied over from modbv
-        # # the vector part wraps around
-        # # TODO: is this OK?
-        # lo, hi, val = self._min, self._max, self._val
-        # if lo is not None:
-        #     if val < lo or val >= hi:
-        #         self._val = (val - lo) % (hi - lo) + lo
-        #
-        # # but we check on the `float` limits
-        # if self._fmax is not None:
-        #     if self._fval >= self._fmax:
-        #         raise ValueError(f"intbv value {self._fval} >= maximum {self._fmax}")
-        # if self._fmin is not None:
-        #     if self._fval < self._fmin:
-        #         raise ValueError(f"intbv value {self._fval} < minimum {self._fmin}")
-        # deleagte to intbv first fot the `vector` parrt
+        # delegate to intbv first for the `vector` part
         super(fixbv, self)._handleBounds()
-        # ao we need to check the difference with the `real`
+        # additional: we *may* need to check the difference with the `real`
         if self._delta:
             if  abs(self._fval - self._val / self._SCALE) > self._delta:
                 # raise a warning, not an exception!
@@ -359,7 +348,7 @@ class fixbv(intbv):
         return f"fixbv({self._fval}, fmin={self._fmin}, fmax={self._fmax}, fractionalbits={self._wf})"
 
     @property
-    def info(self):
+    def _info(self):
         return (f"fixbv: fval={self._fval}, fmin={self._fmin}, fmax={self._fmax}, fractionalbits={self._wf}, intbits={self._wi},"
                 f"val={self._val}, min={self._min}, max={self._max}, nrbits={self._nrbits}")
 
@@ -381,6 +370,20 @@ class fixbv(intbv):
     @property
     def ord(self):
         return self._val
+
+    @property
+    def bin(self):
+        bv = myhdlbin(self._val, self._wl)
+        if self._wi >= 0:
+            # insert the decimal point
+            bvi = bv[:self._wi]
+            bvf = bv[self._wi:]
+            return '.'.join((bvi, bvf))
+        else:
+            # insert the decimal point
+            bvi = '0' * -self._wi
+            bvf = bv[:]
+            return ''.join(('.', bvi, bvf))
 
     @property
     def spec(self):
@@ -458,7 +461,26 @@ class fixbv(intbv):
             return _FixbvResult(0.0, (self._val >> int(key)) & 0x1, fractionalbits=0)
 
     def __setitem__(self, key, val):
-        raise NotImplementedError(f"{repr(self)}[{key}] = {val}: cannot set bits in the bitvector " \
+        if isinstance(key, slice) and key.start is None and key.stop is None:
+            # only allow updating complete *vector*
+            # so we can use a `fixbv` variable in a process
+            if isinstance(val, _FixbvResult):
+                # nice one
+                self._val = val.vector
+                self._fval = val.real
+            elif isinstance(val, bool):
+                # must intercept befor `int`
+                pass
+            elif isinstance(val, int):
+                pass
+            elif isinstance(val, intbv):
+                pass
+            elif isinstance(val, str):
+                pass
+            else:
+                pass
+        else:
+            raise NotImplementedError(f"{repr(self)}[{key}] = {val}: cannot set single bit or slice of bits in the bitvector " \
                                   "as that will invalidate the tracked *real* value")
 
     # integer-like methods

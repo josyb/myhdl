@@ -110,13 +110,13 @@ class _VerificationClass(object):
 
     __slots__ = ("simulator", "_analyzeOnly")
 
-    def __init__(self, analyzeOnly=False):
+    def __init__(self, simulator='sverilog', analyzeOnly=False):
         # TODO: add a simulator argument
+        # shortcut: force testing with SystemVerilog
 
         # self.simulator = 'ghdl'
         # self.simulator = 'iverilog'
-        # shortcut: force testing with SystemVerilog
-        self.simulator = 'sverilog'
+        self.simulator = simulator
         # the simulator must be explicitly sdpecified by the  callers
         # self.simulator = None
         self._analyzeOnly = analyzeOnly

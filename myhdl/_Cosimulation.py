@@ -25,6 +25,7 @@ import subprocess
 from os import set_inheritable
 
 from myhdl._intbv import intbv
+from myhdl._fixbv import fixbv, _FixbvResult
 from myhdl import _simulator, CosimulationError
 
 _MAXLINE = 4096
@@ -156,21 +157,32 @@ class Cosimulation(object):
         e = buf.split()
         for i in range(1, len(e), 2):
             s, v = self._toSigDict[e[i]], e[i + 1]
-            if v in 'zZ':
-                nextval = None
-
-            elif v in 'xX':
-                nextval = s._init
-
-            else:
+            if isinstance(s._val, fixbv):
                 try:
-                    nextval = int(v, 16)
+                    ival = int(v, 16)
                     if s._nrbits and s._min is not None and s._min < 0:
-                        if nextval >= (1 << (s._nrbits - 1)):
-                            nextval |= (-1 << s._nrbits)
-
+                        if ival >= (1 << (s._nrbits - 1)):
+                            ival |= (-1 << s._nrbits)
+            
                 except ValueError:
-                    nextval = intbv(0)
+                    ival = intbv(0)
+                nextval = _FixbvResult(ival / 2**s.fractionalbits, ival, s.fractionalbits)
+            else:
+                if v in 'zZ':
+                    nextval = None
+                
+                elif v in 'xX':
+                    nextval = s._init
+                
+                else:
+                    try:
+                        nextval = int(v, 16)
+                        if s._nrbits and s._min is not None and s._min < 0:
+                            if nextval >= (1 << (s._nrbits - 1)):
+                                nextval |= (-1 << s._nrbits)
+                
+                    except ValueError:
+                        nextval = intbv(0)
 
             s.next = nextval
 

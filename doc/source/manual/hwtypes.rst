@@ -378,3 +378,333 @@ the data bus and convert them as follows::
 
  real.next = data_bus[8:4].signed()
  imag.next = data_bus[4:].signed()
+
+ 
+ .. _hwtypes-fixbv:
+
+The :class:`fixbv` class
+========================
+
+.. index:: single: fixbv; basic usage
+
+
+Introduction (Motivation)
+-------------------------
+
+    Constrained [1]_ integer numbers, such as :class:`intbv`, are the foundation
+    for hardware development.  But in some cases real numbers,
+    numbers with fraction, are more appropriate.  This is certainly
+    true with digital signal processing applications.  This document
+    proposes a fixed-point bit-vector type, :class:`fixbv`, to represent
+    signed rational real numbers.
+
+    The fixed-point type provides a mechanism to represent a constrained
+    real number with the same hardware realization required by the
+    integers - which is not the case for floating-point types.
+
+
+Specification
+-------------
+   A review of the fixed-point representation is required before
+   presenting the :class:`fixbv` specification.
+
+What is fixed-point
+^^^^^^^^^^^^^^^^^^^
+   Most people are familiar with fixed-point and floating-point
+   representation but by slightly different names and a different
+   base.  When dealing with real numbers we commonly write real
+   numbers either in fixed-point or scientific notation
+   (floating-point)
+
+   decimal fixed-point (everyday usage): ::
+
+      845.7073
+
+   scientific notation (floating-point): ::
+
+      1.12e9
+
+   The binary version are similar, with binary fixed-point the
+   bits to the left of the "point" is the *integer part*, the
+   positive powers of two, and to the right of the point are negative 
+   powers of two, the *fraction*:
+
+   The *point* is a logical assignment, there is nothing that
+   locks the point to a position.  The point logically defines
+   the number of integer bits and fractional bits and is required
+   when interpreting the number and performing operations.
+
+   Binary fixed-point does not restrict the number of bits
+   (width) to be positive values, negative number of bits is
+   possible to represent the integer or fractional widths.  
+   It is possible to have a negative number of integer or
+   fractional bits.  Example, if the number of integer bits
+   is -4 there are no integer bits and the fractional
+   has four place holders.
+
+   As mentioned, binary fixed-point representation is similar to
+   every day usages of real numbers, that is a "decimal point" is
+   used to separate the integer portion of the real number from
+   the fractional portion, example: ::
+
+       s : sign bit
+       i : integer bits
+       f : fractional bits
+
+       siii.ffff
+       0011.1000
+
+   The above example is an 8-bit bit-vector with three
+   integer bits and four fractional bits.  As described,
+   the fractional value is a combination of negative powers
+   of two, analogous, the integer value is a combination of
+   positive powers of two.  The value represented by the
+   above example is 3.5.
+
+   The following computes the first eight negative powers
+   of two:
+
+    >>> [2 ** (-1 * ii) for ii in range(1, 9)]
+    [0.5, 0.25, 0.125, 0.0625, 0.03125, 0.015625, 0.0078125, 0.00390625]
+
+
+Resolution
+^^^^^^^^^^
+
+   The resolution is the smallest quantity representable.  The resolution
+   is defined by the number of fractional bits, $ 2^{-fwl} $.  It indicates
+   what the minium increment quantity is.  
+
+Range
+^^^^^
+
+   The range of the :class:`fixbv` is the maximum and minimum values.  The maximum
+   values is actually max-res.  The max is $2^{iwl}-res$ and the min is
+   $-2^{iwl}$.
+
+
+The :class:`fixbv` class
+------------------------
+
+   Creating a :class:`fixbv` object should be straightforward and an extension
+   to the natural usage of real numbers.  Because the :class:`fixbv` represents
+   a constrained range and resolution, these need to be defined when
+   creating a fixed-point type.  When creating a :class:`fixbv` the initial value,
+   minimum, maximum, and number of fractional bits are defined, example: ::
+
+       x = fixbv(0.333, fmin=-1.0, fmax=1.0, fractionalbits=8)    
+
+
+   As discussed in the fixed-point introduction the resolution is
+   the smallest quantity representable.  In many cases the requested
+   resolution (*res*) cannot be encoded exactly with a reasonable
+   number of bits.  The resolution will be rounded down to the closes
+   power of two.
+
+   In the above :class:`fixbv` creation the requested resolution is 0.1
+   but the generated resolution will be 0.0625.  This resolution is
+   better than the 0.1 but will have the downside that multiples of
+   the requested resolution cannot be represented exactly.  
+
+   If the goal is to encode 0.1, 0.2, 0.3, 0.4, etc., it cannot be
+   accomplished with a finite number of bits.  The basic idea: if
+   one of the denominator's prime multiples (e.g. 2 and 5 for
+   10) is not a multiple of the base then the rational fraction
+   cannot be represented exactly.  Stated differently, each of
+   the denominator's prime factors needs to be a multiple of the
+   base to be represented exactly.
+
+   If the initial value cannot be represented exactly or the initial
+   value defines a greater precision than the :class:`fixbv` can encode
+   the value will be rounded, using the standard definition of rounding.
+
+   In some cases, a different rounding method is desired for the
+   initial value.  In those cases the rounding needs to occur outside
+   of the :class:`fixbv` creation, example: ::
+
+       x = fixbv(0.333, min=-1, max=1, res=0.1)
+	   x[:] = resize(0.333, x, round_mode='convergent')
+
+   The above definition (instantiation) should cover most
+   of the use cases.  Except, some designers have the habit
+   of defining the bits explicitly.  Like the :class:`intbv` the
+   proposed :class:`fixbv` would allow the definition of the bits
+   required.  To define the bits the word-length (wl),
+   integer word-length (iwl), and fractional word-length
+   (fwl) are set, example: ::
+
+      fixbv(0)[wl,iwl,fwl]
+
+   The word-lengths have a simple relation::
+
+       wl = iwl + fwl + 1
+
+
+   .. index:: single: fixbv; operations
+
+   First, lets review fixed-point mathematics, given two fixed-point
+   variables, *x* and *y*: ::
+
+	   x = fixbv(0, min=-8, max=8, res=1/16)   # siii.ffff
+	   y = fixbv(0, min=-1, max=1, rest=1/128) # s.fffffff
+
+   Addition and subtraction require the operands to be aligned,
+   they don't necessarily need to be the same word-length (wl) but
+   the "point" needs to be aligned, using the above as operands: ::
+
+         siii.ffff000
+       + ssss.fffffff
+       --------------
+        siiii.fffffff
+
+   once the operands are aligned normal 2's complement addition/
+   subtraction can be performed.  The maximum result would be
+   2\*max(x.max,y.max) (or max(len(x),len(y))+1).  If addition or
+   subtraction is attempted and the values are not aligned an error
+   will be thrown, example: ::
+
+       >>> x = fixbv(0, min=-8, max=8, res=1/16.)
+       >>> y = fixbv(0, min=-1, max=1, res=1/128.)
+       >>> x + y
+       AssertionError: Add: points not aligned
+           fixbv(0.00, format=(8,3,4), ) and fixbv(0.00, format=(8,0,7), )
+
+   It is assumed the :class:`fixbv` operations will return an :class:`fixbv`.::
+
+      >>> x1 = fixbv(2.5, min=-8, max=8, res=1/16.)
+      >>> x2 = fixbv(1.25, min=-8, max=8, res=1/16.)
+      >>> x1 + x2
+      fixbv(15)
+
+   When assigned to another :class:`fixbv` the value will fit in the
+   format of the accepting object.::
+
+	   >>> x1 = fixbv(2.5, min=-8, max=8, res=1/16.)
+	   >>> x2 = fixbv(1.25, min=-8, max=8, res=1/16.)
+	   >>> z = fixbv(0, min=-16, max=16, res=1/16.)
+	   >>> z[:] = x1 + x2
+	   fixbv(3.75, format=(9,4,4))
+
+   For multiplication the operands do not need to be aligned before
+   the operation but the "point" bookkeeping needs to be accounted.::
+
+               siii.ffff
+       *       s.fffffff
+       -----------------
+       ssiii.fffffffffff  (total 16 bits)
+
+   A multiplication example: ::
+
+	   >>> x = fixbv(1.5, fmin=-8.0, fmax=8.0, fractionalbits=8)
+	   >>> y = fixbv(-2.0,fmin=-8.0, fmax=8.0, fractionalbits=8)
+	   >>> z = x * y
+	   >>> z
+	   _FixbvResult(real=-5.0, vector=-327680 with fractionalbits=16)
+	   >>> myhdl.bin(z.vector)
+	   '10110000000000000000'
+
+
+   The basic mathematical operations have been reviewed, we will
+   exclude division for now because we can achieve "division"
+   by multiplying by the fractional parts.
+
+   The next topic: rounding and overflow handling.  During operations
+   it is common not to maintain the maximum word-length through out a
+   chain of operations.  When reducing the word-length rounding and
+   overflow come into play.  
+
+   Example, multiplying two numbers requires len(x) + len(y) bits or
+   x.max \* y.max range.  It is typical for the result to be *resized*
+   after an operation.  In the previous multiply example it may be
+   desired to only preserve four fraction bits: ::
+
+       ssiii.fffffffffff
+                  ~~~~~~ <- these bits remove
+
+   The remaining bits will be rounded based on the removed bits,
+   there are different rounding methods that can be used.  This is
+   a base feature of a fixed-point package.  Also, when resizing
+   overflow (underflow) is also an issue.  If the value being
+   resized does not fit, it needs to be saturated or wrapped.
+
+   This enhancement proposal does not include the definition of
+   a *resize* function.  A separate MEP will be created for the
+   *resize* function and implementation.
+
+Simulation
+^^^^^^^^^^
+
+   A gem of :class:`fixbv` is that during :class:`Simulation` it tracks 
+   both the `integer` bit representation **and** the `real` floating point
+   representation.
+   The :class:`trace`, if enabled, writes both *values* to the `.vcd` ouput file;
+   the *integer* is marked by `<signame>_vector` and the *real* is marked by
+   `<signame>_real` as shown in the following image:
+
+    .. image:: Simulation_fixbv_cosim.png
+	
+
+Conversion
+^^^^^^^^^^
+
+   The beauty of the :class:`fixbv` is that it is a subclass of 
+   :class:`intbv`.  This makes sense because the fixed-point is an
+   integer representation at the hardware.  Nothing is required
+   for conversion, the fixed-point is simply a logical representation
+   of a limited capacity (constrained) real number implemented with
+   a standard 2's complement integer.
+
+   A couple :class:`fixbv` *properties* are included to support
+   convertible conversion to other type: ::
+
+      # fixbv.integer : this will return just the integer
+      # fixbv.ord : the underlying intbv value
+      # fixbv.fractional : just the fraction portion
+
+
+      >>> x = fixbv(2.5, fmin=-8.0, fmax=8.0, fractionalbits=8)
+      >>> x.integer
+      2
+      >>> x.ord
+      640
+      >>> x.fractional
+      128
+
+   These properties are necessary because the factory functions
+   int() and ord() are not convertible, this is consistent with
+   the current implementation (other than the current
+   implementation would have no need to use int(intbv()).
+
+
+Limitations
+^^^^^^^^^^^
+
+   - `int(fixbv)` and `float(fixbv)` are not convertible.  They can
+     be used in the elaboration and other non-convertible code.
+
+   - no *resize* function (yet).  As discussed the *resize*
+     function is dependent (as best understanding) on an
+     additional `enhancement`.  The resize function will be
+     added once the `modfunc` enhancement has been implemented.
+     It is my opinion fixed-point support needs the resize function
+     but it will be part of a separate enhancement proposal
+
+   - no division (no surprise, same operation limitations as
+     integer, divide by power of two's)
+
+
+Closing Remarks
+^^^^^^^^^^^^^^^
+
+   The :class:`fixbv` type provides a clean an straightforward type to
+   represent constrained real numbers (fixed-point numbers).  The
+   :class:`fixbv` provides the basic number representation.  The addition
+   of the *resize* will complete the fixed-point support.
+
+
+.. rubric:: Footnotes
+
+.. [1] here we are using `constrained integer` and `constrained real` to
+       indicate numbers with limited range and resolution.  The
+       type will act just like an integer or real within the
+       constrained (the range and resolution).

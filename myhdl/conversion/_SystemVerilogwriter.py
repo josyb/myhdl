@@ -1802,7 +1802,17 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
         self.funcBuf = funcBuf
 
     def visit_FunctionDef(self, node):
+
         # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)), (vars(self.tree)))
+        def _setarrayinit(obj):
+            if len(obj.shape) > 1:
+                # recurse
+                tt = [_setarrayinit(item) for item in obj]
+                return f"'{{{ ', '.join(tt) }}}"
+            else:
+                tt = [f"{s._init}" for s in obj]
+                return f"'{{{ ', '.join(tt) }}}"
+
         self.writeDoc(node)
         self.writeAlwaysHeader("always_ff")
         self.writeDeclarations()
@@ -1814,17 +1824,24 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             self.writeline()
             self.write("if ({} == {}) begin".format(reset, int(reset.active)))
             self.indent()
+            ic(sigregs)
             for s in sigregs:
                 if isinstance(s, OpenPort):
                     # skip
                     pass
+                if isinstance(s, Array):
+                    self.writeline()
+                    self.write(f"{s} <= {_setarrayinit(s)};")
+                    pass
                 else:
                     self.writeline()
                     self.write("{} <= {};".format(s, self._convertInitVal(s, s._init)))
+
             for v in varregs:
                 n, reg, init = v
                 self.writeline()
                 self.write("{} = {};".format(n, self._convertInitVal(reg, init)))
+
             self.dedent()
             self.writeline()
             self.write("end")

@@ -117,7 +117,7 @@ class Array(object):
         10-03-205: initially we want to restrict this to be an alternative to the list of Signals
         later we will accept StructType, and Array itself ...
         
-        Note that multi-dimensional Arrays ar e not yet fully tested or convertible?
+        Note that multi-dimensional Arrays are not yet fully tested or convertible?
     '''
 
     def __init__(self, *args):
@@ -186,7 +186,7 @@ class Array(object):
                 raise ValueError(f'Array: Only handle single `int` or `tuple` of `int` as shape specification')
 
             # _dtype
-            assert isinstance(args[1], _Signal)  # Includes Constant, later add StructType etc
+            assert isinstance(args[1], _Signal)  # TODO: Includes Constant, later add StructType etc
             self._dtype = args[1]
             # we build it
             # create a list of list of ..

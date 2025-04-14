@@ -23,7 +23,7 @@ The :class:`Simulation` class
 -----------------------------
 
 
-.. class:: Simulation(arg [, arg ...])
+   .. class:: Simulation(arg [, arg ...])
 
    Class to construct a new simulation. Each argument should be a MyHDL instance.
    In MyHDL, an instance is recursively defined as being either a sequence of
@@ -33,87 +33,86 @@ The :class:`Simulation` class
    :class:`Cosimulation` object.  At most one :class:`Cosimulation` object can be
    passed to a :class:`Simulation` constructor.
 
-A :class:`Simulation` object has the following method:
+   A :class:`Simulation` object has the following method:
 
 
-.. method:: Simulation.run([duration])
+      .. method:: Simulation.run([duration])
 
-   Run the simulation forever (by default) or for a specified duration.
+      Run the simulation forever (by default) or for a specified duration.
 
 
-.. method:: Simulation.quit()
+      .. method:: Simulation.quit()
 
-   Quit the simulation after it has run for a specified duration. The method should
-   be called (the simulation instance must be quit) before another simulation
-   instance is created. The method is called by default when the simulation is run
-   forever.
+      Quit the simulation after it has run for a specified duration. The method should
+      be called (the simulation instance must be quit) before another simulation
+      instance is created. The method is called by default when the simulation is run
+      forever.
 
 
 .. _ref-simsupport:
 
 Simulation support functions
-----------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+      .. function:: now()
+
+      Returns the current simulation time.
 
 
-.. function:: now()
+      .. exception:: StopSimulation()
 
-   Returns the current simulation time.
-
-
-.. exception:: StopSimulation()
-
-   Base exception that is caught by the ``Simulation.run()`` method to stop a
-   simulation.
+      Base exception that is caught by the ``Simulation.run()`` method to stop a
+      simulation.
 
 
 .. _ref-trace:
 
 Waveform tracing
-----------------
+^^^^^^^^^^^^^^^^
 
 
-.. function:: traceSignals(func [, *args] [, **kwargs])
+      .. function:: traceSignals(func [, *args] [, **kwargs])
 
-   Enables signal tracing to a VCD file for waveform viewing. *func* is a function
-   that returns an instance. :func:`traceSignals` calls *func* under its control
-   and passes *\*args* and *\*\*kwargs* to the call. In this way, it finds the
-   hierarchy and the signals to be traced.
+      Enables signal tracing to a VCD file for waveform viewing. *func* is a function
+      that returns an instance. :func:`traceSignals` calls *func* under its control
+      and passes *\*args* and *\*\*kwargs* to the call. In this way, it finds the
+      hierarchy and the signals to be traced.
 
-   The return value is the same as would be returned by the call ``func(*args,
-   **kwargs)``.  The top-level instance name and the basename of the VCD output
-   filename is ``func.func_name`` by default. If the VCD file exists already, it
-   will be moved to a backup file by attaching a timestamp to it, before creating
-   the new file.
+      The return value is the same as would be returned by the call ``func(*args,
+      **kwargs)``.  The top-level instance name and the basename of the VCD output
+      filename is ``func.func_name`` by default. If the VCD file exists already, it
+      will be moved to a backup file by attaching a timestamp to it, before creating
+      the new file.
 
-   The ``traceSignals`` callable has the following attribute:
+      The ``traceSignals`` callable has the following attribute:
 
 
-   .. attribute:: name
+         .. attribute:: name
 
-      This attribute is used to overwrite the default top-level instance name and the
-      basename of the VCD output filename.
+         This attribute is used to overwrite the default top-level instance name and the
+         basename of the VCD output filename.
 
-   .. attribute:: directory
+         .. attribute:: directory
 
-      This attribute is used to set the directory to which VCD files are written. By
-      default, the current working directory is used.
+         This attribute is used to set the directory to which VCD files are written. By
+         default, the current working directory is used.
 
-   .. attribute:: filename
+         .. attribute:: filename
 
-      This attribute is used to set the filename to which VCD files are written. By
-      default, the name attribute is used.
+         This attribute is used to set the filename to which VCD files are written. By
+         default, the name attribute is used.
 
-   .. attribute:: timescale
+         .. attribute:: timescale
 
-      This attribute is used to set the timescale corresponding to unit steps,
-      according to the VCD format. The assigned value should be a string.
-      The default timescale is "1ns".
+         This attribute is used to set the timescale corresponding to unit steps,
+         according to the VCD format. The assigned value should be a string.
+         The default timescale is "1ns".
 
-   .. attribute:: tracebackup
+         .. attribute:: tracebackup
 
-      This attribute controls making a backup copy of an existing .vcd file.
-      It appends the UTC time to create an unique filename.
-      The default setting is "True"
+         This attribute controls making a backup copy of an existing .vcd file.
+         It appends the UTC time to create an unique filename.
+         The default setting is "True"
 
 
 .. _ref-model:
@@ -126,7 +125,7 @@ Modeling
 The `block` decorator
 ---------------------
 
-.. function:: block()
+   .. function:: block()
 
    The `block` decorator enables a method-based API which is more consistent,
    simplifies implementation, and reduces the size of the `myhdl` namespace.
@@ -142,50 +141,84 @@ The `block` decorator
        inst = myblock(<port-associations>)
        # inst supports the methods of the block instance API
 
-The API on a block instance looks as follows:
+   The API on a block instance looks as follows:
 
-.. method:: <block_instance>.run_sim(duration=None)
+      .. method:: <block_instance>.config_sim(backend='myhdl', trace=False, tracebackup=True)
 
-   Run a simulation "forever" (default) or for a specified duration.   
+      Optional simulation configuration: 
 
-.. method:: <block_instance>.config_sim(backend='myhdl', trace=False)
+	     *backend*: Defaults to 'myhdl
+	
+	     *trace*: Enable waveform tracing, default False.
+	   
+	     *tracebackup*: Enable backing up previous *.vcd*, defaults to True  
 
-   Optional simulation configuration: 
+      .. method:: <block_instance>.run_sim(duration=None)
 
-   *backend*: Defaults to 'myhdl
+      Run a simulation "forever" (default) or for a specified duration.   
 
-   *trace*: Enable waveform tracing, default False.  
+      .. method:: <block_instance>.quit_sim()
 
-.. method:: <block_instance>.quit_sim()
+      Quit an active simulation. This is method is currently required because
+      only a single simulation can be active.
 
-   Quit an active simulation. This is method is currently required because
-   only a single simulation can be active.
+      .. method:: <block_instance>.convert(hdl, **kwargs)  
 
-.. method:: <block_instance>.convert(hdl, **kwargs)  
+      Converts MyHDL code to a target HDL.
 
-   Converts MyHDL code to a target HDL.
+      *hdl*: 'VHDL', 'Verilog' or 'SystemVerilog'. No default value.
 
-   *hdl*: 'VHDL', 'Verilog' or 'SystemVerilog'. No default value.
+      Supported keyword arguments:
 
-   Supported keyword arguments:
+		   *hierachical*: 
+		   Controls the depth of hierarchical conversion. Defaults to `0`: full flattened
+		   conversion (as in version 0.11 and previous), use `=-1` for complete hierarchy, or a smaller positive number
+		   to limit the hierarchy depth. 		   
+		   To limit the depth for a certain `block` instance: set the `endhierarchy` attribute to `True` on instantiating said `block` module
+		   	
+		   *name*: 
+		   Module and output file name. Defaults to `self.mod.__name__`.    
+		     
+		   *directory*: 
+		   Path to output file. Defaults to `'.\'` (working directory).      
+		
+		   *trace*: 
+		   Whether the testbench should dump all signal waveforms. Defaults to False.   
+		
+		   *testbench*: 
+		   Verilog only; specifies whether a testbench should be created.  Defaults to True.   
+		
+		   *timescale*:Verilog only; timescale parameter. Defaults to '1ns/10ps'. 
+		   
+		   *std_logic_ports*: 
+		   VHDL only; tihs boolean attribute can be used to have ``std_logic_vector`` type
+		   ports on the top-level interface (when ``True``) instead of the default ``signed/unsigned`` types 
+		   (when ``False``, the default). 
 
-   *path*: Destination folder. Defaults to current working dir.   
+ 		   *library*: 
+ 		   VHDL only; this attribute can be used to set the library in the VHDL output file. 
+ 		   The assigned value should be a string. The default library is ``work``.
+ 		   
+ 		   *use_clauses*  
+ 		   VHDL only; this attribute can be used to list specific declararations of a 
+ 		   previously defined `user` library
+    	
 
-   *name*: Module and output file name. Defaults to `self.mod.__name__`.      
+      Verification interface
+      ~~~~~~~~~~~~~~~~~~~~~~
 
-   *trace*: Whether the testbench should dump all signal waveforms. Defaults to False.   
+      MyHDL provides an interface to verify converted designs. 
+      This is used extensively in the package itself to verify the conversion
+      functionality. This capability is exported by the package so that users
+      can use it also.
 
-   *testbench*: Verilog only. Specifies whether a testbench should be created.  Defaults to True.   
+      .. method:: <block_instance>.verify_convert()
 
-   *timescale*: timescale parameter. Defaults to '1ns/10ps'. Verilog only.   
+      Verify conversion output, by comparing target HDL simulation log with MyHDL simulation log.   
 
-.. method:: <block_instance>.verify_convert()
+      .. method:: <block_instance>.analyze_convert()
 
-  Verify conversion output, by comparing target HDL simulation log with MyHDL simulation log.   
-
-.. method:: <block_instance>.analyze_convert()
-
-  Analyze conversion output by compilation with target HDL compiler.   
+      Analyze conversion output by compilation with target HDL compiler.   
 
 .. _ref-sig:
 
@@ -195,128 +228,128 @@ Signals
 The :class:`SignalType` type
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. class:: SignalType
+   .. class:: SignalType
 
-    This type is the abstract base type of all signals. It is not used to construct
-    signals, but it can be used to check whether an object is a signal.
+   This type is the abstract base type of all signals. It is not used to construct
+   signals, but it can be used to check whether an object is a signal.
 
 
 
 Regular signals
 ^^^^^^^^^^^^^^^
 
-.. class:: Signal([val=None] [, delay=0])
+   .. class:: Signal([val=None] [, delay=0])
 
    This class is used to construct a new signal and to initialize its value to
    *val*. Optionally, a delay can be specified.
 
    A :class:`Signal` object has the following attributes:
 
-    .. attribute:: posedge
+      .. attribute:: posedge
 
-       Attribute that represents the positive edge of a signal, to be used in
-       sensitivity lists.
-
-
-    .. attribute:: negedge
-
-       Attribute that represents the negative edge of a signal, to be used in
-       sensitivity lists.
+      Attribute that represents the positive edge of a signal, to be used in
+      sensitivity lists.
 
 
-    .. attribute:: next
+      .. attribute:: negedge
 
-       Read-write attribute that represents the next value of the signal.
-
-
-    .. attribute:: val
-
-       Read-only attribute that represents the current value of the signal.
-
-       This attribute is always available to access the current value; however in many
-       practical case it will not be needed. Whenever there is no ambiguity, the Signal
-       object's current value is used implicitly. In particular, all Python's standard
-       numeric, bit-wise, logical and comparison operators are implemented on a Signal
-       object by delegating to its current value. The exception is augmented
-       assignment. These operators are not implemented as they would break the rule
-       that the current value should be a read-only attribute. In addition, when a
-       Signal object is assigned to the ``next`` attribute of another Signal object,
-       its current value is assigned instead.
+      Attribute that represents the negative edge of a signal, to be used in
+      sensitivity lists.
 
 
-    .. attribute:: min
+      .. attribute:: next
 
-       Read-only attribute that is the minimum value (inclusive) of a numeric signal,
-       or ``None`` for no minimum.
-
-
-    .. attribute:: max
-
-       Read-only attribute that is the maximum value (exclusive) of a numeric signal,
-       or ``None`` for no  maximum.
+      Read-write attribute that represents the next value of the signal.
 
 
-    .. attribute:: driven
+      .. attribute:: val
+
+      Read-only attribute that represents the current value of the signal.
+
+      This attribute is always available to access the current value; however in many
+      practical case it will not be needed. Whenever there is no ambiguity, the Signal
+      object's current value is used implicitly. In particular, all Python's standard
+      numeric, bit-wise, logical and comparison operators are implemented on a Signal
+      object by delegating to its current value. The exception is augmented
+      assignment. These operators are not implemented as they would break the rule
+      that the current value should be a read-only attribute. In addition, when a
+      Signal object is assigned to the ``next`` attribute of another Signal object,
+      its current value is assigned instead.
+
+
+      .. attribute:: min
+
+      Read-only attribute that is the minimum value (inclusive) of a numeric signal,
+      or ``None`` for no minimum.
+
+
+      .. attribute:: max
+
+      Read-only attribute that is the maximum value (exclusive) of a numeric signal,
+      or ``None`` for no  maximum.
+
+
+      .. attribute:: driven
     
-       Writable attribute that can be used to indicate that the signal is supposed to
-       be driven from the MyHDL code, and possibly how it should be declared in Verilog after
-       conversion. The allowed values are ``'reg'``, ``'wire'``, ``True`` and ``False``.
+      Writable attribute that can be used to indicate that the signal is supposed to
+      be driven from the MyHDL code, and possibly how it should be declared in Verilog after
+      conversion. The allowed values are ``'reg'``, ``'wire'``, ``True`` and ``False``.
 
-       This attribute is useful when the  converter cannot infer automatically
-       whether and how a signal is driven. This occurs when the signal is driven from
-       user-defined code. ``'reg'`` and ``'wire'`` are "true" values that
-       permit finer control for the Verilog case.
+      This attribute is useful when the  converter cannot infer automatically
+      whether and how a signal is driven. This occurs when the signal is driven from
+      user-defined code. ``'reg'`` and ``'wire'`` are "true" values that
+      permit finer control for the Verilog case.
   
-    .. attribute:: read
+      .. attribute:: read
     
-       Writable boolean attribute that can be used to indicate that the signal is read.
+      Writable boolean attribute that can be used to indicate that the signal is read.
 
-       This attribute is useful when the converter cannot infer automatically
-       whether a signal is read. This occurs when the signal is read from
-       user-defined code.
+      This attribute is useful when the converter cannot infer automatically
+      whether a signal is read. This occurs when the signal is read from
+      user-defined code.
 
-   A :class:`Signal` object also has a call interface:
+    A :class:`Signal` object also has a call interface:
 
     .. method:: Signal.__call__(left[, right=None])
 
 	This method returns a :class:`_SliceSignal` shadow signal. 
 
 
-.. class:: ResetSignal(val, active, isasync)
+   .. class:: ResetSignal(val, active, isasync)
 
-    This Signal subclass defines reset signals. *val*, *active*, and *isasync*
-    are mandatory arguments.
-    *val* is a boolean value that specifies the initial value,
-    *active* is a boolean value that specifies the active level.
-    *isasync* is a boolean value that specifies the reset style:
-    asynchronous (``True``) or synchronous (``False``).
+      This Signal subclass defines reset signals. *val*, *active*, and *isasync*
+      are mandatory arguments.
+      *val* is a boolean value that specifies the initial value,
+      *active* is a boolean value that specifies the active level.
+      *isasync* is a boolean value that specifies the reset style:
+      asynchronous (``True``) or synchronous (``False``).
 
-    This class should be used in conjunction with the :func:`always_seq`
-    decorator.
+      This class should be used in conjunction with the :func:`always_seq`
+      decorator.
 
  
 Shadow signals
 ^^^^^^^^^^^^^^
 
-.. class:: _SliceSignal(sig, left[, right=None])
+   .. class:: _SliceSignal(sig, left[, right=None])
 
-    This class implements read-only structural slicing and indexing. It creates a new
-    shadow signal of the slice or index of the parent signal *sig*. If the
-    *right* parameter is omitted, you get indexing instead of slicing.
-    Parameters *left*  and *right* have the usual meaning for slice
-    indices: in particular, *left* is non-inclusive but *right*
-    is inclusive. *sig* should be appropriate for slicing and indexing, which
-    means it should be based on :class:`intbv` in practice.
+   This class implements read-only structural slicing and indexing. It creates a new
+   shadow signal of the slice or index of the parent signal *sig*. If the
+   *right* parameter is omitted, you get indexing instead of slicing.
+   Parameters *left*  and *right* have the usual meaning for slice
+   indices: in particular, *left* is non-inclusive but *right*
+   is inclusive. *sig* should be appropriate for slicing and indexing, which
+   means it should be based on :class:`intbv` in practice.
 
-    The class constructor is not intended to be used explicitly. Instead,
-    use the call interface of a regular signal.The following calls are equivalent::
+   The class constructor is not intended to be used explicitly. Instead,
+   use the call interface of a regular signal.The following calls are equivalent::
 
-        sl = _SliceSignal(sig, left, right)
+      sl = _SliceSignal(sig, left, right)
 
-        sl = sig(left, right)
+      sl = sig(left, right)
 
 
-.. class:: ConcatSignal(*args)
+   .. class:: ConcatSignal(*args)
 
    This class creates a new shadow signal of the concatenation of its arguments. 
 
@@ -328,33 +361,70 @@ Shadow signals
    The new signal follows the value changes of the signal arguments. The non-signal
    arguments are used to define constant values in the concatenation.  
 
-.. class:: TristateSignal(val)
+   .. class:: TristateSignal(val)
 
-    This class is used to construct a new tristate signal. The
-    underlying type is specified by the *val*
-    parameter. 
-    It is a Signal subclass and has the usual attributes, with
-    one exception: it doesn't support the ``next``
-    attribute. Consequently, direct signal assignment to a tristate
-    signal is not supported.
-    The initial value is the tristate value ``None``.
-    The current value of a tristate is determined by resolving the
-    values from its drivers. When exactly one driver value is
-    different from ``None``, that is the resolved value; otherwise
-    it is ``None``. When more than one driver value is different
-    from ``None``, a contention warning is issued.
+   This class is used to construct a new tristate signal. The
+   underlying type is specified by the *val*
+   parameter. 
+   It is a Signal subclass and has the usual attributes, with
+   one exception: it doesn't support the ``next``
+   attribute. Consequently, direct signal assignment to a tristate
+   signal is not supported.
+   The initial value is the tristate value ``None``.
+   The current value of a tristate is determined by resolving the
+   values from its drivers. When exactly one driver value is
+   different from ``None``, that is the resolved value; otherwise
+   it is ``None``. When more than one driver value is different
+   from ``None``, a contention warning is issued.
 
-    This class has the following method:
+   This class has the following method:
 
-    .. method:: driver()
+      .. method:: driver()
 
-	Returns a new driver to the tristate signal. It is initialized to
-	``None``.  A driver object is an instance of a special
-	:class:`SignalType` subclass. In particular, its ``next``
-	attribute can be used to assign a new value to it.
+	  Returns a new driver to the tristate signal. It is initialized to
+	  ``None``.  A driver object is an instance of a special
+	  :class:`SignalType` subclass. In particular, its ``next``
+	  attribute can be used to assign a new value to it.
 
+Constant signals
+^^^^^^^^^^^^^^^^
 
+   .. class:: Constant(val)
 
+   This class is used to construct a constant initialised read-only Signal
+   It is derived from the SignalType class with assignment and update methods overridden
+   
+   Currently *val* must be a constrained `intbv`
+
+OpenPort signals
+^^^^^^^^^^^^^^^^
+
+    .. class:: OpenPort()
+
+	In HDL modeling if we do not connect an output Signal, the conversion will emit a warning
+	and later the Vendor Synthesis tool will also throw a warning.
+	Binding the output to an OpenPort() will, under the hood, remove all declarations and assignments
+	and thus remove these warnings
+
+The :class:`Array` type
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+    .. class:: Array()
+
+	This type improves on the *anonymous* `ListOfSignals` wrapping this in a more capable object.
+	It support multimensional arrays of any MyHDL object.
+	Currently only objects of type :class:`SignalType` are supported.
+	
+	.. class:: Array(*args)
+	
+	The `\*args` allows us to instantiate an :class:`Array` in different ways: ::
+	
+	   myarray = Array([Signal(intbv(0)[W:] for __ in range(N)])  # simply encapsulates a `ListOfSignals` simplifying future migration as we deprecate the `ListOfSignals` and will make it obsolete 
+	   myarray = Array(N, Signal(intbv(0)[W:])  # a one-dimensional Array can do with an :class:`int` in stead of a :class:`tuple` of :class:`int` 
+	   myarray = Array((N,), Signal(intbv(0)[W:])
+	
+	all have the same result
+	
 .. _ref-gen:
 
 MyHDL generators and trigger objects
@@ -396,13 +466,13 @@ forked generator returns.
 In addition, the following functions return trigger objects:
 
 
-.. function:: delay(t)
+   .. function:: delay(t)
 
    Return a trigger object that specifies that the generator should resume after a
    delay *t*.
 
 
-.. function:: join(arg [, arg ...])
+   .. function:: join(arg [, arg ...])
 
    Join a number of trigger objects together and return a joined trigger object.
    The effect is that the joined trigger object will trigger when *all* of its
@@ -525,8 +595,8 @@ The :class:`intbv` class
     additional features that make it suitable for hardware
     design. 
 
-    The *val* argument can be an :class:`int`, a
-    :class:`long`, an :class:`intbv` or a bit string (a string with
+    The *val* argument can be an :class:`int`,
+    an :class:`intbv` or a bit string (a string with
     only '0's or '1's). For a bit string argument, the value is
     calculated as in ``int(bitstring, 2)``.  The optional *min* and
     *max* arguments can be used to specify the minimum and maximum
@@ -556,72 +626,72 @@ The :class:`intbv` class
 
     :rtype: integer
 
-Unlike :class:`int` objects, :class:`intbv` objects are mutable; this is also
-the reason for their existence. Mutability is needed to support assignment to
-indexes and slices, as is common in hardware design. For the same reason,
-:class:`intbv` is not a subclass from :class:`int`, even though :class:`int`
-provides most of the desired functionality. (It is not possible to derive a
-mutable subtype from an immutable base type.)
+    Unlike :class:`int` objects, :class:`intbv` objects are mutable; this is also
+    the reason for their existence. Mutability is needed to support assignment to
+    indexes and slices, as is common in hardware design. For the same reason,
+    :class:`intbv` is not a subclass from :class:`int`, even though :class:`int`
+    provides most of the desired functionality. (It is not possible to derive a
+    mutable subtype from an immutable base type.)
 
-An :class:`intbv` object supports the same comparison, numeric, bitwise,
-logical, and conversion operations as :class:`int` objects. See
-http://www.python.org/doc/current/lib/typesnumeric.html for more information on
-such operations. In all binary operations, :class:`intbv` objects can work
-together with :class:`int` objects. For mixed-type numeric operations, the
-result type is an :class:`int` or a :class:`long`. For mixed-type bitwise
-operations, the result type is an :class:`intbv`.
+    An :class:`intbv` object supports the same comparison, numeric, bitwise,
+    logical, and conversion operations as :class:`int` objects. See
+    http://www.python.org/doc/current/lib/typesnumeric.html for more information on
+    such operations. In all binary operations, :class:`intbv` objects can work
+    together with :class:`int` objects. For mixed-type numeric operations, the
+    result type is an :class:`int` or a :class:`long`. For mixed-type bitwise
+    operations, the result type is an :class:`intbv`.
 
-In addition, :class:`intbv` supports a number of sequence operators. 
-In particular, the :func:`len` function returns the object's bit width. Furthermore,
-:class:`intbv` objects support indexing and slicing operations:
+    In addition, :class:`intbv` supports a number of sequence operators. 
+    In particular, the :func:`len` function returns the object's bit width. Furthermore,
+    :class:`intbv` objects support indexing and slicing operations:
 
-+-----------------+---------------------------------+--------+
-| Operation       | Result                          | Notes  |
-+=================+=================================+========+
-| ``bv[i]``       | item *i* of *bv*                | \(1)   |
-+-----------------+---------------------------------+--------+
-| ``bv[i] = x``   | item *i* of *bv* is replaced by | \(1)   |
-|                 | *x*                             |        |
-+-----------------+---------------------------------+--------+
-| ``bv[i:j]``     | slice of *bv* from *i* downto   | (2)(3) |
-|                 | *j*                             |        |
-+-----------------+---------------------------------+--------+
-| ``bv[i:j] = t`` | slice of *bv* from *i* downto   | (2)(4) |
-|                 | *j* is replaced by *t*          |        |
-+-----------------+---------------------------------+--------+
+    +-----------------+---------------------------------+--------+
+    | Operation       | Result                          | Notes  |
+    +=================+=================================+========+
+    | ``bv[i]``       | item *i* of *bv*                | \(1)   |
+    +-----------------+---------------------------------+--------+
+    | ``bv[i] = x``   | item *i* of *bv* is replaced by | \(1)   |
+    |                 | *x*                             |        |
+    +-----------------+---------------------------------+--------+
+    | ``bv[i:j]``     | slice of *bv* from *i* downto   | (2)(3) |
+    |                 | *j*                             |        |
+    +-----------------+---------------------------------+--------+
+    | ``bv[i:j] = t`` | slice of *bv* from *i* downto   | (2)(4) |
+    |                 | *j* is replaced by *t*          |        |
+    +-----------------+---------------------------------+--------+
 
-(1)
-   Indexing follows the most common hardware design conventions: the lsb bit is the
-   rightmost bit, and it has index 0. This has the following desirable property: if
-   the :class:`intbv` value is decomposed as a sum of powers of 2, the bit with
-   index *i* corresponds to the term ``2**i``.
+    (1)
+      Indexing follows the most common hardware design conventions: the lsb bit is the
+      rightmost bit, and it has index 0. This has the following desirable property: if
+      the :class:`intbv` value is decomposed as a sum of powers of 2, the bit with
+      index *i* corresponds to the term ``2**i``.
 
-(2)
-   In contrast to standard Python sequencing conventions, slicing range are
-   downward. This is a consequence of the indexing convention, combined with the
-   common convention that the most significant digits of a number are the leftmost
-   ones. The Python convention of half-open ranges is followed: the bit with the
-   highest index is not included. However, it is the *leftmost* bit in this case.
-   As in standard Python, this takes care of one-off issues in many practical
-   cases: in particular, ``bv[i:]`` returns *i* bits; ``bv[i:j]`` has ``i-j`` bits.
-   When the low index *j* is omitted, it defaults to ``0``. When the high index *i*
-   is omitted, it means "all" higher order bits.
+    (2)
+      In contrast to standard Python sequencing conventions, slicing range are
+      downward. This is a consequence of the indexing convention, combined with the
+      common convention that the most significant digits of a number are the leftmost
+      ones. The Python convention of half-open ranges is followed: the bit with the
+      highest index is not included. However, it is the *leftmost* bit in this case.
+      As in standard Python, this takes care of one-off issues in many practical
+      cases: in particular, ``bv[i:]`` returns *i* bits; ``bv[i:j]`` has ``i-j`` bits.
+      When the low index *j* is omitted, it defaults to ``0``. When the high index *i*
+      is omitted, it means "all" higher order bits.
 
-(3)
-   The object returned from a slicing access operation is always a positive
-   :class:`intbv`; higher order bits are implicitly assumed to be zero. The bit
-   width is implicitly stored in the return object, so that it can be used in
-   concatenations and as an iterator. In addition, for a bit width w, the *min* and
-   *max* attributes are implicitly set to ``0`` and ``2**w``, respectively.
+    (3)
+      The object returned from a slicing access operation is always a positive
+      :class:`intbv`; higher order bits are implicitly assumed to be zero. The bit
+      width is implicitly stored in the return object, so that it can be used in
+      concatenations and as an iterator. In addition, for a bit width w, the *min* and
+      *max* attributes are implicitly set to ``0`` and ``2**w``, respectively.
 
-(4)
-   When setting a slice to a value, it is checked whether the slice is wide enough.
+    (4)
+      When setting a slice to a value, it is checked whether the slice is wide enough.
 
-In addition, an :class:`intbv` object supports the iterator protocol. This makes
-it possible to iterate over all its bits, from the high index to index 0. This
-is only possible for :class:`intbv` objects with a defined bit width.
+    In addition, an :class:`intbv` object supports the iterator protocol. This makes
+    it possible to iterate over all its bits, from the high index to index 0. This
+    is only possible for :class:`intbv` objects with a defined bit width.
 
-.. _ref-modvb:
+.. _ref-modbv:
 
 The :class:`modbv` class
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -641,6 +711,123 @@ The :class:`modbv` class
        
    This formula is a generalization of modulo wrap-around behavior that
    is often useful when describing hardware system behavior. 
+
+.. _ref-fixbv:
+
+The :class:`fixbv` class
+^^^^^^^^^^^^^^^^^^^^^^^^
+	
+.. class:: fixbv([val=0][, fmin=None] [, fmax=None] [, fractionalbits=None] [, spec=None] [,delta=None])
+
+    This class represents :class:`int`\ -like objects with some
+    additional features that make it suitable for hardware
+    design. 
+    
+    :class:`fixbv` is subclassed from :class:`intbv`
+
+    The *val* argument can be an :class:`int`, a :class:`float`
+    an :class:`intbv` or a bit string (a string with
+    only '0's or '1's, a single *decimal point*, possibly a *sign* and 
+    *underscores* to improve readability). 
+    The optional *fmin* and     *fmax* arguments can be used to specify the minimum 
+    and maximum value of the :class:`fixbv` object. As in standard Python
+    practice for ranges, the minimum value is inclusive and the
+    maximum value is exclusive.
+      
+    In contrast with :class:`intbv` a `Signal(fixbv(...))` shall not be constrained by slicing,
+    but requires a full specification in the `fixbv()` call; there are several options: ::
+
+       fixbv(0.0, fmin=0.0, fmax=8.0, fractionalbits=9)
+       fixbv(0.0, spec='UQ3.9')
+       fixbv('000.000_000_000')
+    
+    all generate the same `fixbv`
+
+    The full list: ::
+
+        fval: int | float: <(fmin, fmax, fractionalbits) | spec> are required
+              str : '-bbb.bbb_bbbb_bbbb_bbbb'
+                    with b in [0,1], the minus sign is ofcourse 'optional'
+                    a plus sign is also allowed
+                    allowing underscores to increase readability
+                    neither fmin, fmax, fractionalbits  nor 'spec' are needed in this case
+                    although fmin and fmax can be specified for simulation purposes
+                    
+        spec: we accept:
+            'Qi.f'  : signed fixed point, width = i + f; see https://en.wikipedia.org/wiki/Q_(number_format)
+                      !!! 'i' includes the sign bit
+            'UQi.f' : unsigned fixed point, width = i + f
+            'i.f'   : unsigned fixed point, width = i + f
+            '0.i.f' : unsigned fixed point, width = i + f
+            '1.i.f' : signed fixed point, width = 1 + i + f
+            or 'None'  : then must have to specify fmin, fmax and fractionalbits
+    
+    The implementation of :class:`fixbv` holds 2 values: the *integer* bit representation an the *real*
+    `float` representation; both are updated with the `.next` attribute. However, during simulation, 
+    bound checking is only performed on the *integer* value. When simulating with *trace=True* both
+    values are reported in the output *.vcd*, e.g.:
+    
+    .. image:: Simulation_fixbv.png
+    
+    :class:`fixbv` inherits most attributes and methods from :class:`intbv` 
+    
+    .. attribute:: fmin
+
+       Read-only attribute that is the minimum value (inclusive) of an :class:`fixbv`,
+       or *None* for no minimum.
+
+
+    .. attribute:: fmax
+
+       Read-only attribute that is the maximum value (exclusive) of an :class:`fixbv`,
+       or *None* for no  maximum.
+       
+    .. attribute:: fval
+       
+       Read-only attribute returning the actual value of the *real* value 
+       
+    .. attribute:: integer
+       
+       Read-only attribute returning the integer part of the *vector* value 
+       
+    .. attribute:: fractional
+       
+       Read-only attribute returning the fractional part of the *vector* value 
+       
+    .. attribute:: ord
+       
+       Read-only attribute returning the  bit representation of the *vector* value 
+       
+    .. attribute:: spec
+       
+       Read-only attribute returning *Q-type* speicifation, e.g. 'UQ1.17'
+       
+    .. attribute:: fractionalbits
+       
+       Read-only attribute returning the number of fractional bits in the *vector* representation
+
+    Unlike :class:`int` objects, :class:`fixbv` objects are mutable; this is also
+    the reason for their existence. Mutability is needed to support assignment to
+    indexes and slices, as is common in hardware design. For the same reason,
+    :class:`fixbv` is not a subclass from :class:`int`, even though :class:`int`
+    provides most of the desired functionality. (It is not possible to derive a
+    mutable subtype from an immutable base type.)
+
+    A :class:`fixbv` object supports the same comparison, numeric, bitwise,
+    logical, and conversion operations as :class:`intbv` objects.
+    In all numeric operations, :class:`fixbv` objects can work
+    together with numeric type objects, :class:`int`, :class:`intbv`, :class:`float`,
+    :class:`fixbv` or :class:`_FixbvResult`; the result type is :class:`_FixbvResult`. 
+    Only the arithmetic operations arer handled by :class:`fixbv`; the other operations
+    comparison, bitwise and logical are delegated to the parent :class:`intbv` class.
+    For mixed-type bitwise operations, the result type is  :class:`intbv`.
+
+.. _ref-_FixbvResult:
+
+.. class:: _FixbvResult([real=None], [, vector=None], [, fractionalbits=0])
+
+	This class holds the results of arithmetic operations on :class:`fixbv` objects
+	
 
 The :func:`enum` factory function
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -683,7 +870,7 @@ useful for hardware description.
    This function complements the standard Python conversion functions ``hex`` and
    ``oct``. A binary string representation is often useful in hardware design.
 
-   :rtype: string
+   :rtype: :class:`str`
 
 :func:`concat`
 ^^^^^^^^^^^^^^
@@ -789,78 +976,78 @@ Conversion
 
 .. function:: toVerilog(func [, *args] [, **kwargs])
 
-     Converts a MyHDL design instance to equivalent Verilog code, and also generates
-     a test bench to verify it. *func* is a function that returns an instance.
-     :func:`toVerilog` calls *func* under its control and passes *\*args* and
-     *\*\*kwargs* to the call.
+   Converts a MyHDL design instance to equivalent Verilog code, and also generates
+   a test bench to verify it. *func* is a function that returns an instance.
+   :func:`toVerilog` calls *func* under its control and passes *\*args* and
+   *\*\*kwargs* to the call.
 
-     The return value is the same as would be returned by the call ``func(*args,
-     **kwargs)``. It should be assigned to an instance name.
+   The return value is the same as would be returned by the call ``func(*args,
+   **kwargs)``. It should be assigned to an instance name.
 
-     The top-level instance name and the basename of the Verilog output filename is
-     ``func.func_name`` by default.
+   The top-level instance name and the basename of the Verilog output filename is
+   ``func.func_name`` by default.
 
-     For more information about the restrictions on convertible MyHDL code, see
-     section :ref:`conv-subset` in Chapter :ref:`conv`.
+   For more information about the restrictions on convertible MyHDL code, see
+   section :ref:`conv-subset` in Chapter :ref:`conv`.
 
-    :func:`toVerilog` has the following attribute:
+   :func:`toVerilog` has the following attribute:
 
-    .. attribute:: name
+      .. attribute:: name
 
-       This attribute is used to overwrite the default top-level instance name and the
-       basename of the Verilog output filename.
+      This attribute is used to overwrite the default top-level instance name and the
+      basename of the Verilog output filename.
 
-    .. attribute:: directory
+      .. attribute:: directory
 
-       This attribute is used to set the directory to which converted verilog
-       files are written. By default, the current working directory is used.
+      This attribute is used to set the directory to which converted verilog
+      files are written. By default, the current working directory is used.
 
-    .. attribute:: timescale
+      .. attribute:: timescale
 
-       This attribute is used to set the timescale in Verilog format. The assigned value
-       should be a string. The default timescale is "1ns/10ps".
+      This attribute is used to set the timescale in Verilog format. The assigned value
+      should be a string. The default timescale is "1ns/10ps".
 
 
 .. function:: toVHDL(func[, *args][, **kwargs])
 
-    Converts a MyHDL design instance to equivalent VHDL
-    code. *func* is a function that returns an instance. :func:`toVHDL`
-    calls *func* under its control and passes *\*args* and
-    *\*\*kwargs* to the call.
+   Converts a MyHDL design instance to equivalent VHDL
+   code. *func* is a function that returns an instance. :func:`toVHDL`
+   calls *func* under its control and passes *\*args* and
+   *\*\*kwargs* to the call.
 
-    The return value is the same as would be returned by the call
-    ``func(*args, **kwargs)``. It can be assigned to an instance name.
-    The top-level instance name and the basename of the Verilog
-    output filename is ``func.func_name`` by default.
+   The return value is the same as would be returned by the call
+   ``func(*args, **kwargs)``. It can be assigned to an instance name.
+   The top-level instance name and the basename of the Verilog
+   output filename is ``func.func_name`` by default.
 	
-    :func:`toVHDL` has the following attributes:
+   :func:`toVHDL` has the following attributes:
 
-    .. attribute:: name
+      .. attribute:: name
 
-       This attribute is used to overwrite the default top-level
-       instance name and the basename of the VHDL output.
+      This attribute is used to overwrite the default top-level
+      instance name and the basename of the VHDL output.
 
-    .. attribute:: directory
+      .. attribute:: directory
 
-       This attribute is used to set the directory to which converted VHDL
-       files are written. By default, the current working directory is used.
+      This attribute is used to set the directory to which converted VHDL
+      files are written. By default, the current working directory is used.
 
-    .. attribute:: library 
+      .. attribute:: library 
 
-       This attribute can be used to set the library in the VHDL output
-       file. The assigned value should be a string. The default 
-       library is ``work``.
+      This attribute can be used to set the library in the VHDL output
+      file. The assigned value should be a string. The default 
+      library is ``work``.
 
-    .. attribute:: use_clauses
+      .. attribute:: use_clauses
     
-    	This attribute can be used to list specific declararations of a previously
-    	defined `user` library
+      This attribute can be used to list specific declararations of a previously
+      defined `user` library
     	
-    .. attribute:: std_logic_ports
+      .. attribute:: std_logic_ports
 
-       This boolean attribute can be used to have ``std_logic_vector`` type
-       ports on the top-level interface (when ``True``) instead of the
-       default ``signed/unsigned`` types (when ``False``, the default). 
+      This boolean attribute can be used to have ``std_logic_vector`` type
+      ports on the top-level interface (when ``True``) instead of the
+      default ``signed/unsigned`` types (when ``False``, the default). 
 
 
 
@@ -874,13 +1061,13 @@ the use of function attributes. Suppose a function :func:`<func>` defines
 a hardware module. User-defined code can be specified for the function
 with the following function attributes:
 
-.. attribute:: <func>.vhdl_code
+   .. attribute:: <func>.vhdl_code
 
-    A template string for user-defined code in the VHDL output.
+   A template string for user-defined code in the VHDL output.
 
-.. attribute:: <func>.verilog_code
+   .. attribute:: <func>.verilog_code
 
-    A template string for user-defined code in the Verilog output.
+   A template string for user-defined code in the Verilog output.
 
 When such a function attribute is defined, the normal conversion
 process is bypassed and the user-defined code is inserted instead.
@@ -913,70 +1100,76 @@ Verification interface
 All functions related to conversion verification are implemented in
 the :mod:`myhdl.conversion` package.
 
-.. function:: verify(func[, *args][, **kwargs])
+   .. function:: verify(func[, *args][, **kwargs])
 
-    Used like :func:`toVHDL()` and  :func:`toVerilog()`. It converts MyHDL code,
-    simulates both the MyHDL code and the HDL code and reports any
-    differences. The default HDL simulator is GHDL.
+   Used like :func:`toVHDL()` and  :func:`toVerilog()`. It converts MyHDL code,
+   simulates both the MyHDL code and the HDL code and reports any
+   differences. The default HDL simulator is GHDL.
 
-    This function has the following attribute:
+   This function has the following attribute:
 
-    .. attribute:: simulator
+      .. attribute:: simulator
 
-       Used to set the name of the HDL simulator. ``"GHDL"``
-       is the default.
+      Used to set the name of the HDL simulator. ``"GHDL"``
+      is the default.
 
-.. function:: analyze(func[, *args][, **kwargs])
+   .. function:: analyze(func[, *args][, **kwargs])
 
-    Used like :func:`toVHDL()` and :func:`toVerilog()`. It converts MyHDL code, and analyzes the
-    resulting HDL. 
-    Used to verify whether the HDL output is syntactically correct.
+   Used like :func:`toVHDL()` and :func:`toVerilog()`. It converts MyHDL code, and analyzes the
+   resulting HDL. 
+   Used to verify whether the HDL output is syntactically correct.
 
-    This function has the following attribute:
+   This function has the following attribute:
 
-    .. attribute:: simulator
+      .. attribute:: simulator
 
-       Used to set the name of the HDL simulator used to analyze the code. ``"GHDL"``
-       is the default.
+      Used to set the name of the HDL simulator used to analyze the code. ``"GHDL"``
+      is the default.
 
 
 HDL simulator registration
 --------------------------
 
-To use a HDL simulator to verify conversions, it needs to
-be registered first. This is needed once per simulator.
-
-A number of HDL simulators are preregistered in the
-MyHDL distribution, as follows:
-
-+-----------------+---------------------------------+
-| Identifier      | Simulator                       |
-+=================+=================================+
-| ``"GHDL"``      | The GHDL VHDL simulator         |
-+-----------------+---------------------------------+
-| ``"vsim"``      | The ModelSim VHDL simulator     |
-+-----------------+---------------------------------+
-| ``"icarus"``    | The Icarus Verilog simulator    |
-+-----------------+---------------------------------+
-| ``"cver"``      | The cver Verilog simulator      |
-+-----------------+---------------------------------+
-| ``"vlog"``      | The Modelsim VHDL simulator     |
-+-----------------+---------------------------------+
-
-Of course, a simulator has to be installed before it can be used.
-
-If another simulator is required, it has to be registered by the user.
-This is done with the function :func:`registerSimulation` that lives
-in the module :mod:`myhdl.conversion._verify`. The same module also has the
-registrations for the predefined simulators.
-
-The verification functions work by comparing the HDL simulator
-output with the MyHDL simulator output. Therefore, they have
-to deal with the specific details of each HDL simulator output,
-which may be somewhat tricky. This is reflected in the interface
-of the :func:`registerSimulation` function. As registration
-is rarely needed, this interface is not further described here.
-
-Please refer to the source code in :mod:`myhdl.conversion._verify`
-to learn how registration works. If you need help, please
-contact the MyHDL community.
+	To use a HDL simulator to verify conversions, it needs to
+	be registered first. This is needed once per simulator.
+	
+	A number of HDL simulators are preregistered in the
+	MyHDL distribution, as follows:
+	
+	+-----------------+---------------------------------+
+	| Identifier      | Simulator                       |
+	+=================+=================================+
+	| ``"ghdl"``      | The GHDL VHDL simulator         |
+	+-----------------+---------------------------------+
+	| ``"vsim"``      | The ModelSim VHDL simulator     |
+	+-----------------+---------------------------------+
+	| ``"vlog"``      | The Modelsim Verilog simulator  |
+	+-----------------+---------------------------------+
+	| ``"iverilog"``  | The Icarus Verilog simulator    |
+	+-----------------+---------------------------------+
+	| ``"sverilog"``  | The Icarus Verilog simulator    |
+	|                 | set up for SystemVerilog        |
+	|                 | (-g2012)                        |
+	+-----------------+---------------------------------+
+	| ``"cver"``      | The cver Verilog simulator      |
+	+-----------------+---------------------------------+
+	| ``"nvc"``       | The NVC VHDL simulator          |
+	+-----------------+---------------------------------+
+	
+	Of course, a simulator has to be installed before it can be used.
+	
+	If another simulator is required, it has to be registered by the user.
+	This is done with the function :func:`registerSimulation` that lives
+	in the module :mod:`myhdl.conversion._verify`. The same module also has the
+	registrations for the predefined simulators.
+	
+	The verification functions work by comparing the HDL simulator
+	output with the MyHDL simulator output. Therefore, they have
+	to deal with the specific details of each HDL simulator output,
+	which may be somewhat tricky. This is reflected in the interface
+	of the :func:`registerSimulation` function. As registration
+	is rarely needed, this interface is not further described here.
+	
+	Please refer to the source code in :mod:`myhdl.conversion._verify`
+	to learn how registration works. If you need help, please
+	contact the MyHDL community.
