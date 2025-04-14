@@ -51,7 +51,7 @@ class _FixbvResult(object):
         self.fractionalbits = fractionalbits
 
     def __repr__(self):
-        return f"_FixbvResult(real={self.real}, vector={self.vector} with fractionalbits={self.fractionalbits})"
+        return f"_FixbvResult(real={self.real}, vector={self.vector}, fractionalbits={self.fractionalbits})"
 
     def __add__(self, other):
         assert isinstance(other, _FixbvResult)
@@ -483,6 +483,20 @@ class fixbv(intbv):
             raise NotImplementedError(f"{repr(self)}[{key}] = {val}: cannot set single bit or slice of bits in the bitvector " \
                                   "as that will invalidate the tracked *real* value")
 
+    # TODO: research whether and, if, how to round?
+    # realizing that he same rounding effect has to be achieved in conversion!
+    def resize(self, nbrbits):
+        if nbrbits > self._wf:
+            nv = self._val << (nbrbits - self._wf)
+
+        elif nbrbits < self._wf:
+            nv = self._val >> (self._wf - nbrbits)
+
+        else:
+            nv = self._val
+
+        return _FixbvResult(real=self._fval, vector=nv, fractionalbits=nbrbits)
+
     # integer-like methods
     def _addsubvalidate(self, other):
         ''' helper: validate the other to comply for addition or subtraction '''
@@ -518,7 +532,7 @@ class fixbv(intbv):
 
         elif isinstance(other, _FixbvResult):
             # concatenated math operation(s)
-            r = _FixbvResult(real=other._fval)
+            r = _FixbvResult(real=other.real)
             r.fractionalbits = max(self._wf, other.fractionalbits)
             if other._wf != r.fractionalbits:
                 r.vector = other._val << (r.fractionalbits - other.fractionalbits)

@@ -495,12 +495,14 @@ The :class:`fixbv` class
        x = fixbv(0.333, fmin=-1.0, fmax=1.0, fractionalbits=8)    
 
 
-   As discussed in the fixed-point introduction the resolution is
-   the smallest quantity representable.  In many cases the requested
-   resolution (*res*) cannot be encoded exactly with a reasonable
-   number of bits.  The resolution will be rounded down to the closes
-   power of two.
-
+   Although MEP 111 proposed ::
+   
+       x = fixbv(0.333, fmin=-1.0, fmax=1.0, res=0.1) 
+   
+   In many cases the requested resolution (*res*) cannot be encoded 
+   exactly with a reasonable number of bits. 
+   The resolution would be rounded down to the closest power of two.
+   
    In the above :class:`fixbv` creation the requested resolution is 0.1
    but the generated resolution will be 0.0625.  This resolution is
    better than the 0.1 but will have the downside that multiples of
@@ -516,37 +518,20 @@ The :class:`fixbv` class
 
    If the initial value cannot be represented exactly or the initial
    value defines a greater precision than the :class:`fixbv` can encode
-   the value will be rounded, using the standard definition of rounding.
-
-   In some cases, a different rounding method is desired for the
-   initial value.  In those cases the rounding needs to occur outside
-   of the :class:`fixbv` creation, example: ::
-
-       x = fixbv(0.333, min=-1, max=1, res=0.1)
-	   x[:] = resize(0.333, x, round_mode='convergent')
-
-   The above definition (instantiation) should cover most
-   of the use cases.  Except, some designers have the habit
-   of defining the bits explicitly.  Like the :class:`intbv` the
-   proposed :class:`fixbv` would allow the definition of the bits
-   required.  To define the bits the word-length (wl),
-   integer word-length (iwl), and fractional word-length
-   (fwl) are set, example: ::
-
-      fixbv(0)[wl,iwl,fwl]
-
-   The word-lengths have a simple relation::
-
-       wl = iwl + fwl + 1
+   the value will be rounded, using the  convergent rounding as used in IEEE754.
 
 
+   Using `res=` will be confusing so we opted for a direct specification
+   of the number of fractional bits required. As this calculation will 
+   eventually performed anyway ...
+   
    .. index:: single: fixbv; operations
 
    First, lets review fixed-point mathematics, given two fixed-point
    variables, *x* and *y*: ::
 
-	   x = fixbv(0, min=-8, max=8, res=1/16)   # siii.ffff
-	   y = fixbv(0, min=-1, max=1, rest=1/128) # s.fffffff
+	   x = fixbv(0, min=-8, max=8, fractionalbits=4) # siii.ffff
+	   y = fixbv(0, min=-1, max=1, fractionalbits=7) # s.fffffff
 
    Addition and subtraction require the operands to be aligned,
    they don't necessarily need to be the same word-length (wl) but
@@ -559,31 +544,32 @@ The :class:`fixbv` class
 
    once the operands are aligned normal 2's complement addition/
    subtraction can be performed.  The maximum result would be
-   2\*max(x.max,y.max) (or max(len(x),len(y))+1).  If addition or
-   subtraction is attempted and the values are not aligned an error
-   will be thrown, example: ::
+   2\*max(x.max,y.max) (or max(len(x),len(y))+1). 
+   Both addition and subtraction will align the decimal points and the returned
+   result will have the greater of the two fractionalbits
+   
+   :class:`fixbv` operations will return an :class:`_FixbvResult`.::
 
-       >>> x = fixbv(0, min=-8, max=8, res=1/16.)
-       >>> y = fixbv(0, min=-1, max=1, res=1/128.)
-       >>> x + y
-       AssertionError: Add: points not aligned
-           fixbv(0.00, format=(8,3,4), ) and fixbv(0.00, format=(8,0,7), )
+       >>> x1 = fixbv(2.50, fmin=-8, fmax=8, fractionalbits=4)
+       >>> x2 = fixbv(1.25, fmin=-8, fmax=8, fractionalbits=4)
+       >>> a = x1 + x2
+       >>> a
+      _FixbvResult(real=3.75, vector=60, fractionalbits=4)
 
-   It is assumed the :class:`fixbv` operations will return an :class:`fixbv`.::
 
-      >>> x1 = fixbv(2.5, min=-8, max=8, res=1/16.)
-      >>> x2 = fixbv(1.25, min=-8, max=8, res=1/16.)
-      >>> x1 + x2
-      fixbv(15)
+   :class:`_FixbvResult` was introduced as it has a much smaller footprint than 
+   :class:`fixbv` itself.
+   Note that the user doesn't have care about :class:`_FixbvResult` as the MyHDL 
+   package handles this internally.
+   When assigned to another :class:`fixbv` the :class:`_FixbvResult` value will fit
+   in the format of the accepting object.::
 
-   When assigned to another :class:`fixbv` the value will fit in the
-   format of the accepting object.::
-
-	   >>> x1 = fixbv(2.5, min=-8, max=8, res=1/16.)
-	   >>> x2 = fixbv(1.25, min=-8, max=8, res=1/16.)
-	   >>> z = fixbv(0, min=-16, max=16, res=1/16.)
+       >>> x1 = fixbv(2.50, fmin=-8, fmax=8, fractionalbits=4)
+       >>> x2 = fixbv(1.25, fmin=-8, fmax=8, fractionalbits=4)
+	   >>> z = fixbv(0, fmin=-16, fmax=16,  fractionalbits=4)
 	   >>> z[:] = x1 + x2
-	   fixbv(3.75, format=(9,4,4))
+	   >>> z
+	   fixbv(3.75, fmin=-16, fmax=16, fractionalbits=4)
 
    For multiplication the operands do not need to be aligned before
    the operation but the "point" bookkeeping needs to be accounted.::
@@ -595,8 +581,8 @@ The :class:`fixbv` class
 
    A multiplication example: ::
 
-	   >>> x = fixbv(1.5, fmin=-8.0, fmax=8.0, fractionalbits=8)
-	   >>> y = fixbv(-2.0,fmin=-8.0, fmax=8.0, fractionalbits=8)
+	   >>> x = fixbv( 1.5, fmin=-8.0, fmax=8.0, fractionalbits=8)
+	   >>> y = fixbv(-2.0, fmin=-8.0, fmax=8.0, fractionalbits=8)
 	   >>> z = x * y
 	   >>> z
 	   _FixbvResult(real=-5.0, vector=-327680 with fractionalbits=16)
@@ -627,9 +613,20 @@ The :class:`fixbv` class
    overflow (underflow) is also an issue.  If the value being
    resized does not fit, it needs to be saturated or wrapped.
 
-   This enhancement proposal does not include the definition of
-   a *resize* function.  A separate MEP will be created for the
-   *resize* function and implementation.
+   A *resize* function is not implemented.
+   As a *work-around* the user can define a function to achieve the same.
+   Note that removing bits is easily achieved by slicing:
+   
+       >>> g = fixbv(-3.14159, fmin=-4.0, fmax=4.0, fractionalbits=16)
+       >>> g.ord
+       -205887
+       >>> g.bin
+       '100.1101101111000001'
+       >>>gs = g[:4]
+       >> gs
+       _FixbvResult(real=-3.14159, vector=-12868, fractionalbits=0)
+   
+   The *real* value will be preserved!
 
 Simulation
 ^^^^^^^^^^
