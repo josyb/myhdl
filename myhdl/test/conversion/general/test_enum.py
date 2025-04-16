@@ -1,0 +1,132 @@
+from myhdl import (block, Signal, enum, intbv, delay, instance,
+                   instances, always_comb, StopSimulation)
+
+bitwise_op = enum('BW_AND', 'BW_ANDN', 'BW_OR', 'BW_XOR')
+
+
+def bitwise(a, b, op):
+    r = intbv(0)[8:]
+    if op == bitwise_op.BW_AND:
+        r[:] = a & b
+    elif op == bitwise_op.BW_ANDN:
+        r[:] = (~a) & b
+    elif op == bitwise_op.BW_OR:
+        r[:] = a | b
+    elif op == bitwise_op.BW_XOR:
+        r[:] = a ^ b
+    return r
+
+
+@block
+def LogicUnit(a, b, c, op):
+
+    @always_comb
+    def operate():
+        c.next = bitwise(a, b, op)
+
+    return operate
+
+
+@block
+def bench_enum():
+    clock = Signal(False)
+    a, b, c = [Signal(intbv(0)[8:]) for _ in range(3)]
+    op = Signal(bitwise_op.BW_AND)
+
+    logic_unit = LogicUnit(a=a, b=b, c=c, op=op)
+
+    @instance
+    def clockgen():
+        clock.next = 1
+        while 1:
+            yield delay(10)
+            clock.next = not clock
+
+    @instance
+    def stimulus():
+        a.next = 0xaa
+        b.next = 0x55
+        yield clock.posedge
+        print('a=%s b=%s' % (a, b))
+
+        op.next = bitwise_op.BW_AND
+        yield clock.posedge
+        print(c)
+
+        op.next = bitwise_op.BW_ANDN
+        yield clock.posedge
+        print(c)
+
+        op.next = bitwise_op.BW_OR
+        yield clock.posedge
+        print(c)
+
+        op.next = bitwise_op.BW_XOR
+        yield clock.posedge
+        print(c)
+
+        raise StopSimulation
+
+    return instances()
+
+
+def test_enum():
+    assert bench_enum().verify_convert() == 0
+
+
+@block
+def LogicUnit2(a, b, c, index):
+
+    aluop = Signal(bitwise_op.BW_XOR)
+
+    @always_comb
+    def operate():
+        aluop.next = bitwise_op[index]
+        if aluop == bitwise_op.BW_AND:
+            c.next = a & b
+        elif aluop == bitwise_op.BW_ANDN:
+            c.next = (~a) & b
+        elif aluop == bitwise_op.BW_OR:
+            c.next = a | b
+        elif aluop == bitwise_op.BW_XOR:
+            c.next = a ^ b
+
+    return operate
+
+
+@block
+def bench_enum2():
+    clock = Signal(False)
+    a, b, c = [Signal(intbv(0)[8:]) for _ in range(3)]
+    # make index width greater than necessary
+    index = Signal(intbv(0)[3:])
+
+    logic_unit = LogicUnit2(a=a, b=b, c=c, index=index)
+
+    @instance
+    def clockgen():
+        clock.next = 1
+        while 1:
+            yield delay(10)
+            clock.next = not clock
+
+    @instance
+    def stimulus():
+        a.next = 0xaa
+        b.next = 0x55
+        yield clock.posedge
+        print('a=%s b=%s' % (a, b))
+
+        for i in range(4):
+            index.next = i
+            yield clock.posedge
+            print(c)
+
+        raise StopSimulation
+
+    return instances()
+
+
+def test_enum2():
+    assert bench_enum2().verify_convert() == 0
+

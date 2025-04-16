@@ -54,7 +54,7 @@
     HdlClass -- Abstract Base Class to build Class based structural designs
 
 """
-__version__ = "0.11.51"
+__version__ = "0.11.52"
 
 
 class StopSimulation(Exception):
@@ -168,7 +168,7 @@ from ._block import block
 from ._enum import enum, EnumType, EnumItemType
 from ._traceSignals import traceSignals
 from ._openport import OpenPort
-from ._hdlclass import HdlClass# , hdlinstances
+from ._hdlclass import HdlClass  # , hdlinstances
 
 from myhdl import conversion
 from .conversion import toVerilog

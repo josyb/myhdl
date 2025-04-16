@@ -1302,14 +1302,23 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
     def visit_IfExp(self, node):
         # propagate the node's vhd attribute
         node.body.vhd = node.orelse.vhd = node.vhd
-        self.write('tern_op(')
-        self.write('cond => ')
-        self.visit(node.test)
-        self.write(', if_true => ')
+        # we can deprecate/remove the tern_op construct
+        # as VHDL-2008 allows the use of when/else in sequential code
+
+        # self.write('tern_op(')
+        # self.write('cond => ')
+        # self.visit(node.test)
+        # self.write(', if_true => ')
+        # self.visit(node.body)
+        # self.write(', if_false => ')
+        # self.visit(node.orelse)
+        # self.write(')')
+
         self.visit(node.body)
-        self.write(', if_false => ')
+        self.write(' when ')
+        self.visit(node.test)
+        self.write(' else ')
         self.visit(node.orelse)
-        self.write(')')
 
     def visit_For(self, node):
         self.labelStack.append(node.breakLabel)
@@ -1612,6 +1621,8 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 s = m.name
             elif isinstance(obj, EnumItemType):
                 s = obj._toVHDL()
+            elif isinstance(obj, EnumType):
+                s = f"{obj._name}'val"
             elif (type(obj) in (type,)) and issubclass(obj, Exception):
                 s = n
             else:

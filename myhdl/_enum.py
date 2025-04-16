@@ -165,6 +165,17 @@ def enum(*names, **kwargs):
             typename = "t_enum_%s" % name
             self.__dict__['_name'] = typename
 
+        def __getitem__(self, key):
+            assert not isinstance(key, slice), 'EnumType only accepts indexing, noty slicing'
+            return self.__dict__[self._names[key]]
+
+        # def _toVerilog(self):
+        #     # tt = ' ,'.join([self.__dict__[self._names[key]] for key in range(self._nritems)])
+        #     #            return "%d'b%s" % (self._nrbits, val)
+        #     tt = ', '.join([f"{self._nrbits}'b{self._codedict[self._names[key]]}" for key in range(self._nritems)])
+        #
+        #     return f"{{{tt}}}"
+
 #         _toVHDL = __str__
 
 #         def _toVHDL(self):

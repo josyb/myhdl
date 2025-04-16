@@ -89,7 +89,7 @@ def _analyzeSigs(hierarchy, hdl='Verilog'):
         delta = curlevel - level
         curlevel = level
         assert(delta >= -1)
-        if delta > -1: # same or higher level
+        if delta > -1:  # same or higher level
             prefixes = prefixes[:curlevel - 1]
         # skip processing and prefixing in context without signals
         # if not (sigdict or memdict):
@@ -169,7 +169,7 @@ def _analyzeGens(top, absnames):
             else:
                 v = _AnalyzeAlwaysDecoVisitor(tree, g.senslist)
             v.visit(tree)
-        else: # @instance
+        else:  # @instance
             f = g.gen.gi_frame
             tree = g.ast
             tree.symdict = f.f_globals.copy()
@@ -307,7 +307,7 @@ class _FirstPassVisitor(ast.NodeVisitor, _ConversionMixin):
         if node:
             if len(node) == 1 and \
                     isinstance(node[0], ast.If) and \
-                    node[0].body[0].col_offset == co: # ugly hack to detect separate else clause
+                    node[0].body[0].col_offset == co:  # ugly hack to detect separate else clause
                 elifnode = node[0]
                 tests.append((elifnode.test, elifnode.body))
                 self.flattenIf(elifnode.orelse, tests, else_, co)
@@ -408,8 +408,10 @@ def _getNritems(obj):
         return obj._max - obj._min
     elif isinstance(obj, EnumItemType):
         return len(obj._type)
+    elif isinstance(obj, EnumType):
+        return len(obj._type)
     else:
-        raise TypeError("Unexpected type, missing final \'else:\'?")
+        raise TypeError(f"Unexpected type, missing final \'else:\'? - {obj=}")
 
 
 class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
@@ -510,7 +512,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 _enumTypeSet.add(obj)
                 suf = _genUniqueSuffix.next()
                 obj._setName(n + suf)
-        if node.obj is None: # attribute lookup failed
+        if node.obj is None:  # attribute lookup failed
             self.raiseError(node, _error.UnsupportedAttribute, node.attr)
 
     def visit_Assign(self, node):
@@ -803,7 +805,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # XXX INOUT access in Store context, unlike with compiler
         # XXX check whether ast context is correct
         n = node.id
-        if self.access == _access.INOUT: # augmented assign
+        if self.access == _access.INOUT:  # augmented assign
             if n in self.tree.sigdict:
                 sig = self.tree.sigdict[n]
                 if isinstance(sig, _Signal):
@@ -856,7 +858,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 self.raiseError(node, _error.NotSupported, "Augmented signal assignment")
         if n in self.tree.vardict:
             obj = self.tree.vardict[n]
-            if self.access == _access.INOUT: # probably dead code
+            if self.access == _access.INOUT:  # probably dead code
                 # upgrade bool to int for augmented assignments
                 if isinstance(obj, bool):
                     obj = int(-1)
@@ -978,7 +980,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
     def accessIndex(self, node):
         self.visit(node.value)
         self.access = _access.INPUT
-        if sys.version_info >= (3, 9, 0): # Python 3.9+: no ast.Index wrapper
+        if sys.version_info >= (3, 9, 0):  # Python 3.9+: no ast.Index wrapper
             self.visit(node.slice)
         else:
             self.visit(node.slice.value)

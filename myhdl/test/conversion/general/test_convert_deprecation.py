@@ -4,6 +4,8 @@ from myhdl._traceSignals import traceSignals
 
 import pytest
 
+# !!! NO @block here, we are testing the 'old style' conversion
+
 
 def bin2gray_depr(B, G, width):
 
@@ -15,9 +17,10 @@ def bin2gray_depr(B, G, width):
 
     """
 
+    Bext = intbv(0)[width + 1:]
+
     @always_comb
     def comb():
-        Bext = intbv(0)[width + 1:]
         Bext[:] = B
         for i in range(width):
             G.next[i] = Bext[i + 1] ^ Bext[i]
@@ -32,22 +35,22 @@ GG = Signal(intbv(0)[width:])
 
 def testOldVerify():
     with pytest.deprecated_call():
-        conversion.verify(bin2gray_depr, width, BB, GG)
+        conversion.verify(bin2gray_depr, BB, GG, width)
 
 
 def testOldAnalyze():
     with pytest.deprecated_call():
-        conversion.analyze(bin2gray_depr, width, BB, GG)
+        conversion.analyze(bin2gray_depr, BB, GG, width)
 
 
 def testOldToVHDL():
     with pytest.deprecated_call():
-        toVHDL(bin2gray_depr, width, BB, GG)
+        toVHDL(bin2gray_depr, BB, GG, width)
 
 
 def testOldToVerilog():
     with pytest.deprecated_call():
-        toVerilog(bin2gray_depr, width, BB, GG)
+        toVerilog(bin2gray_depr, BB, GG, width)
 
 
 def testOldToTraceSignals():
