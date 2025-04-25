@@ -184,6 +184,7 @@ from ._hdlclass import HdlClass
 from ._fixbv import fixbv
 from ._structured import Array
 from ._tristate import Tristate
+from ._hdllib import widthr, widthu
 
 from myhdl import conversion
 from myhdl.conversion._cosimulation import setupcosimobject, getcosimkwargs
@@ -227,4 +228,6 @@ __all__ = [
            "traceSignals",
            "Tristate",
            "TristateSignal",
+           "widthr",
+           "widthu"
            ]

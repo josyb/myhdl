@@ -59,8 +59,9 @@ from myhdl._enum import EnumItemType, EnumType
 from myhdl._concat import concat
 from myhdl._delay import delay
 from myhdl._misc import downrange, isboundmethod, getsymdict, updatesymdict
-
+from myhdl._parameter import  Parameter
 from myhdl._hdlclass import HdlClass
+from myhdl._hdllib import widthr, widthu
 from myhdl.conversion._misc import (_error, _access, _kind,
                                     _ConversionMixin, _Label, _genUniqueSuffix,
                                     _get_argnames)
@@ -92,13 +93,14 @@ def _analyzeSigs(hierarchy, hdl):
     siglist = []
     memlist = []
     prefixes = []
+    needsyspkg = False
 
     for inst in hierarchy:
         level = inst.level
         name = inst.name
         sigdict = inst.sigdict
         memdict = inst.memdict
-        ic(level, name, sigdict, memdict)
+        # ic(level, name, sigdict, memdict)
         namedict = dict(chain(sigdict.items(), memdict.items()))
         delta = curlevel - level
         curlevel = level
@@ -118,12 +120,18 @@ def _analyzeSigs(hierarchy, hdl):
                 continue
 
             s._name = _makeName(n, prefixes, namedict)
-            # ic(n, s._info)
+            # ic(n, type(s), s._type, s._info, s._val)
+
+            if isinstance(s, _Signal) and hasattr(s, '_parameter'):
+                needsyspkg |= 1
 
             if isinstance(s, Constant):
                 pass
 
-            elif isinstance(s, _Signal) and s._type is float:
+            elif isinstance(s, _Signal) and (s._type is float or s._type is int):
+                pass
+
+            elif  isinstance(s, Parameter):
                 pass
 
             elif isinstance(s, Array):
@@ -187,7 +195,7 @@ def _analyzeSigs(hierarchy, hdl):
                 raise ConversionError(_error.InconsistentBitWidth, s._name)
 
     # ic(siglist, memlist)
-    return siglist, memlist
+    return siglist, memlist, needsyspkg
 
 
 def _analyzeGens(top, absnames):
@@ -582,7 +590,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         # ic(repr(node.obj), (vars(self.tree)))
 
     def getAttr(self, node):
-        # ic(astdump(node, show_offsets=False))
+        # ic(astdump(node, show_offsets=False), vars(node))
         self.visit(node.value)
         node.obj = None
         if isinstance(node.value, ast.Name):
@@ -591,6 +599,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 raise AssertionError("attribute target: %s" % n)
 
         obj = node.value.obj
+        # ic(repr(obj))
         if isinstance(obj, _Signal):
             if node.attr == 'posedge':
                 node.obj = obj.posedge
@@ -614,6 +623,12 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
                 _enumTypeSet.add(obj)
                 suf = _genUniqueSuffix.next()
                 obj._setName(n + suf)
+                # obj._setName(n)
+
+        if isinstance(obj, Parameter):
+            ic(astdump(node, show_offsets=False), vars(node), repr(obj), obj._val)
+            # node.obj = getattr(obj, node.attr)
+            node.obj = obj._val
 
         if node.obj is None:  # attribute lookup failed
             self.raiseError(node, _error.UnsupportedAttribute, node.attr)
@@ -688,7 +703,7 @@ class _AnalyzeVisitor(ast.NodeVisitor, _ConversionMixin):
         self.labelStack[-2].isActive = True
 
     def visit_Call(self, node):
-        # ic(node, self.tree.inputs)
+        # ic(astdump(node, show_offsets=False), self.tree.inputs)
         self.visit(node.func)
         f = self.getObj(node.func)
         node.obj = None
@@ -1734,7 +1749,7 @@ class _AnalyzeTopFuncVisitor(_AnalyzeVisitor):
             n = self.argnames[i]
             # ic(n, arg)
             self.fullargdict[n] = arg
-            if isinstance(arg, (_Signal, Array)) or _isMem(arg):
+            if isinstance(arg, (_Signal, Array, Parameter)) or _isMem(arg):
                 self.argdict[n] = arg
 
         for n in self.argnames[i + 1:]:

@@ -202,23 +202,23 @@ The `block` decorator
  		   *use_clauses*  
  		   VHDL only; this attribute can be used to list specific declararations of a 
  		   previously defined `user` library
-    	
 
-      Verification interface
-      ~~~~~~~~~~~~~~~~~~~~~~
 
-      MyHDL provides an interface to verify converted designs. 
-      This is used extensively in the package itself to verify the conversion
-      functionality. This capability is exported by the package so that users
-      can use it also.
+Verification interface
+^^^^^^^^^^^^^^^^^^^^^^
 
-      .. method:: <block_instance>.verify_convert()
+       MyHDL provides an interface to verify converted designs. 
+       This is used extensively in the package itself to verify the conversion
+       functionality. This capability is exported by the package so that users
+       can use it also.
 
-      Verify conversion output, by comparing target HDL simulation log with MyHDL simulation log.   
+       .. method:: <block_instance>.verify_convert()
 
-      .. method:: <block_instance>.analyze_convert()
+       Verify conversion output, by comparing target HDL simulation log with MyHDL simulation log.   
 
-      Analyze conversion output by compilation with target HDL compiler.   
+       .. method:: <block_instance>.analyze_convert()
+
+       Analyze conversion output by compilation with target HDL compiler.   
 
 .. _ref-sig:
 
@@ -407,7 +407,7 @@ OpenPort signals
 	and thus remove these warnings
 
 The :class:`Array` type
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^
 
     .. class:: Array()
 
@@ -417,13 +417,31 @@ The :class:`Array` type
 	
 	.. class:: Array(*args)
 	
-	The `\*args` allows us to instantiate an :class:`Array` in different ways: ::
+	The `\*args` allows us to instantiate an Array in different ways: ::
 	
 	   myarray = Array([Signal(intbv(0)[W:] for __ in range(N)])  # simply encapsulates a `ListOfSignals` simplifying future migration as we deprecate the `ListOfSignals` and will make it obsolete 
-	   myarray = Array(N, Signal(intbv(0)[W:])  # a one-dimensional Array can do with an :class:`int` in stead of a :class:`tuple` of :class:`int` 
+	   myarray = Array(N, Signal(intbv(0)[W:])  # a one-dimensional Array can do with an :class:`int` in stead of a :class:`tuple` of :class:`int` to define the shape
 	   myarray = Array((N,), Signal(intbv(0)[W:])
 	
-	all have the same result
+	all result in an Array of N elements.
+	
+	A multidimensional Array: ::
+	
+	   my2Darray = Array((3,3), SIgnal(intbv(0)[W:]))
+	   
+	Instantiating an Array with initial values ::
+	
+	   initialisedarray = Array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], Signal(intbv(0)[8:]))
+
+The :class:`Parameter` type
+^^^^^^^^^^^^^^^^^^^^^^^^^^^	
+	.. class:: Parameter()
+
+	This type allows us to decrease the *magic* numbers in converted designs.
+	
+	Currently it is limited to only accept an class::`int` argument.
+	When you suppply a class::`Parameter` as the argument to declare a class::`Signal`
+	a `Signal(intbv(0)[widthr(PARAMETER_SPEC):])` will show up in the converted code.
 	
 .. _ref-gen:
 
@@ -939,6 +957,9 @@ MyHDL
    nets) in the HDL simulator and signals in the MyHDL simulator. Each keyword
    should be a name listed in a ``$to_myhdl`` or ``$from_myhdl`` call in the HDL
    code. Each argument should be a :class:`Signal` declared in the MyHDL code.
+   
+   This object is most likely not used directly but called upon by helper functions that 
+   simplify setting up cosimulation considerably. 
 
 
 .. _ref-cosim-verilog:

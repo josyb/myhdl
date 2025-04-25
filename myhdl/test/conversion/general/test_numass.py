@@ -50,4 +50,10 @@ def NumassBench():
 
 
 def test_numass():
-    assert conversion.verify(NumassBench()) == 0
+    # old method - before `block`
+    # assert conversion.verify(NumassBench()) == 0
+    # with `block`
+    # dfa = NumassBench()
+    # assert dfa.verify_convert() == 0
+    # and a one-liner ...
+    assert NumassBench().verify_convert() == 0

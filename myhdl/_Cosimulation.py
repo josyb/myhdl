@@ -24,9 +24,15 @@ import os
 import subprocess
 from os import set_inheritable
 
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl._intbv import intbv
 from myhdl._fixbv import fixbv, _FixbvResult
 from myhdl import _simulator, CosimulationError
+from myhdl._enum import EnumType, EnumItemType
 
 _MAXLINE = 4096
 
@@ -50,6 +56,7 @@ class Cosimulation(object):
 
     def __init__(self, exe="", **kwargs):
         """ Construct a cosimulation object. """
+        ic(kwargs)
         rt, wt = os.pipe()
         rf, wf = os.pipe()
 
@@ -163,24 +170,33 @@ class Cosimulation(object):
                     if s._nrbits and s._min is not None and s._min < 0:
                         if ival >= (1 << (s._nrbits - 1)):
                             ival |= (-1 << s._nrbits)
-            
+
                 except ValueError:
                     ival = intbv(0)
-                nextval = _FixbvResult(ival / 2**s.fractionalbits, ival, s.fractionalbits)
+                nextval = _FixbvResult(ival / 2 ** s.fractionalbits, ival, s.fractionalbits)
+
+            elif isinstance(s._val, (EnumType, EnumItemType)):
+                # must transform `v` into an EnumItemType ...
+                #  'v' holds the 'code'
+                # now find represented value
+                # kinda 'val(x) in VHDL
+                nextval = s._val._type.item(v)
+                # ic(repr(s), repr(v) , nextval)
+
             else:
                 if v in 'zZ':
                     nextval = None
-                
+
                 elif v in 'xX':
                     nextval = s._init
-                
+
                 else:
                     try:
                         nextval = int(v, 16)
                         if s._nrbits and s._min is not None and s._min < 0:
                             if nextval >= (1 << (s._nrbits - 1)):
                                 nextval |= (-1 << s._nrbits)
-                
+
                     except ValueError:
                         nextval = intbv(0)
 

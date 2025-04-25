@@ -84,6 +84,7 @@ class VerilogWriter(object):
                  "comment",
                  "directory",
                  "path",
+                 "parent",
                  "filename",
                  "ind",
                  "ConvertAlwaysVisitor",
@@ -108,6 +109,7 @@ class VerilogWriter(object):
         self.initial_values = False
         self.usercode = _UserVerilogCode
         self.ind = ''
+        self.parent = None
         for key, value in kwargs.items():
             if key in ['trace', 'initial_values', 'hierarchical']:
                 setattr(self, key, value)
@@ -125,7 +127,7 @@ class VerilogWriter(object):
         self.path = os.path.join(directory, self.filename)
         setattr(self, 'file', open(self.path, 'w'))
 
-    def writePackages(self, directory):
+    def writePackages(self, directory, _enumPortTypeSet):
         pass
 
     def writeFileHeader(self, sourcepath):
@@ -321,6 +323,12 @@ class VerilogWriter(object):
             else:
                 args.append(f"\n        .{arg}({signame})")
         return "".join((s, ",".join(args), "\n        );\n\n"))
+
+    def writeFuncDecls(self):
+        pass
+
+    def writeTypeDefs(self):
+        pass
 
     def writeDecls(self, intf, siglist, memlist):
         ic(intf, siglist, memlist)

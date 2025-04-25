@@ -268,11 +268,18 @@ def _writeVcdSigs(f, hierarchy, tracelists):
                         #  print "30-04-2014 jb: Representing enum as string"  # leave a trace
                         # TODO: re-visit string output in .vcd?
                         vcdtype = 'string'
+                        ww = sval._nrbits
                     else:
                         vcdtype = 'reg'
                 else:
-                    vcdtype = 'real'
-                    ww = 1
+                    if isinstance(sig.val, int):
+                        vcdtype = 'integer'
+                        ww = 32
+                    else:
+                        # defaulting ..
+                        # if isinstance(sig.val, float):
+                        vcdtype = 'real'
+                        ww = 1
 
                 if isinstance(sig.val, fixbv):
                     print(f"{' '*indent}$var {vcdtype} {ww} {sig._code[0]} {signame}_vector $end", file=f)

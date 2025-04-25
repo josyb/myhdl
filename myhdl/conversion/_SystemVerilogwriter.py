@@ -61,7 +61,7 @@ from myhdl._modbv import modbv
 from myhdl._openport import OpenPort
 from myhdl._parameter import  Parameter
 from myhdl._simulator import now
-from myhdl.conversion._analyze import (_Ram, _Rom)
+from myhdl.conversion._analyze import (_Ram, _Rom, _enumTypeSet)
 from myhdl.conversion._misc import (_error, _makeDoc, getutcdatetime, _kind,
                                     _context, _ConversionMixin,
                                     _Label, _isConstant)
@@ -83,6 +83,7 @@ class SystemVerilogWriter(object):
                  "hdl",
                  "comment",
                  "directory",
+                 "parent",
                  "path",
                  "filename",
                  "ind",
@@ -110,6 +111,7 @@ class SystemVerilogWriter(object):
         self.usercode = _UserVerilogCode
         self.ind = ''
         self.sourcepath = None
+        self.parent = None
         for key, value in kwargs.items():
             if key in ['trace', 'initial_values', 'hierarchical']:
                 setattr(self, key, value)
@@ -127,8 +129,14 @@ class SystemVerilogWriter(object):
         self.path = os.path.join(directory, self.filename)
         setattr(self, 'file', open(self.path, 'w'))
 
-    def writePackages(self, directory):
-        pass
+    def writePackages(self, directory, _enumPortTypeSet):
+        if len(_enumPortTypeSet):
+            ppath = os.path.join(directory, self.parent + '_pkg.sv')
+            with open(ppath, 'w') as fp:
+                print(f"package {self.parent}_pkg;\n\n", file=fp)
+                for item in _enumPortTypeSet:
+                    self._writeEnum(item, fp)
+                print(f"\nendpackage: {self.parent}_pkg\n", file=fp)
 
     def writeFileHeader(self, sourcepath):
         vvars = dict(filename=self.filename,
@@ -155,6 +163,12 @@ class SystemVerilogWriter(object):
                 return f"real  {p}{r}{name} {n}"
             else:
                 return f"logic {p}{r}{name} {n}"
+        elif isinstance(sigorport, _Signal):
+            # ic(name, repr(sigorport), repr(sigorport._val))
+            if isinstance(sigorport._val, EnumItemType):
+                return f"{sigorport._val._type._name} {name}"
+            else:
+                return f"logic {p}{r}{name}"
 
         elif isinstance(sigorport, _TristateSignal):
             return f"wire {p}{r}{name}"
@@ -163,6 +177,7 @@ class SystemVerilogWriter(object):
             return f"real  {p}{r}{name}"
 
         else:
+            # TODO: should never get here?
             return f"logic {p}{r}{name}"
 
     def writeModuleHeader(self, intf, sourcepath):
@@ -181,14 +196,20 @@ class SystemVerilogWriter(object):
                 # insert a Verilog parameter
                 parameters.append(f"{portname} = {s.value}")
 
+        print(f"module {intf.name} ", file=self.file)
+        if intf.needsyspkg:
+            # comes first if needed
+            print(f"    import myhdl_pkg::*;", file=self.file)
+        if intf.needprojectpck:
+            # all needed declarations are collected in a single package
+            print(f"    import {self.parent}_pkg::*;", file=self.file)
         if len(parameters):
             # inser a parameter section
-            print(f"module {intf.name} ", file=self.file)
             print("    #( parameter", file=self.file)
-            print('       ' + '        ,\n'.join(parameters), file=self.file)
+            print('      ' + '        ,\n'.join(parameters), file=self.file)
             print("    ) (", file=self.file)
         else:
-            print(f"module {intf.name} (", file=self.file)
+            print("    (", file=self.file)
 
         subnames = [sub.name for sub in intf.subs]
         # ic(subnames)
@@ -322,13 +343,13 @@ class SystemVerilogWriter(object):
         # first look for parameters
         parameters = []
         for i, arg in enumerate(sub.argnames):
-            arg = sub.sigdict[i]
-            if isinstance(arg, Parameter):
-                ic(repr(arg), vars(arg))
-                if arg.parent is None:
-                    parameters.append(f'.{arg}({arg.val})')
+            obj = sub.sigdict[i]
+            if isinstance(obj, Parameter):
+                ic(repr(obj), vars(obj))
+                if obj.parent is None:
+                    parameters.append(f'.{arg}({obj})')
                 else:
-                    ppar = arg.parent
+                    ppar = obj.parent
                     while ppar.parent is not None:
                         ppar = ppar.parent
                     parameters.append(f'.{arg}({ppar})')
@@ -346,7 +367,7 @@ class SystemVerilogWriter(object):
 
             # signame = f'{sub.sigdict[i]}'
             if isinstance(obj, (_Signal, Array)):
-                ic(i, arg, obj._info)
+                # ic(i, arg, obj._info)
                 if isinstance(obj, _Signal):
                     signame = f'{sub.sigdict[i]}'
                 else:
@@ -379,11 +400,57 @@ class SystemVerilogWriter(object):
 
         return "".join((s, ",".join(args), "\n        );\n\n"))
 
+    def writeFuncDecls(self):
+        pass
+
+    def _writeEnum(self, e, f):
+        typename, names, codes, nrbits = e.reftype()
+        # TODO: re-vive _nameValid
+        # for name in names:
+        #     # watch out _nameValid() will add every name to a check-list
+        #     # which will force you to be inventive with state names ...
+        #     # e.g. the typical 'IDLE' can only be used once
+        #     # so let's pre-fix the enum name
+        #     # we could have modified _nameValid() to take a default boolean argument
+        #     _nameValid(''.join((typename, '.', name)))
+
+        ed = ",\n\t\t\t  ".join(names if codes is None else [f"{n} = {nrbits}'b{c}"  for n, c in zip(names, codes)])
+        td = ' ' if codes is None else f"logic [{nrbits} - 1:0]"
+
+        enumtypedecl = f"typedef enum {td} {{{ed}}} {typename};\n"
+        print(f'{enumtypedecl}', file=f)
+
+    def writeTypeDefs(self):
+        # ic(_enumTypeSet)
+        print('\n', file=self.file)
+        sortedList = list(_enumTypeSet)
+        sortedList.sort(key=lambda x: x._name)
+        for t in sortedList:
+    #         f.write("%s\n" % t._toVHDL())
+    #         typename, names, codes = t.reftype()
+    #         for name in names:
+    #             # watch out _nameValid() will add every name to a check-list
+    #             # which will force you to be inventive with state names ...
+    #             # e.g. the typical 'IDLE' can only be used once
+    #             # so let's pre-fix the enum name
+    #             # we could have modified _nameValid() to take a default boolean argument
+    #             _nameValid(''.join((typename, '.', name)))
+    #
+    #         enumtypedecl = "type %s is (\n\t" % typename
+    #         enumtypedecl += ",\n\t".join(names)
+    #         enumtypedecl += "\n\t);\n"
+    #         if codes is not None:
+    #             enumtypedecl += 'attribute enum_encoding of %s: type is "%s";\n' % (typename, codes)
+    #         f.write('{}'.format(enumtypedecl))
+            self._writeEnum(t, self.file)
+        # a final blank separator line
+        print('\n', file=self.file)
+
     def writeDecls(self, intf, siglist, memlist):
-        # ic(intf.name, siglist, memlist)
+        # ic(intf.name, intf.argnames, siglist, memlist)
         constwires = []
         for obj in siglist:
-            # ic(obj._info)
+            # ic(obj, obj._info)
             if not obj._used:
                 continue
 
@@ -393,6 +460,7 @@ class SystemVerilogWriter(object):
             else:
                 signame = obj._name
 
+            # ic(signame)
             if signame in intf.argnames:
                 continue
 
@@ -433,6 +501,12 @@ class SystemVerilogWriter(object):
                 else:
                     # discard
                     pass
+
+            elif isinstance(obj, Parameter):
+                # ic(obj._info)
+                r = _getRangeString(obj)
+                print(f"    localparam {r} {signame} = {obj.toSystemVerilog()};", file=self.file)
+
             else:
                 # a Signal
                 t = _getTypeNetString(obj)
@@ -452,7 +526,7 @@ class SystemVerilogWriter(object):
                         print(f"    {t} {p}{r}{signame};", file=self.file)
                     else:
                         if isinstance(obj._init, EnumItemType):
-                            print(f"    {t} {p}{r}{signame} = {obj._init._toVerilog()};", file=self.file)
+                            print(f"    {t} {p}{r}{signame} = {obj._init._toSystemVerilog()};", file=self.file)
                         else:
                             print(f"    {t} {p}{r}{signame} = {_intRepr(obj._init)};", file=self.file)
 
@@ -474,7 +548,10 @@ class SystemVerilogWriter(object):
                         else:
                             # intbv
                             # print(f"    const logic {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
-                            print(f"    localparam {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            if obj._nrbits:
+                                print(f"    localparam {r}{obj} = {c_len}'d{c_str};  // {hex(c)}", file=self.file)
+                            else:
+                                print(f"    localparam {obj} = {int(obj.val)};  // {hex(c)}", file=self.file)
 
                     else:
                         # the original exception
@@ -508,12 +585,13 @@ class SystemVerilogWriter(object):
                             print(f"    logic {p}{r}{signame};", file=self.file)
                         else:
                             if isinstance(obj._init, EnumItemType):
-                                print(f"    logic {p}{r}{signame} = {obj._init._toVerilog()};", file=self.file)
+                                print(f"    logic {p}{r}{signame} = {obj._init._toSystemVerilog()};", file=self.file)
                             else:
                                 print(f"    logic {p}{r}{signame} = {_intRepr(obj._init)};", file=self.file)
 
         for m in memlist:
-            ic(m._info)
+            # ic(m._info)
+
             if not m._used:
                 continue
 
@@ -530,8 +608,11 @@ class SystemVerilogWriter(object):
             if not m._driven and not m._read:
                 continue
 
+            ic(m.elObj._info)
+            t = _getTypeNetString(m.elObj)
             r = _getRangeString(m.elObj)
             p = _getSignString(m.elObj)
+
             # TODO: iverilog only has limited support fore  Array assignment
             if 0:
                 if m._driven:
@@ -589,7 +670,12 @@ class SystemVerilogWriter(object):
                     #     vals.append('{}\'d{}'.format(w, _intRepr(s._init)))
                     #
                     # print('localparam {} {} {} [0:{}-1] = \'{{{}}};'.format(p, r, m.name, m.depth, ', '.join(vals)), file=self.file)
-                    print(f'reg {p}{r} {m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
+                    # print(f'reg {p}{r} {m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
+                    if isinstance(m.elObj._init, EnumItemType):
+                        print(f'{t} {p}{r}{m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
+                    else:
+                        print(f'reg {p}{r} {m.name} [0:{m.depth} - 1];'.format(p, r, m.name, m.depth), file=self.file)
+
                     val_assignments = '\n'.join(
                             [f'    {m.name}[{n}] <= {_intRepr(each._init)};' for n, each in enumerate(m.mem)])
 
@@ -640,6 +726,14 @@ class SystemVerilogWriter(object):
             # ic(f, intf)
             print(f"module tb_{intf.name}_cosim;", file=f)
             print(file=f)
+
+            if intf.needsyspkg:
+                # comes first if needed
+                print(f"    import myhdl_pkg::*;\n", file=f)
+            if intf.needprojectpck:
+                # all needed declarations are collected in a single package
+                print(f"    import {self.parent}_pkg::*;\n", file=f)
+
             fr = StringIO()
             to = StringIO()
             pm = StringIO()
@@ -661,11 +755,18 @@ class SystemVerilogWriter(object):
                         continue
 
                     r = _getRangeString(s)
+
                     if s._driven:
-                        print(f"    wire {r}{portname};", file=f)
+                        if isinstance(s._val, EnumItemType):
+                            print(f"    {s._val._type._name} {portname};", file=f)
+                        else:
+                            print(f"    wire {r}{portname};", file=f)
                         print(f"            {portname},", file=to)
                     else:
-                        print(f"    logic {r}{portname};", file=f)
+                        if isinstance(s._val, EnumItemType):
+                            print(f"    {s._val._type._name} {portname};", file=f)
+                        else:
+                            print(f"    logic {r}{portname};", file=f)
                         print(f"            {portname},", file=fr)
                     print(f"        .{portname}({portname}),", file=pm)
                     # print(f"    {portname},", file=pm)
@@ -767,31 +868,41 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         return _intRepr(n, radix)
 
     def writeDeclaration(self, obj, name, direction):
+        ic(repr(obj), name, direction)
         if direction:
             direction = direction + ' '
+
         if type(obj) is bool:
             self.write("{}{}".format(direction, name))
+
         elif isinstance(obj, int):
             if direction == "input ":
                 self.write("input {};".format(name))
                 self.writeline()
             self.write("integer {}".format(name))
+
         elif isinstance(obj, _Ram):
             self.write("logic [{}-1:0] {} [0:{}-1]".format(obj.elObj._nrbits, name, obj.depth))
+
         elif hasattr(obj, '_nrbits'):
-            s = ""
-            if isinstance(obj, (intbv, _Signal)):
+            ic(obj)
+            if isinstance(obj, EnumItemType):
+                self.write("{} {}".format(obj._type._name, name))
+            elif isinstance(obj, (intbv, _Signal)):
+                s = ""
                 if obj._min is not None and obj._min < 0:
                     s = "signed "
-            self.write("{}{}[{}-1:0] {}".format(direction, s, obj._nrbits, name))
+                self.write("{}{}[{}-1:0] {}".format(direction, s, obj._nrbits, name))
+
         else:
+
             raise AssertionError("var {} has unexpected type {}".format(name, type(obj)))
         # initialize regs
         # if direction == 'reg ' and not isinstance(obj, _Ram):
         # disable for ever
         if False:
             if isinstance(obj, EnumItemType):
-                inival = obj._toVerilog()
+                inival = obj._toSystemVerilog()
             else:
                 inival = int(obj)
             self.write(" = {};".format(inival))
@@ -820,9 +931,9 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write("@(")
         # ic((senslist))
         for e in senslist[:-1]:
-            self.write(e._toVerilog())
+            self.write(e._toSystemVerilog())
             self.write(sep)
-        self.write(senslist[-1]._toVerilog())
+        self.write(senslist[-1]._toSystemVerilog())
         self.write(")")
 
     def visit_BinOp(self, node):
@@ -918,7 +1029,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         if isinstance(obj, EnumType):
             assert hasattr(obj, node.attr)
             e = getattr(obj, node.attr)
-            self.write(e._toVerilog())
+            self.write(e._toSystemVerilog())
 
     def visit_Assert(self, node):
         # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
@@ -1075,7 +1186,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             opening, closing = ' ', ''
             self.write(f.__name__)
         elif f is concat:
-            ic(astdump(node, show_offsets=False), (vars(node)))
+            # ic(astdump(node, show_offsets=False), (vars(node)))
             opening, closing = '{', '}'
         elif f is delay:
             self.visit(node.args[0])
@@ -1084,6 +1195,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.write(node.tree.name)
         else:
             self.write(f.__name__)
+
         if node.args:
             self.write(opening)
             self.visit(node.args[0])
@@ -1112,7 +1224,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.context = None
 
     def visit_Constant(self, node):
-        ic(astdump(node, show_offsets=False), (vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         if node.value is None:
             # NameConstant
             self.write(nameconstant_map[node.obj])
@@ -1284,7 +1396,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         obj = self.getObj(item)
 
         if isinstance(obj, EnumItemType):
-            itemRepr = obj._toVerilog()
+            itemRepr = obj._toSystemVerilog()
         else:
             itemRepr = self.IntRepr(item.value, radix='hex')
 
@@ -1335,7 +1447,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
             self.writeline()
             item = test.case[1]
             if isinstance(item, EnumItemType):
-                self.write(item._toVerilog())
+                self.write(item._toSystemVerilog())
             else:
                 self.write(self.IntRepr(item, radix='hex'))
             self.write(": begin")
@@ -1426,7 +1538,7 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
         self.write(node.id)
 
     def getName(self, node):
-        # ic(self.__class__.__name__, astdump(node, show_offsets=False), (vars(node)))
+        # ic(astdump(node, show_offsets=False), (vars(node)))
         n = node.id
         addSignBit = False
         isMixedExpr = (not node.signed) and (self.context == _context.SIGNED)
@@ -1468,13 +1580,19 @@ class _ConvertVisitor(ast.NodeVisitor, _ConversionMixin):
                 s = m.name
 
             elif isinstance(obj, EnumItemType):
-                s = obj._toVerilog()
+                s = obj._toSystemVerilog()
 
             elif (type(obj) in (type,)) and issubclass(obj, Exception):
                 s = n
 
+            elif isinstance(obj, (EnumType, EnumItemType)):
+                s = n
+
+            elif isinstance(obj, Parameter):
+                s = str(obj)
+
             else:
-                ic(self.tree.symdict)
+                ic(n, self.tree.symdict)
                 self.raiseError(node, _error.UnsupportedType, "{}, {} {}".format(n, type(obj), obj))
 
         else:
@@ -1824,7 +1942,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             self.writeline()
             self.write("if ({} == {}) begin".format(reset, int(reset.active)))
             self.indent()
-            ic(sigregs)
+            # ic(sigregs)
             for s in sigregs:
                 if isinstance(s, OpenPort):
                     # skip
@@ -1874,7 +1992,7 @@ class _ConvertAlwaysSeqVisitor(_ConvertVisitor):
             init = int(init)  # int representation
             v = "{}".format(init) if init is not None else "'bz"
         elif isinstance(init, EnumItemType):
-            v = init._toVerilog()
+            v = init._toSystemVerilog()
 
         else:
             # TODO: replace with ConversionError?
@@ -2006,11 +2124,33 @@ def _getPortStrings(s):
     # return t,r,s
 def _getRangeString(s):
     obj = s._dtype if isinstance(s, Array) else s
+    # ic(obj, obj._info, obj._type, obj._type is intbv)
     if obj._type is bool or obj._type is float:
         return ''
+
+    # elif obj._type is intbv and obj._val._upper:
+    #     ic(obj, obj._val._upper)
+    #     return f"[{obj._val._upper._name} - 1 : 0] "
+
+    elif isinstance(obj._val, EnumItemType):
+        return ''
+
+    elif isinstance(obj, Parameter):
+        if  isinstance(obj._val, intbv) and obj._val._nrbits:
+            nrbits = obj._val._nrbits
+            return f"logic [{nrbits} - 1:0] "
+        else:
+            return ''
+
+    elif hasattr(obj, '_parameter'):
+        if obj._type is intbv:
+            # this is the only choice I believe
+            return f"[widthr({obj._parameter._name}) - 1:0] "
+
     elif obj._nrbits is not None:
         nrbits = obj._nrbits
         return f"[{nrbits} - 1:0] "
+
     else:
         raise AssertionError
 
@@ -2033,6 +2173,10 @@ def _getSignString(s):
 def _getTypeNetString(s):
     if isinstance(s, Array):
         return 'real '  if s._dtype._type is float else 'logic'
+
+    elif isinstance(s._val, EnumItemType):
+        return s._val._type._name
+
     else:
         # must be a signal
         return 'logic'  if s._driven == 'reg' else 'wire '
@@ -2058,7 +2202,7 @@ def _intRepr(n, radix=''):
     # so we get the correct size and sign
 
     if isinstance(n, EnumItemType):
-        return n._toVerilog()
+        return n._toSystemVerilog()
     elif isinstance(n, bool):
         return '1' if n else '0'
     elif isinstance(n, int):

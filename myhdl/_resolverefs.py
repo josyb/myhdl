@@ -11,6 +11,7 @@ from myhdl._util import _flatten
 from myhdl._enum import EnumType
 from myhdl._Signal import SignalType
 from myhdl._structured import Array
+from myhdl._parameter import Parameter
 
 
 class Data():
@@ -72,6 +73,9 @@ class _AttrRefTransformer(ast.NodeTransformer):
 # TODO: may have to resolve down ...
         elif isinstance(obj, Array):
 #             print(obj, node.attr)
+            return node
+
+        elif isinstance(obj, Parameter):
             return node
 
         attrobj = getattr(obj, node.attr)

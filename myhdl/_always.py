@@ -33,6 +33,7 @@ from myhdl._structured import Array
 from myhdl._Waiter import _Waiter, _SignalWaiter, _SignalTupleWaiter, \
     _DelayWaiter, _EdgeWaiter, _EdgeTupleWaiter
 from myhdl._instance import _Instantiator, _getCallInfo
+from myhdl._parameter import Parameter
 
 
 class _error:
@@ -68,7 +69,7 @@ def always(*args):
     callinfo = _getCallInfo()
     sigargs = []
     for arg in args:
-        if isinstance(arg, (_Signal, Array)):
+        if isinstance(arg, (_Signal, Array, Parameter)):
             arg._read = True
             arg._used = True
             sigargs.append(arg)

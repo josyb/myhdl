@@ -17,6 +17,7 @@ except ImportError:
 from myhdl._intbv import intbv
 from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._structured import Array
+from myhdl._parameter import Parameter
 
 
 class _SigNameVisitor(ast.NodeVisitor):
@@ -75,7 +76,7 @@ class _SigNameVisitor(ast.NodeVisitor):
                 print(self.context)
                 raise AssertionError("bug in _SigNameVisitor")
 
-        if isinstance(s, (_Signal, Array)):
+        if isinstance(s, (_Signal, Array, Parameter)):
             self.sigdict[n] = s
 
         elif _isListOfSigs(s):

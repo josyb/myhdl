@@ -42,7 +42,7 @@ try:
     ic.configureOutput(argToStringFunction=pp.pformat, outputFunction=print, includeContext=True, contextAbsPath=True,
                    prefix='')
     ic.lineWrapWidth = preferredWidth
-    ic.disable()
+    # ic.disable()
 except ImportError:  # Graceful fallback if IceCream isn't installed.
     ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
 
@@ -52,7 +52,7 @@ from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._structured import Array
 from myhdl._block import _Block
 from myhdl._extractHierarchy import _isMem, _getMemInfo
-from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens
+from myhdl.conversion._analyze import _analyzeSigs, _analyzeGens, _enumTypeSet, EnumItemType
 from myhdl.conversion._hierarchical import (collectsubs, _HierarchicalInstance, _flattenhierarchy, _checkArgs,
                                             gethierarchicalmodulenames)
 from myhdl.conversion._misc import _genUniqueSuffix, _kind, _makeDoc, _error
@@ -62,6 +62,7 @@ from myhdl.conversion._Verilogwriter import VerilogWriter
 from myhdl.conversion._SystemVerilogwriter import SystemVerilogWriter
 
 _converting = 0
+_enumPortTypeSet = set()
 
 
 class Converter(object):
@@ -106,6 +107,7 @@ class Converter(object):
         _converting = 1
         if self.name is None:
             self.name = func.func.__name__
+        self.writer.parent = self.name
 
         # ic(self.name)
 
@@ -120,6 +122,8 @@ class Converter(object):
 
         ### initialize properly ###
         _genUniqueSuffix.reset()
+        _enumTypeSet.clear()
+        _enumPortTypeSet.clear()
 
         if self.hierarchical:
             ic("Going hierarchical!")
@@ -148,7 +152,7 @@ class Converter(object):
                 # ic(ll, (ha[ll]))
                 for bb in ha[ll]:
                     target = bb.blocksubs
-                    ic(target.name, vars(target))
+                    # ic(target.name, vars(target))
                     # ic('======================================', bb)
                     # we normally only need one level of hierarchy
                     # unless we choose to flatten a part of the code
@@ -195,7 +199,7 @@ class Converter(object):
                     # so whave to reset the ._driven for these specific signals only
                     # ic((target.sigdict))
 
-                    siglist, memlist = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
+                    siglist, memlist, needsyspkg = _analyzeSigs(bbh.hierarchy, hdl=self.hdl)
                     # info = [(id(item), repr(item), item._driven, item._read) for item in siglist]
                     # ic(info)
 
@@ -204,7 +208,7 @@ class Converter(object):
                     # ic(ll, bb.instancename, siglistinfo, target, target)
 
                     for __, obj in target.sigdict.items():
-                        ic(obj._info)
+                        # ic(obj._info)
                         if not obj._used:
                             continue
                         if ll:
@@ -223,14 +227,15 @@ class Converter(object):
                         bb.instancename = self.name
 
                     # ic(ll, bb.instancename, bbh, target, siglist, memlist, genlist, subsoutputports, subsinputports)
-                    res = self._convert(ll, bb.instancename, bbh, target, siglist, memlist, genlist, subsoutputports, subsinputports)
+                    res = self._convert(ll, bb.instancename, bbh, target, siglist, memlist, needsyspkg,
+                                        genlist, subsoutputports, subsinputports)
                     # build the 'placeholder' information for this block
                     # as it may be called upon by the next higher code level
                     # save the converted block information
                     sl = []
                     argoutports = {}
                     arginports = {}
-                    ic(res.argnames, res.argdict, res.sigdict)
+                    # ic(res.argnames, res.argdict, res.sigdict)
                     for argname in res.argnames:
                         s = res.argdict[argname]
                         sl.append(s)
@@ -256,7 +261,7 @@ class Converter(object):
                     # ic(argportsinfo)
                     # ic(argnames, sl, argoutports)
                     if ll:
-                        ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
+                        # ic(bb.instancename, res, res.argnames, res.argdict, res.sigdict, sl, argoutports, arginports)
                         modules[bb.instancename] = _HierarchicalInstance(self.writer, bb.instancename, res.argnames, sl, argoutports, arginports)
 
                     ### clean-up properly ###
@@ -304,18 +309,18 @@ class Converter(object):
             _checkArgs(arglist)
             genlist = _analyzeGens(arglist, h.absnames)
             # ic(genlist)
-            siglist, memlist = _analyzeSigs(h.hierarchy, hdl=self.hdl)
+            siglist, memlist, needsyspkg = _analyzeSigs(h.hierarchy, hdl=self.hdl)
             # ic(siglist, memlist)
             # ic(h, h.top, h.hierarchy)
             # generic annotate for 'all' target HDLs
             _annotateTypes(self.hdl, genlist)
 
-            self._convert(0, self.name, h, func, siglist, memlist, genlist)
+            self._convert(0, self.name, h, func, siglist, memlist, needsyspkg, genlist)
 
         _converting = 0
         return h.top
 
-    def _convert(self, level, name, h, func, siglist, memlist, genlist, subsoutputports=None, subsinputports=None):
+    def _convert(self, level, name, h, func, siglist, memlist, needsyspkg, genlist, subsoutputports=None, subsinputports=None):
 
         # ic(level, name, h, func, func.args, siglist, memlist, genlist)
         # finally
@@ -353,6 +358,34 @@ class Converter(object):
         intf = func
         intf.name = name
 
+        # insert the supporting package import?
+        intf.needsyspkg = needsyspkg
+        # sanity checks on interface
+        intf.needprojectpck = False
+        for portname in intf.argnames:
+            s = intf.argdict[portname]
+            # ic(repr(s), _isMem(s))
+            if _isMem(s):
+                pass
+            elif isinstance(s, Array):
+                pass
+            else:
+                if s._name is None:
+                    raise ConversionError(_error.ShadowingSignal, portname)
+                # TODO: re-check?
+                # we allow list as port ...
+                # if s._inList:
+                #     raise ConversionError(_error.PortInList, portname)
+                # add enum types to port-related set
+                if isinstance(s._val, EnumItemType):
+                    intf.needprojectpck = True
+                    obj = s._val._type
+                    if obj in _enumTypeSet:
+                        _enumTypeSet.remove(obj)
+                        _enumPortTypeSet.add(obj)
+                    else:
+                        assert obj in _enumPortTypeSet
+
         if self.hierarchical:
             if  level == 0 or level == self.hierarchical or intf.endhierarchy:
                 for __, arg in intf.argdict.items():
@@ -389,26 +422,27 @@ class Converter(object):
         self._convert_filter(h, intf, doc, siglist, memlist, genlist)
 
         # all this gets delegated to the respective writer
-        self.writer.writePackages(self.directory)
+        if level == 0:
+            self.writer.writePackages(self.directory, _enumPortTypeSet)
         self.writer.writeModuleHeader(intf, func.filename)
+        self.writer.writeFuncDecls()
+        self.writer.writeTypeDefs()
         self.writer.writeDecls(intf, siglist, memlist)
-
         self._convertGens(genlist)
-
         # almost done
         self.writer.writeModuleFooter()
 
-        if level == 0:
-            # build portmap for cosimulation (but only for toplevel)
-            portmap = {}
-            for n, s in intf.argdict.items():
-                if hasattr(s, 'driver'):
-                    # tristate signal !!
-                    # confusing with _driver in hierachical
-                    portmap[n] = s.driver()
-                else:
-                    portmap[n] = s
-            self.writer.portmap = portmap
+        # if level == 0:
+        #     # build portmap for cosimulation (but only for toplevel)
+        #     portmap = {}
+        #     for n, s in intf.argdict.items():
+        #         if hasattr(s, 'driver'):
+        #             # tristate signal !!
+        #             # confusing with _driver in hierachical
+        #             portmap[n] = s.driver()
+        #         else:
+        #             portmap[n] = s
+        #     self.writer.portmap = portmap
 
         self.writer.close()
 

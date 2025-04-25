@@ -21,7 +21,6 @@
 
 import inspect
 
-# from functools import wraps
 import functools
 
 try:
@@ -40,6 +39,7 @@ from myhdl._Signal import _Signal, _isListOfSigs
 from myhdl._structured import Array
 from myhdl._misc import isboundmethod, updatesymdict, getsymdict
 from myhdl._hdlclass import HdlClass
+from myhdl._parameter import Parameter
 
 from weakref import WeakValueDictionary
 
@@ -54,11 +54,12 @@ _error.InstanceError = "%s: subblock %s should be encapsulated in a block decora
 
 class _CallInfo(object):
 
-    def __init__(self, name, modctxt, symdict, filename):
+    def __init__(self, name, modctxt, symdict, filename, instancename):
         self.name = name
         self.modctxt = modctxt
         self.symdict = symdict
         self.filename = filename
+        self.instancename = instancename
 
 
 def _getCallInfo(hdlclass):
@@ -80,10 +81,6 @@ def _getCallInfo(hdlclass):
 
     """
 
-    # if hdlclass is not None:
-    #     FUNCREC = 4
-    # else:
-    #     FUNCREC = 3
     FUNCREC = 3
 
     stack = inspect.stack()
@@ -100,6 +97,21 @@ def _getCallInfo(hdlclass):
             callerrec = stack[5]
 
     name = funcrec[FUNCREC]  # redo as the <listcomp> may have disturbed us
+
+    instancename = None
+    info = stack[FUNCREC][4]
+    cc = info[0]
+    cc = cc.lstrip()
+    words = cc.split()
+    n = words[0]
+    if '[' in n:
+        n, __, __ = n.partition('[')
+        if n.isidentifier():
+            instancename = f"{n}_"  # add an underscore to signal 'numbering required'
+    else:
+        if n.isidentifier():
+            instancename = n
+
     frame = funcrec[0]
     filename = funcrec[1]
     symdict = getsymdict(frame.f_globals)
@@ -111,8 +123,7 @@ def _getCallInfo(hdlclass):
         if 'self' in f_locals:
             modctxt = isinstance(f_locals['self'], (block, _Block))
 
-    # ic(name, modctxt, symdict, filename)
-    return _CallInfo(name, modctxt, symdict, filename)
+    return _CallInfo(name, modctxt, symdict, filename, instancename)
 
 
 # ## I don't think this is the right place for uniqueifying the name.
@@ -157,8 +168,8 @@ class _bound_function_wrapper(object):
         self.name = None
 
     def __call__(self, *args, **kwargs):
-        # name = self.name_prefix + '_' + self.bound_func.__name__ +  str(self.calls)
         # See concerns above about uniqueifying
+        # ic(self.calls)
         name = _uniqueify_name(f'{self.name_prefix}_{self.bound_func.__name__}_{self.calls}')
         self.calls += 1
 
@@ -207,6 +218,7 @@ class block(object):
 
     def __call__(self, *args, **kwargs):
         # See concerns above about uniqueifying
+        # ic(self.calls, self.func.__name__)
         name = _uniqueify_name(f"{self.func.__name__}_{self.calls}")
         self.calls += 1
 
@@ -216,25 +228,11 @@ class block(object):
 class _Block(object):
 
     def __init__(self, func, deco, name, srcfile, srcline, *args, **kwargs):
-        # ic(func, deco, name, args, kwargs)
+        # ic(self, func, deco, name)
         # calls = deco.calls
 
         self.func = func
         self.hdlclass = None
-        # if isboundmethod(func):
-        #     if isinstance(func.__self__, HdlClass):
-        #         self.hdlclass = func.__self__  # make a backlink to the class
-        #         self.args = tuple([v for v in vars(func.__self__).values()])
-        #         self.kwargs = {}
-        #         ic(func.__name__, func.__self__, vars(func.__self__), self.args, self.kwargs)
-        #     else:
-        #         # some other classe see test\conversion\general\test_method.py
-        #         self.args = args
-        #         self.kwargs = kwargs
-        # else:
-        #     self.args = args
-        #     self.kwargs = kwargs
-
         if isboundmethod(func) and isinstance(func.__self__, HdlClass):
             self.hdlclass = func.__self__  # make a backlink to the class
             self.args = tuple([v for v in vars(func.__self__).values()])
@@ -254,7 +252,14 @@ class _Block(object):
         self.symdict = None
         self.sigdict = {}
         self.memdict = {}
-        self.name = self.__name__ = name
+        instancename = callinfo.instancename
+        if instancename:
+            if instancename[-1] == '_':
+                self.name = self.__name__ = f"{instancename}{deco.calls - 1}"
+            else:
+                self.name = self.__name__ = instancename
+        else:
+            self.name = self.__name__ = name
 
         # ic(func, deco, name, self.args, self.kwargs, self.callername)
         # this likely the best place to intercept 'ListOfSignals' object
@@ -277,7 +282,6 @@ class _Block(object):
         self.sim = None
         self.endhierarchy = False
         if hasattr(deco, 'verilog_code'):
-            # ic((self.symdict))
             self.verilog_code = _UserVerilogCode(deco.verilog_code, self.symdict, func.__name__,
                                                  func, srcfile, srcline)
         elif hasattr(deco, 'verilog_instance'):
@@ -291,9 +295,10 @@ class _Block(object):
                                                func, srcfile, srcline)
         self._config_sim = {'trace': False}
 
+        # ic(self)
+
     def _verifySubs(self):
         for inst in self.subs:
-            # ic(vars(inst))
             if not isinstance(inst, (_Block, _Instantiator, Cosimulation)):
                 raise BlockError(_error.ArgType % (self.name,))
             if isinstance(inst, (_Block, _Instantiator)):
@@ -318,7 +323,7 @@ class _Block(object):
                 # ic(self.symdict)
 
             if isinstance(inst, _Instantiator):
-                # ic(inst.sigdict, inst.losdict)
+                # ic(inst.sigdict)
                 usedsigdict.update(inst.sigdict)
                 usedlosdict.update(inst.losdict)
 
@@ -340,6 +345,12 @@ class _Block(object):
         # Infer sigdict and memdict, with compatibility patches from _extractHierarchy
         for n, v in self.symdict.items():
             if isinstance(v, (_Signal, Array)):
+                self.sigdict[n] = v
+                if n in usedsigdict:
+                    v._markUsed()
+
+            if isinstance(v, Parameter):
+                # ic(n, v)
                 self.sigdict[n] = v
                 if n in usedsigdict:
                     v._markUsed()
@@ -392,10 +403,12 @@ class _Block(object):
         _inst_name_set.clear()
 
     def verify_convert(self):
+        # TODO: add *args, **kwargs?
         self._clear()
         return myhdl.conversion.verify(self)
 
     def analyze_convert(self):
+        # TODO: add *args, **kwargs?
         self._clear()
         return myhdl.conversion.analyze(self)
 

@@ -20,6 +20,12 @@
 """ Module that implements enum.
 
 """
+
+try:
+    from icecream import ic
+except ImportError:  # Graceful fallback if IceCream isn't installed.
+    ic = lambda *a: None if not a else (a[0] if len(a) == 1 else a)  # noqa
+
 from myhdl._bin import bin
 from myhdl._Signal import _Signal
 # from myhdl.conversion._VHDLNameValidation import _nameValid
@@ -72,13 +78,13 @@ def enum(*names, **kwargs):
 
     class EnumItem(EnumItemType):
 
-        def __init__(self, index, name, val, type):
+        def __init__(self, index, name, val, parent):
             self._index = index
             self._name = name
             self._val = val
-            self._nrbits = type._nrbits
-            self._nritems = type._nritems
-            self._type = type
+            self._nrbits = parent._nrbits
+            self._nritems = parent._nritems
+            self._type = parent  # mus keep _type
 
         def __hash__(self):
             return hash((self._type, self._index))
@@ -105,6 +111,9 @@ def enum(*names, **kwargs):
                 elif encoding == "one_cold":
                     val = val.replace('1', '?')
             return "%d'b%s" % (self._nrbits, val)
+
+        def _toSystemVerilog(self):
+            return self._name
 
         def _toVHDL(self):
             return self._name
@@ -162,8 +171,22 @@ def enum(*names, **kwargs):
             return "<Enum: %s>" % ", ".join(self._names)
 
         def _setName(self, name):
-            typename = "t_enum_%s" % name
-            self.__dict__['_name'] = typename
+            # typename = "t_enum_%s" % name
+            # self.__dict__['_name'] = typename
+            self.__dict__['_name'] = name
+
+        def __getitem__(self, key):
+            assert not isinstance(key, slice)
+            return self.__dict__[self._names[int(key)]]
+
+        def item(self, code):
+            # unfortunately we must do a linear search?
+            # ic(repr(code))
+            for k, c in self._codedict.items():
+                # ic(code, k, c, int(c, 2))
+                # if int(c, 2) == int(code, 2):
+                if int(c, 2) == int(code):
+                    return self.__dict__[k]
 
 #         _toVHDL = __str__
 
@@ -190,7 +213,7 @@ def enum(*names, **kwargs):
             typename = self.__dict__['_name']
             codes = None
             if self._encoding is not None:
-                codes = " ".join([self._codedict[name] for name in self._names])
-            return (typename, (self._names) , codes)
+                codes = [self._codedict[name] for name in self._names]
+            return (typename, self._names , codes, self._nrbits)
 
     return Enum(names, codedict, nrbits, encoding)

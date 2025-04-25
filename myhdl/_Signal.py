@@ -40,6 +40,8 @@ from myhdl._simulator import _signals
 from myhdl._intbv import intbv
 from myhdl._fixbv import fixbv, _FixbvResult, mkival
 from myhdl._bin import bin
+from myhdl._parameter import Parameter
+from myhdl._hdllib import widthr
 
 _schedule = _futureEvents.append
 
@@ -71,6 +73,9 @@ class _PosedgeWaiterList(_WaiterList):
     def _toVerilog(self):
         return f"posedge {self.sig._name}"
 
+    def _toSystemVerilog(self):
+        return f"posedge {self.sig._name}"
+
     def _toVHDL(self):
         return f"rising_edge({self.sig._name})"
 
@@ -84,6 +89,9 @@ class _NegedgeWaiterList(_WaiterList):
         self.sig = sig
 
     def _toVerilog(self):
+        return f"negedge {self.sig._name}"
+
+    def _toSystemVerilog(self):
         return f"negedge {self.sig._name}"
 
     def _toVHDL(self):
@@ -130,6 +138,7 @@ class _Signal(object):
                  '_setNextVal', '_printVcd', '_driven', '_driver',
                  '_read', '_readers', '_name', '_used', '_inList', '_waiter',
                  'toVHDL', 'toVerilog', '_slicesigs', '_tracename',
+                 '_parameter'
                  )
 
     def __init__(self, val=None):
@@ -138,7 +147,18 @@ class _Signal(object):
         val -- initial value
 
         """
-        # ic(val, repr(val), type(val), type(val) is fixbv, isinstance(val, fixbv), isinstance(val, modbv), isinstance(val, intbv))
+
+        # we may get a Parameter to guide us
+        if isinstance(val, Parameter):
+            self._parameter = val  # only test wirh `.hasatrr()`!
+            assert isinstance(val._val, (int, intbv)), "Signal only accepts a Parameter`val` argument carrying either an integer value or an intbv"
+            if isinstance(val._val, intbv):
+                val = intbv(val._val)
+                val._val = 0
+            else:
+                val = intbv(0)[widthr(val._val):]
+
+        # ic(val, repr(val), type(val))
         self._init = deepcopy(val)
         self._val = deepcopy(val)
         self._next = deepcopy(val)
@@ -162,6 +182,7 @@ class _Signal(object):
         elif isinstance(val, int):
             self._type = (int,)
             self._setNextVal = self._setNextInt
+            self._printVcd = self._printVcdInt
 
         elif isinstance(val, fixbv):
             # ic(val)
@@ -347,6 +368,11 @@ class _Signal(object):
             val = val._val
         elif not isinstance(val, (int, intbv)):
             raise TypeError(f"Expected int or intbv, got {type(val)}")
+        # # we may want to check that we write HDL-acceptable values
+        # # which are 31 bits for unsigned int, aka 'natural' in VHDL
+        # # or 32 bits for signed int, aka 'integer' in VHDL
+        # if val < -2 ** 31 or val >= 2 ** 31:
+        #     raise ValueError(f"`int` value  with more than 31 bits absolute value are not handled by V* synthesis")
         self._next = val
 
     def _setNextIntbv(self, val):
@@ -354,6 +380,12 @@ class _Signal(object):
             nval = val._val
         elif isinstance(val, _FixbvResult):
             nval = val.vector
+        elif isinstance(val, Parameter):
+            if isinstance(val._val, intbv):
+                nval = val._val._val
+            else:
+                # should be an `int`
+                nval = val._val
         else:
             nval = val
 
@@ -415,6 +447,9 @@ class _Signal(object):
     def _printVcdFloat(self):
         print(f"r{self._val} {self._code}", file=sim._tf)
 
+    def _printVcdInt(self):
+        print(f"b{bin(self._val)} {self._code}", file=sim._tf)
+
     def _printVcdBit(self):
         if self._val is None:
             print(f"z{self._code}", file=sim._tf)
@@ -469,7 +504,7 @@ class _Signal(object):
     # integer-like methods
 
     def __add__(self, other):
-        if isinstance(other, _Signal):
+        if isinstance(other, (Parameter, _Signal)):
             return self._val + other._val
         else:
             return self._val + other
@@ -647,6 +682,9 @@ class _Signal(object):
             return f"Signal({repr(self._val)})"
 
     def _toVerilog(self):
+        return self._name
+
+    def _toSystemVerilog(self):
         return self._name
 
     # augmented assignment not supported

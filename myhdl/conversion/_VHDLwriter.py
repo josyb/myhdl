@@ -97,6 +97,7 @@ class VhdlWriter(object):
                  "no_myhdl_header",
                  "no_myhdl_package",
                  "no_testbench",
+                 "parent",
                  "path",
                  "portmap",
                  "radix",
@@ -138,6 +139,7 @@ class VhdlWriter(object):
         self._enumPortTypeSet = set()
         self.needPck = False
         self.dunder = 0
+        self.parent = None
 
         for key, value in kwargs.items():
             ic(f"{key} = {value}")
@@ -154,7 +156,7 @@ class VhdlWriter(object):
         path = os.path.join(directory, self.filename)
         setattr(self, 'file', open(path, 'w'))
 
-    def writePackages(self, directory):
+    def writePackages(self, directory, _enumPortTypeSet):
 #        # write MyHDL package always during development, as it may change
 #        pfile = None
 #        if not os.path.isfile(ppath):
@@ -243,6 +245,12 @@ class VhdlWriter(object):
         self.file.write(f"end entity {intf.name};\n")
         self.file.write(doc)
         self.file.write(f"\n\narchitecture {self.architecture} of {intf.name} is\n\n")
+
+    def writeFuncDecls(self):
+        pass
+
+    def writeTypeDefs(self):
+        pass
 
     def writeDecls(self, intf, siglist, memlist):
         # must handle all these
